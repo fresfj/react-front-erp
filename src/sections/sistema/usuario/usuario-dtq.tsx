@@ -4,12 +4,14 @@ import { Box, Link, Stack, Switch, Avatar, FormControlLabel } from '@mui/materia
 
 import { RouterLink } from "src/routes/components";
 
-import { paths } from '../../../../routes/paths';
-import { useGetUsuarios } from '../../../../api/usuarios';
-import { Label } from '../../../../components/label/label';
-import { DataTableQuery, useDataTableQuery } from '../../../../core/components/dataTable';
+import { paths } from 'src/routes/paths';
 
-import type { CustomColumn } from '../../../../core/types/customColumn';
+import { useGetUsuarios } from 'src/api/usuarios';
+import { DataTableQuery, useDataTableQuery } from 'src/core/components/dataTable';
+
+import { Label } from 'src/components/label/label';
+
+import type { CustomColumn } from 'src/core/types/customColumn';
 // ----------------------------------------------------------------------
 
 export default function UsuariosDTQ() {

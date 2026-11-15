@@ -1,8 +1,13 @@
+import { useMemo } from 'react';
+
 import { paths } from 'src/routes/paths';
 
+import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 
 import { SvgColor } from 'src/components/svg-color';
+
+import type { NavSectionProps } from 'src/components/nav-section';
 
 // ----------------------------------------------------------------------
 
@@ -19,45 +24,52 @@ const ICONS = {
 
 // ----------------------------------------------------------------------
 
-export const navData = [
-  {
-    subheader: 'Overview',
-    items: [{ title: 'App', path: paths.dashboard.root, icon: ICONS.dashboard }],
-  },
-  {
-    subheader: 'Management',
-    items: [
+export function useNavData(): NavSectionProps['data'] {
+  const { t } = useTranslate('common');
+
+  return useMemo(
+    () => [
       {
-        title: 'Administración',
-        path: paths.dashboard.sistema.empresa,
-        icon: ICONS.user,
-        children: [
-          { title: 'Empresa', path: paths.dashboard.sistema.empresa },
-          { title: 'Sucursales', path: paths.dashboard.sistema.sucursal },
-          { title: 'Usuarios', path: paths.dashboard.sistema.usuarios.list },
-        ],
+        subheader: t('nav.overview'),
+        items: [{ title: t('nav.app'), path: paths.dashboard.root, icon: ICONS.dashboard }],
       },
       {
-        title: 'Inventario',
-        path: paths.dashboard.inventario.productos.list,
-        icon: ICONS.product,
-        children: [
-          { title: 'Productos', path: paths.dashboard.inventario.productos.list },
-        ],
-      },
-      {
-        title: 'Auditoría',
-        path: paths.dashboard.auditoria.root,
-        icon: ICONS.lock,
-        roles: ['admin', 'gerente'],
-        children: [
+        subheader: t('nav.management'),
+        items: [
           {
-            title: 'Eventos',
-            path: paths.dashboard.auditoria.eventosAuditoria,
+            title: t('nav.administration'),
+            path: paths.dashboard.sistema.empresa,
+            icon: ICONS.user,
+            children: [
+              { title: t('nav.company'), path: paths.dashboard.sistema.empresa },
+              { title: t('nav.branches'), path: paths.dashboard.sistema.sucursal },
+              { title: t('nav.users'), path: paths.dashboard.sistema.usuarios.list },
+            ],
+          },
+          {
+            title: t('nav.inventory'),
+            path: paths.dashboard.inventario.productos.list,
+            icon: ICONS.product,
+            children: [
+              { title: t('nav.products'), path: paths.dashboard.inventario.productos.list },
+            ],
+          },
+          {
+            title: t('nav.audit'),
+            path: paths.dashboard.auditoria.root,
+            icon: ICONS.lock,
             roles: ['admin', 'gerente'],
+            children: [
+              {
+                title: t('nav.events'),
+                path: paths.dashboard.auditoria.eventosAuditoria,
+                roles: ['admin', 'gerente'],
+              },
+            ],
           },
         ],
       },
     ],
-  },
-];
+    [t]
+  );
+}

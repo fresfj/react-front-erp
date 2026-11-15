@@ -9,10 +9,10 @@ import UploadImage from 'src/core/components/upload/UploadImage';
 
 import { Label } from 'src/components/label';
 
-import { listDataPerfiles } from '../../../../api/usuarios';
+import { listDataPerfiles } from 'src/api/usuarios';
 
-import type { CustomColumn } from '../../../../core/types/customColumn';
-import type { UseFormTableReturnProps } from '../../../../core/components/form/types';
+import type { CustomColumn } from 'src/core/types/customColumn';
+import type { UseFormTableReturnProps } from 'src/core/components/form/types';
 
 // ----------------------------------------------------------------------
 
