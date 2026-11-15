@@ -1,7 +1,7 @@
 # Design: Fundação Firebase multi-tenant + offline + RBAC
 
 **Date:** 2026-11-14  
-**Status:** Approved in brainstorming (pending user review of this file)  
+**Status:** Approved — implementation plan at `docs/superpowers/plans/2026-11-14-firebase-tenant-offline-rbac.md`  
 **Product context:** ERP SaaS varejo & beneficiamento / PDV offline (see `docs/superpowers/plans/deepseek_markdown_20261115_78aa86.md`)  
 **This slice only:** foundation. Not PDV UI, not beneficiamento, not DRE, not Cloud Functions for claims.  
 **Relation to slim-security spec:** That doc targeted JWT-only shell hardening. Product direction for this ERP is **Firebase Auth + Firestore** (workspace rule). Existing HTTP/`FormTable` remains; new offline domain data goes to Firestore.
