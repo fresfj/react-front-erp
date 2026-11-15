@@ -10,7 +10,7 @@ import { CONFIG } from 'src/config-global';
 
 // ----------------------------------------------------------------------
 
-const isFirebase = CONFIG.auth.method === 'firebase';
+const isFirebase = false;
 
 export const firebaseApp = isFirebase ? initializeApp(CONFIG.firebase) : ({} as FirebaseApp);
 

@@ -6,7 +6,7 @@ import { CONFIG } from 'src/config-global';
 
 // ----------------------------------------------------------------------
 
-const isSupabase = CONFIG.auth.method === 'supabase';
+const isSupabase = false;
 
 const supabaseUrl = CONFIG.supabase.url;
 const supabaseKey = CONFIG.supabase.key;

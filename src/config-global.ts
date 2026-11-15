@@ -13,7 +13,7 @@ export type ConfigValue = {
     version: string;
   };
   auth: {
-    method: 'jwt' | 'amplify' | 'firebase' | 'supabase' | 'auth0';
+    method: 'jwt';
     skip: boolean;
     redirectPath: string;
   };
@@ -52,7 +52,7 @@ export const CONFIG: ConfigValue = {
   },
   /**
    * Auth
-   * @method jwt | amplify | firebase | supabase | auth0
+   * @method jwt
    */
   auth: {
     method: 'jwt',
@@ -101,8 +101,8 @@ export const CONFIG: ConfigValue = {
     key: import.meta.env.VITE_SUPABASE_ANON_KEY ?? '',
   },
   /**
-  * DateFormat
-  */
+   * DateFormat
+   */
   dateformat: {
     formatDateBdd: import.meta.env.VITE_FORMAT_DATE_BD ?? '',
     formatTimeBdd: import.meta.env.VITE_FORMAT_TIME_BD ?? '',
