@@ -1,8 +1,8 @@
 import Alert from '@mui/material/Alert';
 
-import { useTranslate } from 'src/locales';
-
 import { useOfflineStatus } from 'src/hooks/use-offline-status';
+
+import { useTranslate } from 'src/locales';
 
 export function OfflineBanner() {
   const { t } = useTranslate('common');
