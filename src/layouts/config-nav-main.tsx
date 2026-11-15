@@ -9,52 +9,10 @@ import { Iconify } from 'src/components/iconify';
 export const navData = [
   { title: 'Home', path: '/', icon: <Iconify width={22} icon="solar:home-2-bold-duotone" /> },
   {
-    title: 'Components',
-    path: paths.components,
-    icon: <Iconify width={22} icon="solar:atom-bold-duotone" />,
-  },
-  {
     title: 'Pages',
     path: '/pages',
     icon: <Iconify width={22} icon="solar:file-bold-duotone" />,
     children: [
-      {
-        subheader: 'Other',
-        items: [
-          { title: 'About us', path: paths.about },
-          { title: 'Contact us', path: paths.contact },
-          { title: 'FAQs', path: paths.faqs },
-          { title: 'Pricing', path: paths.pricing },
-          { title: 'Payment', path: paths.payment },
-          { title: 'Maintenance', path: paths.maintenance },
-          { title: 'Coming soon', path: paths.comingSoon },
-        ],
-      },
-      {
-        subheader: 'Concepts',
-        items: [
-          { title: 'Shop', path: paths.product.root },
-          { title: 'Product', path: paths.product.demo.details },
-          { title: 'Checkout', path: paths.product.checkout },
-          { title: 'Posts', path: paths.post.root },
-          { title: 'Post', path: paths.post.demo.details },
-        ],
-      },
-      {
-        subheader: 'Auth Demo',
-        items: [
-          { title: 'Sign in', path: '/auth-demo/split/sign-in' },
-          { title: 'Sign up', path: '/auth-demo/split/sign-up' },
-          { title: 'Reset password', path: '/auth-demo/split/reset-password' },
-          { title: 'Update password', path: '/auth-demo/split/update-password' },
-          { title: 'Verify', path: '/auth-demo/split/verify' },
-          { title: 'Sign in (centered)', path: '/auth-demo/centered/sign-in' },
-          { title: 'Sign up (centered)', path: '/auth-demo/centered/sign-up' },
-          { title: 'Reset password (centered)', path: '/auth-demo/centered/reset-password' },
-          { title: 'Update password (centered)', path: '/auth-demo/centered/update-password' },
-          { title: 'Verify (centered)', path: '/auth-demo/centered/verify' },
-        ],
-      },
       {
         subheader: 'Error',
         items: [

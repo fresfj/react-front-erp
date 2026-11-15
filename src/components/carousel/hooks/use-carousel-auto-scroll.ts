@@ -1,5 +1,7 @@
 import type { EmblaCarouselType } from 'embla-carousel';
 
+// Side-effect: registers Embla AutoScroll plugin typings (module augmentation).
+import 'embla-carousel-auto-scroll';
 import { useState, useEffect, useCallback } from 'react';
 
 import type { UseCarouselAutoPlayReturn } from '../types';
