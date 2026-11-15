@@ -28,6 +28,8 @@ import { LayoutSection } from '../core/layout-section';
 import { navData as dashboardNavData } from '../config-nav-dashboard';
 import { OfflineBanner } from '../components/offline-banner';
 
+import { useAuthContext } from 'src/auth/hooks';
+
 // ----------------------------------------------------------------------
 
 export type DashboardLayoutProps = {
@@ -51,6 +53,10 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
 
   const navData = data?.nav ?? dashboardNavData;
 
+  const { user } = useAuthContext();
+  const currentRole = typeof user?.role === 'string' ? user.role : undefined;
+  const navSlotProps = { currentRole };
+
   const isNavMini = settings.navLayout === 'mini';
 
   const isNavHorizontal = settings.navLayout === 'horizontal';
@@ -64,6 +70,7 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
         open={mobileNavOpen.value}
         onClose={mobileNavOpen.onFalse}
         cssVars={navColorVars.section}
+        slotProps={navSlotProps}
       />
 
       <LayoutSection
@@ -95,6 +102,7 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
                   data={navData}
                   layoutQuery={layoutQuery}
                   cssVars={navColorVars.section}
+                  slotProps={navSlotProps}
                 />
               ) : null,
             }}
@@ -149,6 +157,7 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
               isNavMini={isNavMini}
               layoutQuery={layoutQuery}
               cssVars={navColorVars.section}
+              slotProps={navSlotProps}
               onToggleNav={() =>
                 settings.onUpdateField(
                   'navLayout',

@@ -49,8 +49,13 @@ export const navData = [
         title: 'Auditoría',
         path: paths.dashboard.auditoria.root,
         icon: ICONS.lock,
+        roles: ['admin', 'gerente'],
         children: [
-          { title: 'Eventos', path: paths.dashboard.auditoria.eventosAuditoria },
+          {
+            title: 'Eventos',
+            path: paths.dashboard.auditoria.eventosAuditoria,
+            roles: ['admin', 'gerente'],
+          },
         ],
       },
     ],
