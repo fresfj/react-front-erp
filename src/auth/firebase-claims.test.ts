@@ -23,4 +23,11 @@ describe('parseFirebaseTenantClaims', () => {
       role: 'operador',
     });
   });
+
+  it('coerces numeric enterpriseId to string', () => {
+    expect(parseFirebaseTenantClaims({ enterpriseId: 42, role: 'admin' })).toEqual({
+      enterpriseId: '42',
+      role: 'admin',
+    });
+  });
 });
