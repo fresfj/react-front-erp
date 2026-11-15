@@ -28,7 +28,35 @@
     "comingSoon": "Coming soon"
   },
   "suppliers": {
-    "title": "Suppliers"
+    "title": "Suppliers",
+    "listHeading": "Supplier list",
+    "createHeading": "Create supplier",
+    "editHeading": "Edit supplier",
+    "newSupplier": "New supplier",
+    "createSubmit": "Create supplier",
+    "saveSubmit": "Save changes",
+    "details": "Details",
+    "detailsHint": "Supplier name and document",
+    "contact": "Contact",
+    "contactHint": "Phone and email",
+    "deactivate": "Deactivate",
+    "deactivateConfirm": "Are you sure you want to deactivate this supplier?",
+    "createSuccess": "Supplier created successfully",
+    "updateSuccess": "Supplier updated successfully",
+    "deactivateSuccess": "Supplier deactivated successfully",
+    "createError": "Could not create supplier",
+    "updateError": "Could not update supplier",
+    "deactivateError": "Could not deactivate supplier",
+    "loadError": "Could not load suppliers",
+    "notFound": "Supplier not found",
+    "errorMissingEnterprise": "Enterprise is not configured in this session",
+    "fields": {
+      "name": "Name",
+      "document": "Document",
+      "phone": "Phone",
+      "email": "Email",
+      "active": "Active"
+    }
   },
   "account": {
     "title": "Account"

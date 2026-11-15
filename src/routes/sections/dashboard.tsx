@@ -14,7 +14,9 @@ import { AuthGuard, ClaimsGuard } from 'src/auth/guard';
 
 const IndexPage = lazy(() => import('src/pages/dashboard'));
 
-const SuppliersStubPage = lazy(() => import('src/pages/suppliers'));
+const SupplierListPage = lazy(() => import('src/pages/supplier/list'));
+const SupplierCreatePage = lazy(() => import('src/pages/supplier/create'));
+const SupplierEditPage = lazy(() => import('src/pages/supplier/edit'));
 const ProductsStubPage = lazy(() => import('src/pages/products'));
 const AccountStubPage = lazy(() => import('src/pages/account'));
 
@@ -40,9 +42,9 @@ export const dashboardRoutes = [
         path: 'suppliers',
         children: [
           { element: <Navigate to={paths.dashboard.suppliers.list} replace />, index: true },
-          { path: 'list', element: <SuppliersStubPage /> },
-          { path: 'create', element: <SuppliersStubPage /> },
-          { path: ':id/edit', element: <SuppliersStubPage /> },
+          { path: 'list', element: <SupplierListPage /> },
+          { path: 'create', element: <SupplierCreatePage /> },
+          { path: ':id/edit', element: <SupplierEditPage /> },
         ],
       },
       {

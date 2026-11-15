@@ -28,7 +28,35 @@
     "comingSoon": "Em breve"
   },
   "suppliers": {
-    "title": "Fornecedores"
+    "title": "Fornecedores",
+    "listHeading": "Lista de fornecedores",
+    "createHeading": "Criar fornecedor",
+    "editHeading": "Editar fornecedor",
+    "newSupplier": "Novo fornecedor",
+    "createSubmit": "Criar fornecedor",
+    "saveSubmit": "Salvar alterações",
+    "details": "Detalhes",
+    "detailsHint": "Nome e documento do fornecedor",
+    "contact": "Contato",
+    "contactHint": "Telefone e e-mail",
+    "deactivate": "Desativar",
+    "deactivateConfirm": "Tem certeza de que deseja desativar este fornecedor?",
+    "createSuccess": "Fornecedor criado com sucesso",
+    "updateSuccess": "Fornecedor atualizado com sucesso",
+    "deactivateSuccess": "Fornecedor desativado com sucesso",
+    "createError": "Não foi possível criar o fornecedor",
+    "updateError": "Não foi possível atualizar o fornecedor",
+    "deactivateError": "Não foi possível desativar o fornecedor",
+    "loadError": "Não foi possível carregar os fornecedores",
+    "notFound": "Fornecedor não encontrado",
+    "errorMissingEnterprise": "Empresa não configurada na sessão",
+    "fields": {
+      "name": "Nome",
+      "document": "Documento",
+      "phone": "Telefone",
+      "email": "E-mail",
+      "active": "Ativo"
+    }
   },
   "account": {
     "title": "Conta"
