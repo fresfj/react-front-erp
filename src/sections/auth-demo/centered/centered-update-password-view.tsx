@@ -9,7 +9,6 @@ import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
@@ -152,7 +151,7 @@ export function CenteredUpdatePasswordView() {
 
       <Link
         component={RouterLink}
-        href={paths.authDemo.centered.signIn}
+        href="/auth-demo/centered/sign-in"
         color="inherit"
         variant="subtitle2"
         sx={{ mx: 'auto', alignItems: 'center', display: 'inline-flex' }}

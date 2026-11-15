@@ -10,7 +10,6 @@ import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
@@ -71,7 +70,7 @@ export function CenteredSignInView() {
           {`Don't have an account?`}
         </Typography>
 
-        <Link component={RouterLink} href={paths.authDemo.centered.signUp} variant="subtitle2">
+        <Link component={RouterLink} href="/auth-demo/centered/sign-up" variant="subtitle2">
           Get started
         </Link>
       </Stack>
@@ -85,7 +84,7 @@ export function CenteredSignInView() {
       <Stack spacing={1.5}>
         <Link
           component={RouterLink}
-          href={paths.authDemo.centered.resetPassword}
+          href="/auth-demo/centered/reset-password"
           variant="body2"
           color="inherit"
           sx={{ alignSelf: 'flex-end' }}

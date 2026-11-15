@@ -10,7 +10,6 @@ import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
@@ -68,7 +67,7 @@ export function SplitSignInView() {
           {`Don't have an account?`}
         </Typography>
 
-        <Link component={RouterLink} href={paths.authDemo.split.signUp} variant="subtitle2">
+        <Link component={RouterLink} href="/auth-demo/split/sign-up" variant="subtitle2">
           Get started
         </Link>
       </Stack>
@@ -82,7 +81,7 @@ export function SplitSignInView() {
       <Stack spacing={1.5}>
         <Link
           component={RouterLink}
-          href={paths.authDemo.split.resetPassword}
+          href="/auth-demo/split/reset-password"
           variant="body2"
           color="inherit"
           sx={{ alignSelf: 'flex-end' }}

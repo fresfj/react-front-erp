@@ -7,7 +7,6 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 
-import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { PasswordIcon } from 'src/assets/icons';
@@ -87,7 +86,7 @@ export function CenteredResetPasswordView() {
 
       <Link
         component={RouterLink}
-        href={paths.authDemo.centered.signIn}
+        href="/auth-demo/centered/sign-in"
         color="inherit"
         variant="subtitle2"
         sx={{ mx: 'auto', alignItems: 'center', display: 'inline-flex' }}
