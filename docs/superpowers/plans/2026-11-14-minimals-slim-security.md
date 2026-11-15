@@ -985,7 +985,7 @@ EOF
 
 **Files:** none new (verification only); update plan checkboxes as done
 
-- [ ] **Step 1: Automated gates**
+- [x] **Step 1: Automated gates**
 
 ```bash
 yarn test && yarn build
@@ -993,7 +993,7 @@ yarn test && yarn build
 
 Expected: PASS / SUCCESS.
 
-- [ ] **Step 2: Grep regressions**
+- [x] **Step 2: Grep regressions**
 
 ```bash
 rg "auth0|amplify|supabase|firebase|auth-demo|_examples|\\?\\? 'admin'|\\?\\? \"admin\"" src -g '*.{ts,tsx}' -i
@@ -1001,13 +1001,13 @@ rg "auth0|amplify|supabase|firebase|auth-demo|_examples|\\?\\? 'admin'|\\?\\? \"
 
 Expected: no hits for removed stacks / admin fallback (firebase/supabase strings only if still in comments — remove comments).
 
-- [ ] **Step 3: Manual smoke**
+- [x] **Step 3: Manual smoke**
 
 - Nav shows only ERP items
 - `/` redirects to dashboard
 - Login / logout / 401 behavior from Task 8
 
-- [ ] **Step 4: Confirm non-goals untouched**
+- [x] **Step 4: Confirm non-goals untouched**
 
 - `package.json` still shows kit intent 6.0.1 / React 18 / MUI 5 / Vite 5 (no major upgrade)
 - `src/api` and `src/core` still present
