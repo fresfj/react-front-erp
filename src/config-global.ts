@@ -13,12 +13,22 @@ export type ConfigValue = {
     version: string;
   };
   auth: {
-    method: 'jwt';
+    method: 'jwt' | 'firebase';
     skip: boolean;
     redirectPath: string;
   };
   mapbox: {
     apiKey: string;
+  };
+  firebase: {
+    apiKey: string;
+    authDomain: string;
+    databaseURL: string;
+    projectId: string;
+    storageBucket: string;
+    messagingSenderId: string;
+    appId: string;
+    measurementId: string;
   };
   dateformat: {
     formatDateBdd: string;
@@ -39,23 +49,26 @@ export const CONFIG: ConfigValue = {
     version: packageJson.version,
   },
   /**
-   * Auth
-   * @method jwt
+   * Auth padrão do sistema: Firebase
    */
   auth: {
-    method: 'jwt',
+    method: 'firebase',
     skip: false,
     redirectPath: paths.dashboard.root,
   },
-  /**
-   * Mapbox
-   */
   mapbox: {
     apiKey: import.meta.env.VITE_MAPBOX_API_KEY ?? '',
   },
-  /**
-   * DateFormat
-   */
+  firebase: {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? '',
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? '',
+    databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL ?? '',
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? '',
+    appId: import.meta.env.VITE_FIREBASE_APPID ?? '',
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID ?? '',
+  },
   dateformat: {
     formatDateBdd: import.meta.env.VITE_FORMAT_DATE_BD ?? '',
     formatTimeBdd: import.meta.env.VITE_FORMAT_TIME_BD ?? '',

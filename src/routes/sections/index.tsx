@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, useRoutes } from 'react-router-dom';
 
+import { paths } from 'src/routes/paths';
+
 import { CONFIG } from 'src/config-global';
 
 import { SplashScreen } from 'src/components/loading-screen';
@@ -14,11 +16,14 @@ const Page404 = lazy(() => import('src/pages/error/404'));
 const Page403 = lazy(() => import('src/pages/error/403'));
 const Page500 = lazy(() => import('src/pages/error/500'));
 
+const homeRedirect =
+  CONFIG.auth.method === 'firebase' ? paths.auth.firebase.signIn : CONFIG.auth.redirectPath;
+
 export function Router() {
   return useRoutes([
     {
       path: '/',
-      element: <Navigate to={CONFIG.auth.redirectPath} replace />,
+      element: <Navigate to={homeRedirect} replace />,
     },
     ...authRoutes,
     ...dashboardRoutes,

@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { paths } from 'src/routes/paths';
 import { useRouter, usePathname, useSearchParams } from 'src/routes/hooks';
 
+import { CONFIG } from 'src/config-global';
+
 import { SplashScreen } from 'src/components/loading-screen';
 
 import { useAuthContext } from '../hooks';
@@ -40,7 +42,9 @@ export function AuthGuard({ children }: Props) {
     }
 
     if (!authenticated) {
-      const href = `${paths.auth.jwt.signIn}?${createQueryString('returnTo', pathname)}`;
+      const signInPath =
+        CONFIG.auth.method === 'firebase' ? paths.auth.firebase.signIn : paths.auth.jwt.signIn;
+      const href = `${signInPath}?${createQueryString('returnTo', pathname)}`;
 
       router.replace(href);
       return;
