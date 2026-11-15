@@ -6,11 +6,11 @@ import { RouterLink } from "src/routes/components";
 
 import { useGetProductos } from "src/api/productos";
 
-import { paths } from '../../../../routes/paths';
-import { getUrlImagen } from '../../../../api/upload';
-import { DataTableQuery, useDataTableQuery } from '../../../../core/components/dataTable';
+import { paths } from 'src/routes/paths';
+import { getUrlImagen } from 'src/api/upload';
+import { DataTableQuery, useDataTableQuery } from 'src/core/components/dataTable';
 
-import type { CustomColumn } from '../../../../core/types/customColumn';
+import type { CustomColumn } from 'src/core/types/customColumn';
 
 // ----------------------------------------------------------------------
 

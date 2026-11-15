@@ -13,13 +13,14 @@ import Dropdown, { useDropdown } from 'src/core/components/dropdown';
 
 import { AnalyticsWidgetSummary } from "src/sections/overview/analytics/analytics-widget-summary";
 
-import { getYear } from '../../../utils/format-time';
-import VentasComprasCHA from './sections/ventas-compras-cha';
-import VentasMensualesDTQ from './sections/ventas-mensuales-dtq';
-import ComprasMensualesDTQ from './sections/compras-mensuales-dtq';
-import TopProveedoresProductoDTQ from './sections/top-proveedores-dtq';
+import { getYear } from 'src/utils/format-time';
 
-import type { IgetTrnPeriodo } from '../../../types/productos';
+import VentasComprasCHA from './ventas-compras-cha';
+import VentasMensualesDTQ from './ventas-mensuales-dtq';
+import ComprasMensualesDTQ from './compras-mensuales-dtq';
+import TopProveedoresProductoDTQ from './top-proveedores-dtq';
+
+import type { IgetTrnPeriodo } from 'src/types/productos';
 
 // ----------------------------------------------------------------------
 type Props = {

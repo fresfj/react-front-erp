@@ -11,6 +11,7 @@
   },
   "nav": {
     "overview": "Resumen",
+    "app": "App",
     "management": "Gestión",
     "administration": "Administración",
     "company": "Empresa",
@@ -20,6 +21,27 @@
     "products": "Productos",
     "audit": "Auditoría",
     "events": "Eventos"
+  },
+  "inventory": {
+    "products": "Productos",
+    "listHeading": "Lista de productos",
+    "createHeading": "Crear producto",
+    "editHeading": "Modificar producto",
+    "newProduct": "Nuevo producto",
+    "tabs": {
+      "general": "General",
+      "transactions": "Transacciones",
+      "prices": "Últimos precios",
+      "files": "Archivos",
+      "stats": "Estadísticas"
+    }
+  },
+  "users": {
+    "title": "Usuarios",
+    "listHeading": "Lista de usuarios",
+    "createHeading": "Crear",
+    "editHeading": "Editar",
+    "newUser": "Nuevo usuario"
   },
   "offline": {
     "mode": "Estás sin conexión. Los datos pueden venir de la caché local.",

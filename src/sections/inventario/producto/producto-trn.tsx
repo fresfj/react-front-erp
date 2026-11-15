@@ -13,10 +13,11 @@ import { useCalendarRangePicker } from "src/core/components/calendar";
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 
-import { Label } from '../../../components/label/label';
-import TransaccionesProductoDTQ from './sections/transacciones-dtq';
+import { Label } from 'src/components/label/label';
 
-import type { IgetSaldo, IgetTrnProducto } from '../../../types/productos';
+import TransaccionesProductoDTQ from './transacciones-dtq';
+
+import type { IgetSaldo, IgetTrnProducto } from 'src/types/productos';
 
 
 type Props = {

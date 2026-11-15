@@ -3,6 +3,46 @@
     "lang": "English",
     "description": "The starting point for your next project is based on MUI. Easy customization helps you build apps faster and better."
   },
+  "app": {
+    "name": "ERP",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "dashboard": "Dashboard"
+  },
+  "nav": {
+    "overview": "Overview",
+    "app": "App",
+    "management": "Management",
+    "administration": "Administration",
+    "company": "Company",
+    "branches": "Branches",
+    "users": "Users",
+    "inventory": "Inventory",
+    "products": "Products",
+    "audit": "Audit",
+    "events": "Events"
+  },
+  "inventory": {
+    "products": "Products",
+    "listHeading": "Product list",
+    "createHeading": "Create product",
+    "editHeading": "Edit product",
+    "newProduct": "New product",
+    "tabs": {
+      "general": "General",
+      "transactions": "Transactions",
+      "prices": "Latest prices",
+      "files": "Files",
+      "stats": "Statistics"
+    }
+  },
+  "users": {
+    "title": "Users",
+    "listHeading": "User list",
+    "createHeading": "Create",
+    "editHeading": "Edit",
+    "newUser": "New user"
+  },
   "offline": {
     "mode": "You are offline. Data may come from the local cache.",
     "syncPending": "Syncing with the cloud…"
