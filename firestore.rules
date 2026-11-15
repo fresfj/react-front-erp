@@ -1,27 +1,37 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn() { return request.auth != null; }
+    function roleOk() {
+      return request.auth.token.role in ['admin', 'gestor', 'operador'];
+    }
+    function sameEnterprise(enterpriseId) {
+      return request.auth.token.enterpriseId == enterpriseId;
+    }
+    function isAdminOrGestor() {
+      return request.auth.token.role in ['admin', 'gestor'];
     }
 
-    function tenantRoleOk() {
-      return request.auth.token.role in ['admin', 'gerente', 'vendedor'];
+    match /enterprises/{enterpriseId} {
+      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
     }
 
-    function sameEmpresa(empresaId) {
-      return request.auth.token.empresaId == empresaId;
+    match /enterprises/{enterpriseId}/products/{id} {
+      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow write: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
     }
 
-    match /empresas/{empresaId}/{document=**} {
-      allow read, write: if signedIn() && sameEmpresa(empresaId) && tenantRoleOk();
+    match /enterprises/{enterpriseId}/suppliers/{id} {
+      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
     }
 
-    match /empresas/{empresaId} {
-      allow read, write: if signedIn() && sameEmpresa(empresaId) && tenantRoleOk();
+    match /enterprises/{enterpriseId}/members/{uid} {
+      allow read, write: if signedIn() && sameEnterprise(enterpriseId)
+        && request.auth.uid == uid && roleOk();
     }
 
-    // Legacy kit profile path — authenticated owner only (optional keep)
     match /users/{userId} {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }

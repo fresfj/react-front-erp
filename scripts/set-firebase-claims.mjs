@@ -2,11 +2,11 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { readFileSync } from 'node:fs';
 
-const TENANT_ROLES = new Set(['admin', 'gerente', 'vendedor']);
+const TENANT_ROLES = new Set(['admin', 'gestor', 'operador']);
 
 function usage() {
   console.log(`Usage:
-  GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json yarn claims:set -- --uid <UID> --empresaId <ID> --role <admin|gerente|vendedor>
+  GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json yarn claims:set -- --uid <UID> --enterpriseId <ID> --role <admin|gestor|operador>
 
 After success, the user must refresh the ID token (sign out/in or getIdToken(true)).`);
 }
@@ -18,10 +18,10 @@ function arg(name) {
 }
 
 const uid = arg('uid');
-const empresaId = arg('empresaId');
+const enterpriseId = arg('enterpriseId');
 const role = arg('role');
 
-if (!uid || !empresaId || !role || !TENANT_ROLES.has(role)) {
+if (!uid || !enterpriseId || !role || !TENANT_ROLES.has(role)) {
   usage();
   process.exit(1);
 }
@@ -38,6 +38,6 @@ if (!getApps().length) {
 }
 
 const auth = getAuth();
-await auth.setCustomUserClaims(uid, { empresaId: String(empresaId), role });
-console.log('Claims set:', { uid, empresaId: String(empresaId), role });
+await auth.setCustomUserClaims(uid, { enterpriseId: String(enterpriseId), role });
+console.log('Claims set:', { uid, enterpriseId: String(enterpriseId), role });
 console.log('User must refresh ID token before ClaimsGuard will pass.');

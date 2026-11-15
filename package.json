@@ -19,7 +19,8 @@
     "re:build-npm": "npm run rm:all && npm install && npm run build",
     "dev:host": "vite --host",
     "test": "vitest run",
-    "claims:set": "node scripts/set-firebase-claims.mjs"
+    "claims:set": "node scripts/set-firebase-claims.mjs",
+    "claims:bootstrap": "node scripts/bootstrap-tenant-admin.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
