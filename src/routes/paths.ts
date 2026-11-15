@@ -79,8 +79,10 @@ export const paths = {
     auditoria: {
       root: `${ROOTS.DASHBOARD}/auditoria`,
       ...PANTALLAS_GENERICAS,
+      eventosAuditoria: `${ROOTS.DASHBOARD}/auditoria/eventos-auditoria`,
       consultaAuditoria: `${ROOTS.DASHBOARD}/auditoria/consulta-auditoria`,
     },
+
 
     sistema: {
       root: `${ROOTS.DASHBOARD}/sistema`,
