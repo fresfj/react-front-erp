@@ -1,9 +1,8 @@
-export type TenantRole = 'admin' | 'gerente' | 'vendedor';
-
-export const TENANT_ROLES = ['admin', 'gerente', 'vendedor'] as const;
+export type TenantRole = 'admin' | 'gestor' | 'operador';
+export const TENANT_ROLES = ['admin', 'gestor', 'operador'] as const;
 
 export type FirebaseTenantClaims = {
-  empresaId: string;
+  enterpriseId: string;
   role: TenantRole;
 };
 
@@ -15,15 +14,9 @@ export function parseFirebaseTenantClaims(
   claims: Record<string, unknown> | null | undefined
 ): FirebaseTenantClaims | null {
   if (!claims) return null;
-
-  const rawEmpresa = claims.empresaId;
-  const empresaId =
-    typeof rawEmpresa === 'string' || typeof rawEmpresa === 'number'
-      ? String(rawEmpresa).trim()
-      : '';
-
-  if (!empresaId) return null;
-  if (!isTenantRole(claims.role)) return null;
-
-  return { empresaId, role: claims.role };
+  const raw = claims.enterpriseId;
+  const enterpriseId =
+    typeof raw === 'string' || typeof raw === 'number' ? String(raw).trim() : '';
+  if (!enterpriseId || !isTenantRole(claims.role)) return null;
+  return { enterpriseId, role: claims.role };
 }
