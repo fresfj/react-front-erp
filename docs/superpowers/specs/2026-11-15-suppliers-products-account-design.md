@@ -1,7 +1,7 @@
 # Design: Suppliers, Products (raw|finished), Account — Firestore tenant
 
 **Date:** 2026-11-15  
-**Status:** Approved in brainstorming (pending user review of this file)  
+**Status:** Approved — implementation plan at `docs/superpowers/plans/2026-11-15-suppliers-products-account.md`  
 **Depends on:** `docs/superpowers/specs/2026-11-14-firebase-tenant-offline-rbac-design.md` (foundation)  
 **Product context:** ERP SaaS varejo & beneficiamento (`docs/deepseek_markdown_20261115_78aa86.md`)  
 **UI refs:** Minimals product create (card sections), account general + change-password ([minimals.cc account](https://minimals.cc/dashboard/user/account/change-password))
