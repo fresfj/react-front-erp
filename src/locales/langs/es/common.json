@@ -28,6 +28,8 @@
     "createHeading": "Crear producto",
     "editHeading": "Modificar producto",
     "newProduct": "Nuevo producto",
+    "createSubmit": "Crear producto",
+    "saveSubmit": "Guardar cambios",
     "tabs": {
       "general": "General",
       "transactions": "Transacciones",
@@ -42,6 +44,27 @@
     "createHeading": "Crear",
     "editHeading": "Editar",
     "newUser": "Nuevo usuario"
+  },
+  "company": {
+    "editHeading": "Editar empresa",
+    "active": "Activo",
+    "inactive": "Inactivo"
+  },
+  "branches": {
+    "heading": "Sucursales",
+    "save": "Guardar"
+  },
+  "audit": {
+    "eventsHeading": "Eventos auditoría usuarios",
+    "deleteSelected": "Eliminar seleccionados",
+    "deleteAudit": "Borrar auditoría",
+    "search": "Buscar",
+    "user": "Usuario",
+    "deleteTitle": "Eliminar auditoría",
+    "deleteConfirmMultiple": "¿Estás seguro de que quieres eliminar {{count}} registros?",
+    "deleteConfirmAll": "¿Estás seguro de que quieres eliminar los registros de auditoría?",
+    "delete": "Eliminar",
+    "selectOne": "Selecciona al menos un registro"
   },
   "offline": {
     "mode": "Estás sin conexión. Los datos pueden venir de la caché local.",

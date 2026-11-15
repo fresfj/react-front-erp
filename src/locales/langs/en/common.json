@@ -28,6 +28,8 @@
     "createHeading": "Create product",
     "editHeading": "Edit product",
     "newProduct": "New product",
+    "createSubmit": "Create product",
+    "saveSubmit": "Save changes",
     "tabs": {
       "general": "General",
       "transactions": "Transactions",
@@ -42,6 +44,27 @@
     "createHeading": "Create",
     "editHeading": "Edit",
     "newUser": "New user"
+  },
+  "company": {
+    "editHeading": "Edit company",
+    "active": "Active",
+    "inactive": "Inactive"
+  },
+  "branches": {
+    "heading": "Branches",
+    "save": "Save"
+  },
+  "audit": {
+    "eventsHeading": "User audit events",
+    "deleteSelected": "Delete selected",
+    "deleteAudit": "Delete audit log",
+    "search": "Search",
+    "user": "User",
+    "deleteTitle": "Delete audit",
+    "deleteConfirmMultiple": "Are you sure you want to delete {{count}} records?",
+    "deleteConfirmAll": "Are you sure you want to delete the audit records?",
+    "delete": "Delete",
+    "selectOne": "Select at least one record"
   },
   "offline": {
     "mode": "You are offline. Data may come from the local cache.",

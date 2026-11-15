@@ -28,6 +28,8 @@
     "createHeading": "Criar produto",
     "editHeading": "Modificar produto",
     "newProduct": "Novo produto",
+    "createSubmit": "Criar produto",
+    "saveSubmit": "Salvar alterações",
     "tabs": {
       "general": "Geral",
       "transactions": "Transações",
@@ -42,6 +44,27 @@
     "createHeading": "Criar",
     "editHeading": "Editar",
     "newUser": "Novo usuário"
+  },
+  "company": {
+    "editHeading": "Editar empresa",
+    "active": "Ativo",
+    "inactive": "Inativo"
+  },
+  "branches": {
+    "heading": "Filiais",
+    "save": "Salvar"
+  },
+  "audit": {
+    "eventsHeading": "Eventos de auditoria de usuários",
+    "deleteSelected": "Excluir selecionados",
+    "deleteAudit": "Excluir auditoria",
+    "search": "Buscar",
+    "user": "Usuário",
+    "deleteTitle": "Excluir auditoria",
+    "deleteConfirmMultiple": "Tem certeza de que deseja excluir {{count}} registros?",
+    "deleteConfirmAll": "Tem certeza de que deseja excluir os registros de auditoria?",
+    "delete": "Excluir",
+    "selectOne": "Selecione ao menos um registro"
   },
   "offline": {
     "mode": "Você está offline. Dados podem vir do cache local.",

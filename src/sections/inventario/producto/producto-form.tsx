@@ -19,6 +19,7 @@ import InputAdornment from '@mui/material/InputAdornment';
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
+import { useTranslate } from 'src/locales';
 import { useResponsive } from 'src/hooks/use-responsive';
 
 import { save, getSeqTable } from 'src/api/core';
@@ -73,6 +74,7 @@ const UTILIDAD_POR_MENOR = 45; //* TODO Variable de sistema */
 
 export default function ProductoForm({ currentProducto }: Props) {
   const router = useRouter();
+  const { t } = useTranslate('common');
 
   const mdUp = useResponsive('up', 'md');
 
@@ -363,7 +365,7 @@ export default function ProductoForm({ currentProducto }: Props) {
       {mdUp && <Grid md={4} />}
       <Grid xs={12} md={8} sx={{ display: 'flex', alignItems: 'center' }}>
         <LoadingButton type="submit" variant="contained" size="large" loading={isSubmitting}>
-          {!currentProducto ? 'Crear Producto' : 'Guardar Cambios'}
+          {!currentProducto ? t('inventory.createSubmit') : t('inventory.saveSubmit')}
         </LoadingButton>
       </Grid>
     </>
