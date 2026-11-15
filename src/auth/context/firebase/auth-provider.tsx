@@ -8,21 +8,44 @@ import axios from 'src/utils/axios';
 
 import { AUTH, FIRESTORE } from 'src/lib/firebase';
 
+import { parseFirebaseTenantClaims } from 'src/auth/firebase-claims';
+
 import { AuthContext } from '../auth-context';
 
 import type { AuthState } from '../../types';
 
 // ----------------------------------------------------------------------
 
-/**
- * NOTE:
- * We only build demo at basic level.
- * Customer will need to do some extra handling yourself if you want to extend the logic and other features...
- */
-
 type Props = {
   children: React.ReactNode;
 };
+
+async function buildUserState(user: NonNullable<AuthState['user']>) {
+  let profileData: Record<string, unknown> = {};
+
+  try {
+    const userProfile = doc(FIRESTORE, 'users', user.uid);
+    const docSnap = await getDoc(userProfile);
+    profileData = (docSnap.data() as Record<string, unknown>) || {};
+  } catch (profileError) {
+    console.warn('Firebase profile lookup skipped:', profileError);
+  }
+
+  const accessToken = await user.getIdToken();
+  const tokenResult = await user.getIdTokenResult();
+  const tenantClaims = parseFirebaseTenantClaims(
+    tokenResult.claims as Record<string, unknown>
+  );
+
+  return {
+    ...user,
+    ...profileData,
+    accessToken,
+    empresaId: tenantClaims?.empresaId ?? null,
+    role: tenantClaims?.role ?? null,
+    claimsValid: Boolean(tenantClaims),
+  };
+}
 
 export function AuthProvider({ children }: Props) {
   const { state, setState } = useSetState<AuthState>({
@@ -32,39 +55,43 @@ export function AuthProvider({ children }: Props) {
 
   const checkUserSession = useCallback(async () => {
     try {
-      onAuthStateChanged(AUTH, async (user: AuthState['user']) => {
-        if (user && user.emailVerified) {
-          /*
-           * (1) If skip emailVerified
-           * Remove the condition (if/else) : user.emailVerified
-           */
-          const userProfile = doc(FIRESTORE, 'users', user.uid);
+      const user = AUTH.currentUser;
 
-          const docSnap = await getDoc(userProfile);
+      if (user) {
+        const nextUser = await buildUserState(user);
+        setState({ user: nextUser, loading: false });
+        axios.defaults.headers.common.Authorization = `Bearer ${nextUser.accessToken}`;
+        return;
+      }
 
-          const profileData = docSnap.data();
-
-          const { accessToken } = user;
-
-          setState({ user: { ...user, ...profileData }, loading: false });
-          axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
-        } else {
-          setState({ user: null, loading: false });
-          delete axios.defaults.headers.common.Authorization;
-        }
-      });
+      setState({ user: null, loading: false });
+      delete axios.defaults.headers.common.Authorization;
     } catch (error) {
       console.error(error);
       setState({ user: null, loading: false });
+      delete axios.defaults.headers.common.Authorization;
     }
   }, [setState]);
 
   useEffect(() => {
-    checkUserSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    const unsubscribe = onAuthStateChanged(AUTH, async (user) => {
+      try {
+        if (user) {
+          const nextUser = await buildUserState(user);
+          setState({ user: nextUser, loading: false });
+          axios.defaults.headers.common.Authorization = `Bearer ${nextUser.accessToken}`;
+        } else {
+          setState({ user: null, loading: false });
+          delete axios.defaults.headers.common.Authorization;
+        }
+      } catch (error) {
+        console.error(error);
+        setState({ user: null, loading: false });
+      }
+    });
 
-  // ----------------------------------------------------------------------
+    return () => unsubscribe();
+  }, [setState]);
 
   const checkAuthenticated = state.user ? 'authenticated' : 'unauthenticated';
 
@@ -79,7 +106,9 @@ export function AuthProvider({ children }: Props) {
             accessToken: state.user?.accessToken,
             displayName: state.user?.displayName,
             photoURL: state.user?.photoURL,
-            role: state.user?.role ?? 'admin',
+            role: state.user?.role ?? null,
+            empresaId: state.user?.empresaId ?? null,
+            claimsValid: Boolean(state.user?.claimsValid),
           }
         : null,
       checkUserSession,
