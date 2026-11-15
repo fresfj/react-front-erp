@@ -72,7 +72,7 @@
   },
   "claims": {
     "missingTitle": "Account has no company",
-    "missingBody": "Your user has no empresaId/role claims. Ask an admin to set permissions, then sign in again.",
+    "missingBody": "Your user has no enterpriseId/role claims. Ask an admin to set permissions, then sign in again.",
     "signOut": "Sign out"
   },
   "permission": {

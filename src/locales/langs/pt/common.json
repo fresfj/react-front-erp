@@ -72,7 +72,7 @@
   },
   "claims": {
     "missingTitle": "Conta sem empresa",
-    "missingBody": "Seu usuário não tem empresaId/role configurados. Peça ao administrador para definir as permissões e entre novamente.",
+    "missingBody": "Seu usuário não tem enterpriseId/role configurados. Peça ao administrador para definir as permissões e entre novamente.",
     "signOut": "Sair"
   },
   "permission": {

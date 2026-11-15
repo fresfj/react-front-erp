@@ -72,7 +72,7 @@
   },
   "claims": {
     "missingTitle": "Cuenta sin empresa",
-    "missingBody": "Tu usuario no tiene claims empresaId/role. Pide al administrador que configure permisos e inicia sesión de nuevo.",
+    "missingBody": "Tu usuario no tiene claims enterpriseId/role. Pide al administrador que configure permisos e inicia sesión de nuevo.",
     "signOut": "Salir"
   },
   "permission": {

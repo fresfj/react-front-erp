@@ -41,7 +41,7 @@ async function buildUserState(user: NonNullable<AuthState['user']>) {
     ...user,
     ...profileData,
     accessToken,
-    empresaId: tenantClaims?.empresaId ?? null,
+    enterpriseId: tenantClaims?.enterpriseId ?? null,
     role: tenantClaims?.role ?? null,
     claimsValid: Boolean(tenantClaims),
   };
@@ -108,7 +108,7 @@ export function AuthProvider({ children }: Props) {
             displayName: state.user?.displayName,
             photoURL: state.user?.photoURL,
             role: state.user?.role ?? null,
-            empresaId: state.user?.empresaId ?? null,
+            enterpriseId: state.user?.enterpriseId ?? null,
             claimsValid: Boolean(state.user?.claimsValid),
           }
         : null,
