@@ -43,10 +43,12 @@ export function AuthProvider({ children }: Props) {
 
         setState({ user: { ...user, accessToken }, loading: false });
       } else {
+        await setSession(null);
         setState({ user: null, loading: false });
       }
     } catch (error) {
       console.error(error);
+      await setSession(null);
       setState({ user: null, loading: false });
     }
   }, [setState]);
