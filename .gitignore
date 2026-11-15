@@ -44,3 +44,8 @@ yarn-debug.log*
 yarn-error.log*
 *.db
 yarn.lock
+
+*firebase-adminsdk*.json
+*serviceAccount*.json
+src/utils/*firebase-adminsdk*.json
+src/utils/checkout-shop-b5bb3-firebase-adminsdk-*.json
