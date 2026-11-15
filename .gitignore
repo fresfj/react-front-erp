@@ -29,6 +29,7 @@ build
 .env.production.local
 
 # misc
+.worktrees
 .DS_Store
 .vercel
 .netlify
