@@ -1,0 +1,37 @@
+{
+  "demo": {
+    "lang": "Español",
+    "description": "Punto de partida del ERP. Fácil de personalizar para tu negocio."
+  },
+  "app": {
+    "name": "ERP",
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión",
+    "dashboard": "Panel"
+  },
+  "nav": {
+    "overview": "Resumen",
+    "management": "Gestión",
+    "administration": "Administración",
+    "company": "Empresa",
+    "branches": "Sucursales",
+    "users": "Usuarios",
+    "inventory": "Inventario",
+    "products": "Productos",
+    "audit": "Auditoría",
+    "events": "Eventos"
+  },
+  "offline": {
+    "mode": "Estás sin conexión. Los datos pueden venir de la caché local.",
+    "syncPending": "Sincronizando con la nube…"
+  },
+  "claims": {
+    "missingTitle": "Cuenta sin empresa",
+    "missingBody": "Tu usuario no tiene claims empresaId/role. Pide al administrador que configure permisos e inicia sesión de nuevo.",
+    "signOut": "Salir"
+  },
+  "permission": {
+    "deniedTitle": "Sin permiso",
+    "deniedBody": "No tienes permiso para acceder a esta página."
+  }
+}

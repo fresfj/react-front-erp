@@ -2,5 +2,18 @@
   "demo": {
     "lang": "English",
     "description": "The starting point for your next project is based on MUI. Easy customization helps you build apps faster and better."
+  },
+  "offline": {
+    "mode": "You are offline. Data may come from the local cache.",
+    "syncPending": "Syncing with the cloud…"
+  },
+  "claims": {
+    "missingTitle": "Account has no company",
+    "missingBody": "Your user has no empresaId/role claims. Ask an admin to set permissions, then sign in again.",
+    "signOut": "Sign out"
+  },
+  "permission": {
+    "deniedTitle": "Permission denied",
+    "deniedBody": "You do not have permission to access this page."
   }
 }

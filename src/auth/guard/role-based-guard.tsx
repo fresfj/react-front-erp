@@ -7,6 +7,8 @@ import Typography from '@mui/material/Typography';
 
 import { ForbiddenIllustration } from 'src/assets/illustrations';
 
+import { useTranslate } from 'src/locales';
+
 import { varBounce, MotionContainer } from 'src/components/animate';
 
 // ----------------------------------------------------------------------
@@ -26,18 +28,20 @@ export function RoleBasedGuard({
   currentRole,
   acceptRoles,
 }: RoleBasedGuardProp) {
+  const { t } = useTranslate('common');
+
   if (typeof acceptRoles !== 'undefined' && !acceptRoles.includes(currentRole)) {
     return hasContent ? (
       <Container component={MotionContainer} sx={{ textAlign: 'center', ...sx }}>
         <m.div variants={varBounce().in}>
           <Typography variant="h3" sx={{ mb: 2 }}>
-            Permission denied
+            {t('permission.deniedTitle')}
           </Typography>
         </m.div>
 
         <m.div variants={varBounce().in}>
           <Typography sx={{ color: 'text.secondary' }}>
-            You do not have permission to access this page.
+            {t('permission.deniedBody')}
           </Typography>
         </m.div>
 

@@ -1,0 +1,37 @@
+{
+  "demo": {
+    "lang": "Português (Brasil)",
+    "description": "Ponto de partida do ERP. Fácil de customizar para o seu negócio."
+  },
+  "app": {
+    "name": "ERP",
+    "signIn": "Entrar",
+    "signOut": "Sair",
+    "dashboard": "Painel"
+  },
+  "nav": {
+    "overview": "Visão geral",
+    "management": "Gestão",
+    "administration": "Administração",
+    "company": "Empresa",
+    "branches": "Filiais",
+    "users": "Usuários",
+    "inventory": "Estoque",
+    "products": "Produtos",
+    "audit": "Auditoria",
+    "events": "Eventos"
+  },
+  "offline": {
+    "mode": "Você está offline. Dados podem vir do cache local.",
+    "syncPending": "Sincronizando com a nuvem…"
+  },
+  "claims": {
+    "missingTitle": "Conta sem empresa",
+    "missingBody": "Seu usuário não tem empresaId/role configurados. Peça ao administrador para definir as permissões e entre novamente.",
+    "signOut": "Sair"
+  },
+  "permission": {
+    "deniedTitle": "Sem permissão",
+    "deniedBody": "Você não tem permissão para acessar esta página."
+  }
+}

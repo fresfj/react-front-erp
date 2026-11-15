@@ -6,7 +6,7 @@ import { DashboardLayout } from 'src/layouts/dashboard';
 
 import { LoadingScreen } from 'src/components/loading-screen';
 
-import { AuthGuard } from 'src/auth/guard';
+import { AuthGuard, ClaimsGuard } from 'src/auth/guard';
 
 // ----------------------------------------------------------------------
 
@@ -43,11 +43,13 @@ const pantallasGenericas = [
 ];
 
 const layoutContent = (
-  <DashboardLayout>
-    <Suspense fallback={<LoadingScreen />}>
-      <Outlet />
-    </Suspense>
-  </DashboardLayout>
+  <ClaimsGuard>
+    <DashboardLayout>
+      <Suspense fallback={<LoadingScreen />}>
+        <Outlet />
+      </Suspense>
+    </DashboardLayout>
+  </ClaimsGuard>
 );
 
 export const dashboardRoutes = [
