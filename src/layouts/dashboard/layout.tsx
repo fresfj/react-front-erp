@@ -4,7 +4,6 @@ import type { Theme, SxProps, CSSObject, Breakpoint } from '@mui/material/styles
 
 import { useMemo } from 'react';
 
-import Alert from '@mui/material/Alert';
 import { useTheme } from '@mui/material/styles';
 import { iconButtonClasses } from '@mui/material/IconButton';
 
@@ -27,6 +26,7 @@ import { HeaderBase } from '../core/header-base';
 import { _workspaces } from '../config-nav-workspace';
 import { LayoutSection } from '../core/layout-section';
 import { navData as dashboardNavData } from '../config-nav-dashboard';
+import { OfflineBanner } from '../components/offline-banner';
 
 // ----------------------------------------------------------------------
 
@@ -89,11 +89,7 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
               helpLink: false,
             }}
             slots={{
-              topArea: (
-                <Alert severity="info" sx={{ display: 'none', borderRadius: 0 }}>
-                  This is an info Alert.
-                </Alert>
-              ),
+              topArea: <OfflineBanner />,
               bottomArea: isNavHorizontal ? (
                 <NavHorizontal
                   data={navData}
