@@ -57,7 +57,7 @@ export function AuthProvider({ children }: Props) {
     try {
       const user = AUTH.currentUser;
 
-      if (user) {
+      if (user && user.emailVerified) {
         const nextUser = await buildUserState(user);
         setState({ user: nextUser, loading: false });
         axios.defaults.headers.common.Authorization = `Bearer ${nextUser.accessToken}`;
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: Props) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(AUTH, async (user) => {
       try {
-        if (user) {
+        if (user && user.emailVerified) {
           const nextUser = await buildUserState(user);
           setState({ user: nextUser, loading: false });
           axios.defaults.headers.common.Authorization = `Bearer ${nextUser.accessToken}`;
@@ -87,6 +87,7 @@ export function AuthProvider({ children }: Props) {
       } catch (error) {
         console.error(error);
         setState({ user: null, loading: false });
+        delete axios.defaults.headers.common.Authorization;
       }
     });
 
