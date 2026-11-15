@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 
+import { paths } from 'src/routes/paths';
+
 import { CONFIG } from 'src/config-global';
 import { DashboardLayout } from 'src/layouts/dashboard';
 
@@ -12,35 +14,11 @@ import { AuthGuard, ClaimsGuard } from 'src/auth/guard';
 
 const IndexPage = lazy(() => import('src/pages/dashboard'));
 
-// ----ERP
-// Auditoria
-const EventosAuditoria = lazy(() => import('src/pages/auditoria/EventosAuditoria'));
-// Sistema
-const Simple = lazy(() => import('src/pages/sistema/Simple'));
-const SimpleUI = lazy(() => import('src/pages/sistema/SimpleUi'));
-const Recursiva = lazy(() => import('src/pages/sistema/Recursiva'));
-const Doble = lazy(() => import('src/pages/sistema/Doble'));
-const Empresa = lazy(() => import('src/pages/sistema/Empresa'));
-const Sucursal = lazy(() => import('src/pages/sistema/Sucursal'));
-
-// Usuarios
-const UsuarioListPage = lazy(() => import('src/pages/sistema/usuarios/usuario-list'));
-const UsuarioEditPage = lazy(() => import('src/pages/sistema/usuarios/usuario-edit'));
-const UsuarioCreatePage = lazy(() => import('src/pages/sistema/usuarios/usuario-create'));
-
-// Productos
-const ProductoListPage = lazy(() => import('src/pages/inventario/productos/producto-list'));
-const ProductoCreatePage = lazy(() => import('src/pages/inventario/productos/producto-create'));
-const ProductoEditPage = lazy(() => import('src/pages/inventario/productos/producto-edit'));
+const SuppliersStubPage = lazy(() => import('src/pages/suppliers'));
+const ProductsStubPage = lazy(() => import('src/pages/products'));
+const AccountStubPage = lazy(() => import('src/pages/account'));
 
 // ----------------------------------------------------------------------
-
-const pantallasGenericas = [
-  { path: 'simple', element: <Simple /> },
-  { path: 'simple-ui/:id', element: <SimpleUI /> },
-  { path: 'recursiva/:id', element: <Recursiva /> },
-  { path: 'doble/:id', element: <Doble /> },
-];
 
 const layoutContent = (
   <ClaimsGuard>
@@ -59,42 +37,37 @@ export const dashboardRoutes = [
     children: [
       { element: <IndexPage />, index: true },
       {
-        path: 'auditoria',
+        path: 'suppliers',
         children: [
-          { element: <Navigate to="/dashboard/auditoria" replace />, index: true },
-          ...pantallasGenericas,
-          { path: 'eventos-auditoria', element: <EventosAuditoria /> },
+          { element: <Navigate to={paths.dashboard.suppliers.list} replace />, index: true },
+          { path: 'list', element: <SuppliersStubPage /> },
+          { path: 'create', element: <SuppliersStubPage /> },
+          { path: ':id/edit', element: <SuppliersStubPage /> },
         ],
       },
       {
-        path: 'sistema',
+        path: 'products',
         children: [
-          { element: <Navigate to="/dashboard/sistema" replace />, index: true },
-          ...pantallasGenericas,
-          { path: 'empresa', element: <Empresa /> },
-          { path: 'sucursal', element: <Sucursal /> },
+          { element: <Navigate to={paths.dashboard.products.list} replace />, index: true },
+          { path: 'list', element: <ProductsStubPage /> },
+          { path: 'create', element: <ProductsStubPage /> },
+          { path: ':id/edit', element: <ProductsStubPage /> },
         ],
       },
       {
-        path: 'usuarios',
+        path: 'account',
         children: [
-          { element: <Navigate to="/dashboard/usuarios" replace />, index: true },
-          ...pantallasGenericas,
-          { path: 'list', element: <UsuarioListPage /> },
-          { path: ':id/edit', element: <UsuarioEditPage /> },
-          { path: 'create', element: <UsuarioCreatePage /> },
+          { element: <Navigate to={paths.dashboard.account.general} replace />, index: true },
+          { path: 'general', element: <AccountStubPage /> },
+          { path: 'change-password', element: <AccountStubPage /> },
         ],
       },
-      {
-        path: 'productos',
-        children: [
-          { element: <Navigate to="/dashboard/productos" replace />, index: true },
-          ...pantallasGenericas,
-          { path: 'list', element: <ProductoListPage /> },
-          { path: 'create', element: <ProductoCreatePage /> },
-          { path: ':id/edit', element: <ProductoEditPage /> },
-        ],
-      },
+      // Legacy URLs → dashboard root (page sources kept, unrouted)
+      { path: 'sistema/*', element: <Navigate to={paths.dashboard.root} replace /> },
+      { path: 'usuarios/*', element: <Navigate to={paths.dashboard.root} replace /> },
+      { path: 'auditoria/*', element: <Navigate to={paths.dashboard.root} replace /> },
+      { path: 'productos/*', element: <Navigate to={paths.dashboard.root} replace /> },
+      { path: 'inventario/*', element: <Navigate to={paths.dashboard.root} replace /> },
     ],
   },
 ];

@@ -40,6 +40,24 @@ export const paths = {
   // DASHBOARD
   dashboard: {
     root: ROOTS.DASHBOARD,
+    suppliers: {
+      root: `${ROOTS.DASHBOARD}/suppliers`,
+      list: `${ROOTS.DASHBOARD}/suppliers/list`,
+      create: `${ROOTS.DASHBOARD}/suppliers/create`,
+      edit: (id: string) => `${ROOTS.DASHBOARD}/suppliers/${id}/edit`,
+    },
+    products: {
+      root: `${ROOTS.DASHBOARD}/products`,
+      list: `${ROOTS.DASHBOARD}/products/list`,
+      create: `${ROOTS.DASHBOARD}/products/create`,
+      edit: (id: string) => `${ROOTS.DASHBOARD}/products/${id}/edit`,
+    },
+    account: {
+      root: `${ROOTS.DASHBOARD}/account`,
+      general: `${ROOTS.DASHBOARD}/account/general`,
+      changePassword: `${ROOTS.DASHBOARD}/account/change-password`,
+    },
+    // Legacy path keys kept for dead imports / redirects (nav must not link here)
     auditoria: {
       root: `${ROOTS.DASHBOARD}/auditoria`,
       ...PANTALLAS_GENERICAS,

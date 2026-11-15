@@ -18,10 +18,22 @@
     "branches": "Sucursales",
     "users": "Usuarios",
     "inventory": "Inventario",
+    "suppliers": "Proveedores",
     "products": "Productos",
+    "account": "Cuenta",
     "audit": "Auditoría",
     "events": "Eventos"
   },
+  "common": {
+    "comingSoon": "Próximamente"
+  },
+  "suppliers": {
+    "title": "Proveedores"
+  },
+  "account": {
+    "title": "Cuenta"
+  },
+
   "inventory": {
     "products": "Productos",
     "listHeading": "Lista de productos",

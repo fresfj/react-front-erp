@@ -18,10 +18,22 @@
     "branches": "Filiais",
     "users": "Usuários",
     "inventory": "Estoque",
+    "suppliers": "Fornecedores",
     "products": "Produtos",
+    "account": "Conta",
     "audit": "Auditoria",
     "events": "Eventos"
   },
+  "common": {
+    "comingSoon": "Em breve"
+  },
+  "suppliers": {
+    "title": "Fornecedores"
+  },
+  "account": {
+    "title": "Conta"
+  },
+
   "inventory": {
     "products": "Produtos",
     "listHeading": "Lista de produtos",

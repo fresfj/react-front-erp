@@ -18,10 +18,22 @@
     "branches": "Branches",
     "users": "Users",
     "inventory": "Inventory",
+    "suppliers": "Suppliers",
     "products": "Products",
+    "account": "Account",
     "audit": "Audit",
     "events": "Events"
   },
+  "common": {
+    "comingSoon": "Coming soon"
+  },
+  "suppliers": {
+    "title": "Suppliers"
+  },
+  "account": {
+    "title": "Account"
+  },
+
   "inventory": {
     "products": "Products",
     "listHeading": "Product list",
