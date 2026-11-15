@@ -1,3 +1,5 @@
+import { tryGetErpSessionParams } from 'src/auth/session/erp-session';
+
 import axiosInstance from '../../utils/axios';
 
 /**
@@ -48,17 +50,5 @@ export const sendDelete = async (nameService: string, param: any = {}) => {
 
 
 function getDefaultParams() {
-  if (sessionStorage.getItem('user')) {
-    const user = JSON.parse(sessionStorage.getItem('user') || '') || {};
-    return {
-      ideEmpr: user.ide_empr,
-      ideSucu: user.ide_sucu,
-      ideUsua: user.ide_usua,
-      idePerf: user.ide_perf,
-      login: user.login,
-      ip: user.ip || '127.0.0.1',
-      device: user.device
-    }
-  }
-  return {}
+  return tryGetErpSessionParams() ?? {};
 }

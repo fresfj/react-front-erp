@@ -91,10 +91,7 @@ export const signUp = async ({
 export const signOut = async (): Promise<void> => {
   try {
     await axios.post(endpoints.auth.logout);
-    sessionStorage.removeItem('user');
+  } finally {
     await setSession(null);
-  } catch (error) {
-    console.error('Error during sign out:', error);
-    throw error;
   }
 };

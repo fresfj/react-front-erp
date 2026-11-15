@@ -4,6 +4,8 @@ import { useSetState } from 'src/hooks/use-set-state';
 
 import axios, { endpoints } from 'src/utils/axios';
 
+import { resolveUserRole } from 'src/auth/session/erp-session';
+
 import { STORAGE_KEY } from './constant';
 import { AuthContext } from '../auth-context';
 import { setSession, isValidToken } from './utils';
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: Props) {
       user: state.user
         ? {
             ...state.user,
-            role: state.user?.role ?? 'admin',
+            role: resolveUserRole(state.user as Record<string, unknown>),
           }
         : null,
       checkUserSession,

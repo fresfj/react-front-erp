@@ -2,6 +2,8 @@ import { paths } from 'src/routes/paths';
 
 import axios from 'src/utils/axios';
 
+import { clearClientAuthStorage } from 'src/auth/session/erp-session';
+
 import { STORAGE_KEY } from './constant';
 
 // ----------------------------------------------------------------------
@@ -52,43 +54,39 @@ export function isValidToken(accessToken: string) {
 // ----------------------------------------------------------------------
 
 export function tokenExpired(exp: number) {
-  const currentTime = Date.now();
-  const timeLeft = exp * 1000 - currentTime;
+  const timeLeft = exp * 1000 - Date.now();
+
+  if (timeLeft <= 0) {
+    clearClientAuthStorage();
+    delete axios.defaults.headers.common.Authorization;
+    window.location.href = paths.auth.jwt.signIn;
+    return;
+  }
 
   setTimeout(() => {
-    try {
-      alert('Token expired!');
-      sessionStorage.removeItem(STORAGE_KEY);
-      window.location.href = paths.auth.jwt.signIn;
-    } catch (error) {
-      console.error('Error during token expiration:', error);
-      throw error;
-    }
+    clearClientAuthStorage();
+    delete axios.defaults.headers.common.Authorization;
+    window.location.href = paths.auth.jwt.signIn;
   }, timeLeft);
 }
 
 // ----------------------------------------------------------------------
 
 export async function setSession(accessToken: string | null) {
-  try {
-    if (accessToken) {
-      sessionStorage.setItem(STORAGE_KEY, accessToken);
+  if (accessToken) {
+    sessionStorage.setItem(STORAGE_KEY, accessToken);
 
-      axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+    axios.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
 
-      const decodedToken = jwtDecode(accessToken); // ~3 days by minimals server
+    const decodedToken = jwtDecode(accessToken);
 
-      if (decodedToken && 'exp' in decodedToken) {
-        tokenExpired(decodedToken.exp);
-      } else {
-        throw new Error('Invalid access token!');
-      }
+    if (decodedToken && 'exp' in decodedToken) {
+      tokenExpired(decodedToken.exp as number);
     } else {
-      sessionStorage.removeItem(STORAGE_KEY);
-      delete axios.defaults.headers.common.Authorization;
+      throw new Error('Invalid access token!');
     }
-  } catch (error) {
-    console.error('Error during set session:', error);
-    throw error;
+  } else {
+    clearClientAuthStorage();
+    delete axios.defaults.headers.common.Authorization;
   }
 }

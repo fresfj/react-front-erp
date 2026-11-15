@@ -2,7 +2,11 @@ import type { AxiosRequestConfig } from 'axios';
 
 import axios from 'axios';
 
+import { paths } from 'src/routes/paths';
+
 import { CONFIG } from 'src/config-global';
+
+import { clearClientAuthStorage, tryGetErpSessionParams } from 'src/auth/session/erp-session';
 
 // ----------------------------------------------------------------------
 
@@ -10,7 +14,17 @@ const axiosInstance = axios.create({ baseURL: CONFIG.site.serverUrl });
 
 axiosInstance.interceptors.response.use(
   (response) => response,
-  (error) => Promise.reject((error.response && error.response.data) || 'Something went wrong!')
+  (error) => {
+    const status = error?.response?.status;
+    if (status === 401) {
+      clearClientAuthStorage();
+      delete axiosInstance.defaults.headers.common.Authorization;
+      if (window.location.pathname !== paths.auth.jwt.signIn) {
+        window.location.href = paths.auth.jwt.signIn;
+      }
+    }
+    return Promise.reject((error.response && error.response.data) || 'Something went wrong!');
+  }
 );
 
 export default axiosInstance;
@@ -48,21 +62,7 @@ export const fetcherPost = async (args: string | [string, AxiosRequestConfig]) =
 
 // ----------------------------------------------------------------------
 
-export const defaultParams = (): {} => {
-  if (sessionStorage.getItem('user')) {
-    const user = JSON.parse(sessionStorage.getItem('user') || '') || {};
-    return {
-      ideEmpr: user.ide_empr,
-      ideSucu: user.ide_sucu,
-      ideUsua: user.ide_usua,
-      idePerf: user.ide_perf,
-      login: user.login,
-      ip: user.ip || '127.0.0.1',
-      device: user.device
-    }
-  }
-  return {}
-}
+export const defaultParams = (): Record<string, unknown> => tryGetErpSessionParams() ?? {};
 
 export const endpoints = {
   chat: '/api/chat',
