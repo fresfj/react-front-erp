@@ -22,7 +22,10 @@
     "products": "Productos",
     "account": "Cuenta",
     "audit": "Auditoría",
-    "events": "Eventos"
+    "events": "Eventos",
+    "legacyErp": "ERP legado",
+    "legacyProducts": "Productos (FormTable)",
+    "minimalsRef": "Minimals (referencia)"
   },
   "common": {
     "comingSoon": "Próximamente"
