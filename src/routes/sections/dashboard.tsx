@@ -73,6 +73,10 @@ const ProductListPage = lazy(() => import('src/pages/inventory/product/list'));
 const ProductCreatePage = lazy(() => import('src/pages/inventory/product/create'));
 const ProductEditPage = lazy(() => import('src/pages/inventory/product/edit'));
 const AccountPage = lazy(() => import('src/pages/account'));
+const EnterpriseListPage = lazy(() => import('src/pages/platform/enterprise/list'));
+const EnterpriseCreatePage = lazy(() => import('src/pages/platform/enterprise/create'));
+const EnterpriseEditPage = lazy(() => import('src/pages/platform/enterprise/edit'));
+const EnterpriseDetailsPage = lazy(() => import('src/pages/platform/enterprise/details'));
 
 // ERP legacy
 const EventosAuditoria = lazy(() => import('src/pages/auditoria/EventosAuditoria'));
@@ -146,6 +150,16 @@ export const dashboardRoutes = [
           { element: <Navigate to={paths.dashboard.account.general} replace />, index: true },
           { path: 'general', element: <AccountPage /> },
           { path: 'change-password', element: <AccountPage /> },
+        ],
+      },
+      {
+        path: 'enterprises',
+        children: [
+          { element: <Navigate to={paths.dashboard.enterprises.list} replace />, index: true },
+          { path: 'list', element: <EnterpriseListPage /> },
+          { path: 'create', element: <EnterpriseCreatePage /> },
+          { path: ':id/edit', element: <EnterpriseEditPage /> },
+          { path: ':id', element: <EnterpriseDetailsPage /> },
         ],
       },
 

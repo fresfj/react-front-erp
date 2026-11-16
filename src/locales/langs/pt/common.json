@@ -21,6 +21,7 @@
     "suppliers": "Fornecedores",
     "products": "Produtos",
     "account": "Conta",
+    "enterprises": "Empresas",
     "audit": "Auditoria",
     "events": "Eventos",
     "legacyErp": "ERP legado",
@@ -59,7 +60,13 @@
       "phone": "Telefone",
       "email": "E-mail",
       "active": "Ativo"
-    }
+    },
+    "filters": {
+      "allStatus": "Todos os status",
+      "activeOnly": "Ativo",
+      "inactiveOnly": "Inativo"
+    },
+    "empty": "Nenhum fornecedor encontrado"
   },
   "account": {
     "title": "Conta",
@@ -72,6 +79,7 @@
       "general": "Geral",
       "security": "Segurança"
     },
+    "avatarHint": "Permitido *.jpeg, *.jpg, *.png, *.gif. Máximo {{size}}",
     "fields": {
       "displayName": "Nome",
       "email": "E-mail",
@@ -128,8 +136,18 @@
       "costPrice": "Preço de custo",
       "salePrice": "Preço de venda",
       "variant": "Variante",
-      "active": "Ativo"
-    }
+      "active": "Ativo",
+      "createdAt": "Criado em"
+    },
+    "filters": {
+      "allTypes": "Todos os tipos",
+      "allStatus": "Todos os status",
+      "activeOnly": "Ativo",
+      "inactiveOnly": "Inativo"
+    },
+    "empty": "Nenhum produto encontrado",
+    "detailsSubheader": "Nome, SKU, tipo e imagem...",
+    "propertiesSubheader": "Unidade, preços e atributos..."
   },
   "inventory": {
     "products": "Produtos",
@@ -179,9 +197,59 @@
     "mode": "Você está offline. Dados podem vir do cache local.",
     "syncPending": "Sincronizando com a nuvem…"
   },
+  "enterprises": {
+    "title": "Empresas",
+    "listHeading": "Lista de empresas",
+    "createHeading": "Criar empresa",
+    "editHeading": "Editar empresa",
+    "detailsHeading": "Detalhes da empresa",
+    "newEnterprise": "Nova empresa",
+    "createSubmit": "Criar empresa",
+    "saveSubmit": "Salvar alterações",
+    "details": "Detalhes",
+    "detailsHint": "Identificador, nome e e-mail admin",
+    "idHint": "Somente letras, números, hífen e underscore",
+    "membersHeading": "Membros",
+    "membersEmpty": "Nenhum membro",
+    "inviteTitle": "Convidar membro",
+    "inviteHint": "Cria usuário Auth se necessário e define claims",
+    "inviteSubmit": "Convidar",
+    "setRole": "Papel",
+    "tempPasswordHint": "Opcional; gerada automaticamente se vazia",
+    "empty": "Nenhuma empresa encontrada",
+    "notFound": "Empresa não encontrada",
+    "loadError": "Não foi possível carregar as empresas",
+    "createSuccess": "Empresa criada com sucesso",
+    "updateSuccess": "Empresa atualizada com sucesso",
+    "createError": "Não foi possível criar a empresa",
+    "updateError": "Não foi possível atualizar a empresa",
+    "inviteSuccess": "Convite enviado / claims definidos",
+    "inviteError": "Não foi possível convidar o membro",
+    "roleSuccess": "Papel atualizado",
+    "roleError": "Não foi possível atualizar o papel",
+    "filters": {
+      "allStatus": "Todos os status",
+      "activeOnly": "Ativo",
+      "inactiveOnly": "Inativo"
+    },
+    "fields": {
+      "id": "ID",
+      "name": "Nome",
+      "adminEmail": "E-mail admin",
+      "active": "Ativo",
+      "memberEmail": "E-mail",
+      "role": "Papel",
+      "tempPassword": "Senha temporária"
+    },
+    "roles": {
+      "admin": "Admin",
+      "gestor": "Gestor",
+      "operador": "Operador"
+    }
+  },
   "claims": {
     "missingTitle": "Conta sem empresa",
-    "missingBody": "Seu usuário não tem enterpriseId/role configurados. Peça ao administrador para definir as permissões e entre novamente.",
+    "missingBody": "Seu usuário não tem enterpriseId/role (nem platformAdmin). Peça ao administrador para definir as permissões e entre novamente.",
     "signOut": "Sair"
   },
   "permission": {

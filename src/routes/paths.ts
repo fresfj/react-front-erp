@@ -86,6 +86,13 @@ export const paths = {
       general: `${ROOTS.DASHBOARD}/account/general`,
       changePassword: `${ROOTS.DASHBOARD}/account/change-password`,
     },
+    enterprises: {
+      root: `${ROOTS.DASHBOARD}/enterprises`,
+      list: `${ROOTS.DASHBOARD}/enterprises/list`,
+      create: `${ROOTS.DASHBOARD}/enterprises/create`,
+      details: (id: string) => `${ROOTS.DASHBOARD}/enterprises/${id}`,
+      edit: (id: string) => `${ROOTS.DASHBOARD}/enterprises/${id}/edit`,
+    },
     general: {
       app: ROOTS.DASHBOARD,
       ecommerce: `${ROOTS.DASHBOARD}/ecommerce`,

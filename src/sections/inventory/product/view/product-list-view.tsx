@@ -1,23 +1,33 @@
-import type { Product } from 'src/api/firestore/products';
+import type { Product, ProductType } from 'src/api/firestore/products';
+import type { GridColDef, GridSlots } from '@mui/x-data-grid';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
-import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Table from '@mui/material/Table';
+import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import Tooltip from '@mui/material/Tooltip';
-import TableRow from '@mui/material/TableRow';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
-import CircularProgress from '@mui/material/CircularProgress';
+import {
+  DataGrid,
+  gridClasses,
+  GridToolbarContainer,
+  GridToolbarQuickFilter,
+  GridToolbarFilterButton,
+  GridToolbarColumnsButton,
+  GridToolbarExport,
+} from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
+import { useSetState } from 'src/hooks/use-set-state';
+
+import { fDateTime } from 'src/utils/format-time';
+import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -26,17 +36,93 @@ import { listProducts, deactivateProduct } from 'src/api/firestore/products';
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
-import { Scrollbar } from 'src/components/scrollbar';
+import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
-import {
-  useTable,
-  TableNoData,
-  TableHeadCustom,
-  TablePaginationCustom,
-} from 'src/components/table';
 
 import { useAuthContext } from 'src/auth/hooks';
+
+// ----------------------------------------------------------------------
+
+type ErpProductFilters = {
+  type: ProductType | '';
+  active: '' | 'active' | 'inactive';
+};
+
+type ToolbarProps = {
+  filters: ReturnType<typeof useSetState<ErpProductFilters>>;
+  typeLabel: string;
+  activeLabel: string;
+  allTypes: string;
+  allStatus: string;
+  rawLabel: string;
+  finishedLabel: string;
+  activeOnly: string;
+  inactiveOnly: string;
+};
+
+function ProductToolbar({
+  filters,
+  typeLabel,
+  activeLabel,
+  allTypes,
+  allStatus,
+  rawLabel,
+  finishedLabel,
+  activeOnly,
+  inactiveOnly,
+}: ToolbarProps) {
+  return (
+    <GridToolbarContainer>
+      <Stack
+        spacing={1.5}
+        direction={{ xs: 'column', md: 'row' }}
+        sx={{ p: 2.5, width: 1, pr: { xs: 2.5, md: 1 } }}
+      >
+        <TextField
+          select
+          label={typeLabel}
+          value={filters.state.type}
+          onChange={(event) =>
+            filters.setState({ type: event.target.value as ProductType | '' })
+          }
+          sx={{ minWidth: { md: 180 } }}
+        >
+          <MenuItem value="">{allTypes}</MenuItem>
+          <MenuItem value="raw">{rawLabel}</MenuItem>
+          <MenuItem value="finished">{finishedLabel}</MenuItem>
+        </TextField>
+
+        <TextField
+          select
+          label={activeLabel}
+          value={filters.state.active}
+          onChange={(event) =>
+            filters.setState({ active: event.target.value as ErpProductFilters['active'] })
+          }
+          sx={{ minWidth: { md: 160 } }}
+        >
+          <MenuItem value="">{allStatus}</MenuItem>
+          <MenuItem value="active">{activeOnly}</MenuItem>
+          <MenuItem value="inactive">{inactiveOnly}</MenuItem>
+        </TextField>
+
+        <Stack
+          direction="row"
+          spacing={1}
+          flexGrow={1}
+          justifyContent="flex-end"
+          alignItems="center"
+        >
+          <GridToolbarQuickFilter />
+          <GridToolbarColumnsButton />
+          <GridToolbarFilterButton />
+          <GridToolbarExport />
+        </Stack>
+      </Stack>
+    </GridToolbarContainer>
+  );
+}
 
 // ----------------------------------------------------------------------
 
@@ -44,23 +130,15 @@ export function ProductListView() {
   const { t } = useTranslate('common');
   const router = useRouter();
   const { user } = useAuthContext();
-  const table = useTable({ defaultOrderBy: 'name' });
   const confirm = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
+  const filters = useSetState<ErpProductFilters>({ type: '', active: '' });
+
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Product[]>([]);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
-
-  const TABLE_HEAD = [
-    { id: 'name', label: t('products.fields.name') },
-    { id: 'sku', label: t('products.fields.sku'), width: 140 },
-    { id: 'type', label: t('products.fields.type'), width: 140 },
-    { id: 'unit', label: t('products.fields.unit'), width: 100 },
-    { id: 'active', label: t('products.fields.active'), width: 120 },
-    { id: '', width: 88 },
-  ];
 
   const loadProducts = useCallback(async () => {
     if (!enterpriseId) {
@@ -75,7 +153,7 @@ export function ProductListView() {
       setTableData(rows);
     } catch (error) {
       console.error(error);
-      toast.error(t('products.loadError'));
+      toast.error(getFirebaseErrorMessage(error, t('products.loadError')));
       setTableData([]);
     } finally {
       setLoading(false);
@@ -86,12 +164,23 @@ export function ProductListView() {
     loadProducts();
   }, [loadProducts]);
 
-  const dataInPage = tableData.slice(
-    table.page * table.rowsPerPage,
-    table.page * table.rowsPerPage + table.rowsPerPage
-  );
+  const dataFiltered = useMemo(() => {
+    let rows = tableData;
 
-  const notFound = !loading && !tableData.length;
+    if (filters.state.type) {
+      rows = rows.filter((row) => row.type === filters.state.type);
+    }
+
+    if (filters.state.active === 'active') {
+      rows = rows.filter((row) => row.active);
+    }
+
+    if (filters.state.active === 'inactive') {
+      rows = rows.filter((row) => !row.active);
+    }
+
+    return rows;
+  }, [filters.state.active, filters.state.type, tableData]);
 
   const handleEditRow = useCallback(
     (id: string) => {
@@ -116,17 +205,106 @@ export function ProductListView() {
     try {
       await deactivateProduct(enterpriseId, deactivateId);
       toast.success(t('products.deactivateSuccess'));
-      confirm.onFalse();
       setDeactivateId(null);
+      confirm.onFalse();
       await loadProducts();
     } catch (error) {
       console.error(error);
-      toast.error(t('products.deactivateError'));
+      toast.error(getFirebaseErrorMessage(error, t('products.deactivateError')));
     }
   }, [confirm, deactivateId, enterpriseId, loadProducts, t]);
 
-  const typeLabel = (type: Product['type']) =>
-    type === 'finished' ? t('products.types.finished') : t('products.types.raw');
+  const CustomToolbar = useCallback(
+    () => (
+      <ProductToolbar
+        filters={filters}
+        typeLabel={t('products.fields.type')}
+        activeLabel={t('products.fields.active')}
+        allTypes={t('products.filters.allTypes')}
+        allStatus={t('products.filters.allStatus')}
+        rawLabel={t('products.types.raw')}
+        finishedLabel={t('products.types.finished')}
+        activeOnly={t('products.filters.activeOnly')}
+        inactiveOnly={t('products.filters.inactiveOnly')}
+      />
+    ),
+    [filters, t]
+  );
+
+  const columns = useMemo<GridColDef<Product>[]>(
+    () => [
+      {
+        field: 'name',
+        headerName: t('products.fields.name'),
+        flex: 1,
+        minWidth: 200,
+        hideable: false,
+      },
+      { field: 'sku', headerName: t('products.fields.sku'), width: 140 },
+      {
+        field: 'type',
+        headerName: t('products.fields.type'),
+        width: 140,
+        renderCell: (params) =>
+          params.row.type === 'finished' ? t('products.types.finished') : t('products.types.raw'),
+      },
+      { field: 'unit', headerName: t('products.fields.unit'), width: 100 },
+      {
+        field: 'costPrice',
+        headerName: t('products.fields.costPrice'),
+        width: 120,
+        valueGetter: (_value, row) => row.costPrice ?? '—',
+      },
+      {
+        field: 'salePrice',
+        headerName: t('products.fields.salePrice'),
+        width: 120,
+        valueGetter: (_value, row) => row.salePrice ?? '—',
+      },
+      {
+        field: 'active',
+        headerName: t('products.fields.active'),
+        width: 110,
+        renderCell: (params) => (
+          <Label color={params.row.active ? 'success' : 'default'} variant="soft">
+            {params.row.active
+              ? t('products.filters.activeOnly')
+              : t('products.filters.inactiveOnly')}
+          </Label>
+        ),
+      },
+      {
+        field: 'createdAt',
+        headerName: t('products.fields.createdAt'),
+        width: 170,
+        renderCell: (params) =>
+          params.row.createdAt ? fDateTime(params.row.createdAt) || '—' : '—',
+      },
+      {
+        field: 'actions',
+        headerName: ' ',
+        width: 100,
+        sortable: false,
+        filterable: false,
+        disableColumnMenu: true,
+        renderCell: (params) => (
+          <Stack direction="row" spacing={0.5}>
+            <IconButton size="small" onClick={() => handleEditRow(params.row.id)}>
+              <Iconify icon="solar:pen-bold" />
+            </IconButton>
+            <IconButton
+              size="small"
+              color="error"
+              onClick={() => handleAskDeactivate(params.row.id)}
+            >
+              <Iconify icon="solar:trash-bin-trash-bold" />
+            </IconButton>
+          </Stack>
+        ),
+      },
+    ],
+    [handleAskDeactivate, handleEditRow, t]
+  );
 
   return (
     <>
@@ -135,7 +313,7 @@ export function ProductListView() {
           heading={t('products.listHeading')}
           links={[
             { name: t('app.dashboard'), href: paths.dashboard.root },
-            { name: t('products.title'), href: paths.dashboard.products.root },
+            { name: t('nav.products'), href: paths.dashboard.products.root },
             { name: t('products.listHeading') },
           ]}
           action={
@@ -151,74 +329,43 @@ export function ProductListView() {
           sx={{ mb: { xs: 3, md: 5 } }}
         />
 
-        <Card>
-          {loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            <>
-              <Scrollbar>
-                <Table size={table.dense ? 'small' : 'medium'} sx={{ minWidth: 800 }}>
-                  <TableHeadCustom
-                    order={table.order}
-                    orderBy={table.orderBy}
-                    headLabel={TABLE_HEAD}
-                    rowCount={tableData.length}
-                    onSort={table.onSort}
-                  />
+        {!enterpriseId && (
+          <EmptyContent
+            filled
+            title={t('products.errorMissingEnterprise')}
+            sx={{ py: 10 }}
+          />
+        )}
 
-                  <TableBody>
-                    {dataInPage.map((row) => (
-                      <TableRow key={row.id} hover>
-                        <TableCell>{row.name}</TableCell>
-                        <TableCell>{row.sku}</TableCell>
-                        <TableCell>{typeLabel(row.type)}</TableCell>
-                        <TableCell>{row.unit || '—'}</TableCell>
-                        <TableCell>
-                          <Label color={row.active ? 'success' : 'default'} variant="soft">
-                            {row.active ? t('company.active') : t('company.inactive')}
-                          </Label>
-                        </TableCell>
-                        <TableCell align="right">
-                          <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <Tooltip title={t('products.editHeading')}>
-                              <IconButton onClick={() => handleEditRow(row.id)}>
-                                <Iconify icon="solar:pen-bold" />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title={t('products.deactivate')}>
-                              <IconButton color="error" onClick={() => handleAskDeactivate(row.id)}>
-                                <Iconify icon="solar:trash-bin-trash-bold" />
-                              </IconButton>
-                            </Tooltip>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-
-                    <TableNoData notFound={notFound} />
-                  </TableBody>
-                </Table>
-              </Scrollbar>
-
-              <TablePaginationCustom
-                count={tableData.length}
-                page={table.page}
-                rowsPerPage={table.rowsPerPage}
-                onPageChange={table.onChangePage}
-                onRowsPerPageChange={table.onChangeRowsPerPage}
-                dense={table.dense}
-                onChangeDense={table.onChangeDense}
-              />
-            </>
-          )}
-        </Card>
+        {enterpriseId && (
+          <Card sx={{ height: 720 }}>
+            <DataGrid
+              rows={dataFiltered}
+              columns={columns}
+              loading={loading}
+              getRowId={(row) => row.id}
+              pageSizeOptions={[5, 10, 25]}
+              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+              slots={{
+                toolbar: CustomToolbar as GridSlots['toolbar'],
+                noRowsOverlay: () => <EmptyContent title={t('products.empty')} />,
+                noResultsOverlay: () => <EmptyContent title={t('products.empty')} />,
+              }}
+              sx={{
+                border: 0,
+                [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+              }}
+            />
+          </Card>
+        )}
       </DashboardContent>
 
       <ConfirmDialog
         open={confirm.value}
-        onClose={confirm.onFalse}
+        onClose={() => {
+          setDeactivateId(null);
+          confirm.onFalse();
+        }}
         title={t('products.deactivate')}
         content={t('products.deactivateConfirm')}
         action={

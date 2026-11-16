@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    match /enterprises/{enterpriseId}/members/{uid}/{allPaths=**} {
+      allow read: if signedIn()
+        && (request.auth.uid == uid
+          || request.auth.token.enterpriseId == enterpriseId
+          || request.auth.token.platformAdmin == true);
+      allow write: if signedIn()
+        && (request.auth.uid == uid || request.auth.token.platformAdmin == true);
+    }
+  }
+}

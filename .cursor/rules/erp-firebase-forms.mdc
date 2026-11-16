@@ -1,0 +1,56 @@
+---
+description: Padrões do ERP (Firebase auth, formulários FormTable, i18n pt/en/es)
+alwaysApply: true
+---
+
+# ERP Minimals — regras do agente
+
+## Auth (obrigatório)
+
+- Login **sempre Firebase** (`CONFIG.auth.method = 'firebase'`).
+- Entrada do sistema: `/auth/firebase/sign-in` (raiz `/` redireciona para Firebase).
+- Logout: usar `signOut` de `src/auth/context/firebase`, depois `router.replace(paths.auth.firebase.signIn)`.
+- Não reativar Auth0/Amplify/Supabase. JWT só se `CONFIG.auth.method === 'jwt'` (emergência API).
+- Credenciais e keys só em `.env` (`VITE_FIREBASE_*`). Nunca hardcode secrets em commits.
+
+## Idiomas
+
+- Padrão: **Português Brasil** (`pt`).
+- Suportados: `pt`, `en`, `es` em `src/locales`.
+- Textos de UI novas: adicionar chaves em `langs/pt|en|es`.
+
+## Estrutura de pastas
+
+```
+src/pages/{sistema,inventario,auditoria}/   # telas ERP
+src/api/                                    # chamadas HTTP / Firebase wrappers
+src/core/components/form/                   # FormTable + useFormTable (padrão)
+src/core/components/dataTable/              # listagens
+src/core/components/upload/                 # upload imagem
+src/auth/context/firebase/                  # auth
+docs/reference/                             # demos Minimals (não roteadas)
+```
+
+## Padrão CRUD Firestore (obrigatório para telas novas)
+
+1. Schema Zod no topo do arquivo da section/página.
+2. Dados via `src/api/firestore/*` (não mock shop).
+3. **Lista:** `DataGrid` + toolbar/filtros Minimals (ver `src/sections/inventory/product/view/product-list-view.tsx`).
+4. **Form:** `Card` + `CardHeader` colapsável + `Collapse`/`Divider`/`Stack` (ver `product-form.tsx` / `supplier-form.tsx`).
+5. Upload: `Field.Upload` / `Field.UploadAvatar` (Storage Firebase quando for avatar).
+6. Feedback: `toast` (sonner) — PT por padrão.
+7. Rotas em `src/routes/sections/dashboard.tsx` + `paths.ts` + `config-nav-dashboard.tsx`.
+8. `FormTable` / `useFormTable` **só legado** (`src/pages/sistema|inventario/*`).
+
+Doc: `docs/reference/erp-crud-ui.md`.
+
+## Ao criar tela nova
+
+- Não apontar ERP para demos `/dashboard/product` (shop). ERP = `/dashboard/products`.
+- Preferir copiar `src/sections/inventory/product/*` ou `src/sections/supplier/*`.
+- Manter TypeScript estrito; não inventar `role: 'admin'` no client.
+- `platformAdmin` claim = acesso multi-empresa; tenant usa `enterpriseId` + `role`.
+
+## Referência visual Minimals
+
+Ver `docs/reference/minimals-demo-screens.md` e `docs/reference/erp-crud-ui.md`.

@@ -10,6 +10,8 @@ import { CONFIG } from 'src/config-global';
 import { Label } from 'src/components/label';
 import { SvgColor } from 'src/components/svg-color';
 
+import { useAuthContext } from 'src/auth/hooks';
+
 // ----------------------------------------------------------------------
 
 const icon = (name: string) => (
@@ -44,6 +46,8 @@ const ICONS = {
 
 export function useNavData(): NavSectionProps['data'] {
   const { t } = useTranslate('common');
+  const { user } = useAuthContext();
+  const platformAdmin = Boolean(user?.platformAdmin);
 
   return useMemo(
     () => [
@@ -51,6 +55,15 @@ export function useNavData(): NavSectionProps['data'] {
         subheader: t('nav.overview'),
         items: [
           { title: t('nav.app'), path: paths.dashboard.root, icon: ICONS.dashboard },
+          ...(platformAdmin
+            ? [
+                {
+                  title: t('nav.enterprises'),
+                  path: paths.dashboard.enterprises.list,
+                  icon: ICONS.banking,
+                },
+              ]
+            : []),
           {
             title: t('nav.suppliers'),
             path: paths.dashboard.suppliers.list,
@@ -204,6 +217,6 @@ export function useNavData(): NavSectionProps['data'] {
         ],
       },
     ],
-    [t]
+    [platformAdmin, t]
   );
 }

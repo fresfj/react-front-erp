@@ -41,17 +41,34 @@ Custom claims are embedded in the **ID token**. The signed-in user must refresh 
 
 Until the token is refreshed, `ClaimsGuard` will still see the old claims.
 
-## Deploy Firestore rules
+## Platform admin claim
 
-Rules live in `firestore.rules` at the repo root. With the [Firebase CLI](https://firebase.google.com/docs/cli) linked to this project:
+Merges `platformAdmin: true` without removing `enterpriseId` / `role`:
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=./serviceAccount.json \
+  yarn claims:platform-admin -- --email YOU@example.com
+```
+
+Then deploy callables + rules:
+
+```bash
+cd functions && yarn install --ignore-engines
+firebase deploy --only functions,firestore:rules,storage
+```
+
+UI: nav **Empresas** (`/dashboard/enterprises`) only when `platformAdmin` is on the ID token.
+
+## Deploy Firestore rules
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-Ensure `firebase.json` points `firestore.rules` to this file if you add CLI config later.
+`firebase.json` already points at `firestore.rules` / `storage.rules` / `functions/`.
 
 ## Manual smoke test
 
 1. Run `claims:bootstrap` (or create `enterprises/{enterpriseId}` with `{ "name": "Demo", "active": true }` and `claims:set`).
 2. Sign in → claims match; cross-tenant `enterprises/otherId` reads should be denied by rules.
+3. Run `claims:platform-admin` → sign out/in → Empresas list/create/invite works.

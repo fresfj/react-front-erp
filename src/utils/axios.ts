@@ -16,7 +16,8 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error?.response?.status;
-    if (status === 401) {
+    // Only JWT sessions redirect on 401 — Firebase auth must not bounce to JWT sign-in.
+    if (status === 401 && CONFIG.auth.method === 'jwt') {
       clearClientAuthStorage();
       delete axiosInstance.defaults.headers.common.Authorization;
       if (window.location.pathname !== paths.auth.jwt.signIn) {

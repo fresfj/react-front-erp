@@ -10,6 +10,7 @@ import { useRouter } from 'src/routes/hooks';
 import { useTranslate } from 'src/locales';
 
 import { toast } from 'src/components/snackbar';
+import { SplashScreen } from 'src/components/loading-screen';
 
 import { useAuthContext } from 'src/auth/hooks';
 import { signOut } from 'src/auth/context/firebase/action';
@@ -27,7 +28,7 @@ export function ClaimsGuard({ children, sx }: Props) {
   const { user, loading, authenticated } = useAuthContext();
 
   if (loading) {
-    return null;
+    return <SplashScreen />;
   }
 
   if (!authenticated) {

@@ -11,25 +11,41 @@ service cloud.firestore {
     function isAdminOrGestor() {
       return request.auth.token.role in ['admin', 'gestor'];
     }
+    function isPlatformAdmin() {
+      return request.auth.token.platformAdmin == true;
+    }
 
     match /enterprises/{enterpriseId} {
-      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow create, update, delete: if signedIn() && isPlatformAdmin();
       allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
     }
 
     match /enterprises/{enterpriseId}/products/{id} {
-      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
       allow write: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
     }
 
     match /enterprises/{enterpriseId}/suppliers/{id} {
-      allow read: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
       allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
     }
 
     match /enterprises/{enterpriseId}/members/{uid} {
-      allow read, write: if signedIn() && sameEnterprise(enterpriseId)
-        && request.auth.uid == uid && roleOk();
+      allow read: if signedIn() && (
+        isPlatformAdmin()
+        || (sameEnterprise(enterpriseId) && request.auth.uid == uid && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin()
+        || (sameEnterprise(enterpriseId) && request.auth.uid == uid && roleOk())
+      );
     }
 
     match /users/{userId} {

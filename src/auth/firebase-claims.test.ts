@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isTenantRole, parseFirebaseTenantClaims } from './firebase-claims';
+import {
+  isTenantRole,
+  parseFirebaseSessionClaims,
+  parseFirebaseTenantClaims,
+} from './firebase-claims';
 
 describe('isTenantRole', () => {
   it('accepts admin|gestor|operador only', () => {
@@ -28,6 +32,34 @@ describe('parseFirebaseTenantClaims', () => {
     expect(parseFirebaseTenantClaims({ enterpriseId: 42, role: 'admin' })).toEqual({
       enterpriseId: '42',
       role: 'admin',
+    });
+  });
+});
+
+describe('parseFirebaseSessionClaims', () => {
+  it('allows platformAdmin without tenant', () => {
+    expect(parseFirebaseSessionClaims({ platformAdmin: true })).toEqual({
+      platformAdmin: true,
+      tenant: null,
+      claimsValid: true,
+    });
+  });
+
+  it('allows tenant without platformAdmin', () => {
+    expect(
+      parseFirebaseSessionClaims({ enterpriseId: 'ent-1', role: 'admin' })
+    ).toMatchObject({
+      platformAdmin: false,
+      claimsValid: true,
+      tenant: { enterpriseId: 'ent-1', role: 'admin' },
+    });
+  });
+
+  it('rejects empty claims', () => {
+    expect(parseFirebaseSessionClaims({})).toEqual({
+      platformAdmin: false,
+      tenant: null,
+      claimsValid: false,
     });
   });
 });

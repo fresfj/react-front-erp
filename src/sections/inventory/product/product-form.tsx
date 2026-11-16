@@ -9,17 +9,19 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
+import Collapse from '@mui/material/Collapse';
 import MenuItem from '@mui/material/MenuItem';
-import Grid from '@mui/material/Unstable_Grid2';
+import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
-import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
 import { useBoolean } from 'src/hooks/use-boolean';
-import { useResponsive } from 'src/hooks/use-responsive';
+
+import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import {
@@ -29,6 +31,7 @@ import {
 } from 'src/api/firestore/products';
 
 import { toast } from 'src/components/snackbar';
+import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 
@@ -67,8 +70,9 @@ export function ProductForm({ currentProduct }: Props) {
   const router = useRouter();
   const { t } = useTranslate('common');
   const { user } = useAuthContext();
-  const mdUp = useResponsive('up', 'md');
   const confirmDeactivate = useBoolean();
+  const openDetails = useBoolean(true);
+  const openProperties = useBoolean(true);
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -136,7 +140,12 @@ export function ProductForm({ currentProduct }: Props) {
       router.push(paths.dashboard.products.list);
     } catch (error) {
       console.error(error);
-      toast.error(currentProduct ? t('products.updateError') : t('products.createError'));
+      toast.error(
+        getFirebaseErrorMessage(
+          error,
+          currentProduct ? t('products.updateError') : t('products.createError')
+        )
+      );
     }
   });
 
@@ -152,132 +161,116 @@ export function ProductForm({ currentProduct }: Props) {
       router.push(paths.dashboard.products.list);
     } catch (error) {
       console.error(error);
-      toast.error(t('products.deactivateError'));
+      toast.error(getFirebaseErrorMessage(error, t('products.deactivateError')));
     }
   };
 
+  const renderCollapseAction = (open: boolean, onToggle: () => void) => (
+    <IconButton onClick={onToggle}>
+      <Iconify icon={open ? 'eva:arrow-ios-upward-fill' : 'eva:arrow-ios-downward-fill'} />
+    </IconButton>
+  );
+
   const renderDetails = (
-    <>
-      {mdUp && (
-        <Grid md={4}>
-          <Typography variant="h6" sx={{ mb: 0.5 }}>
-            {t('products.details')}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('products.detailsHint')}
-          </Typography>
-        </Grid>
-      )}
+    <Card>
+      <CardHeader
+        title={t('products.details')}
+        subheader={t('products.detailsSubheader')}
+        action={renderCollapseAction(openDetails.value, openDetails.onToggle)}
+        sx={{ mb: openDetails.value ? 3 : 0 }}
+      />
 
-      <Grid xs={12} md={8}>
-        <Card>
-          {!mdUp && <CardHeader title={t('products.details')} />}
+      <Collapse in={openDetails.value}>
+        <Divider />
+        <Stack spacing={3} sx={{ p: 3 }}>
+          <Field.Text name="name" label={t('products.fields.name')} />
+          <Box
+            columnGap={2}
+            rowGap={3}
+            display="grid"
+            gridTemplateColumns={{ xs: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)' }}
+          >
+            <Field.Text name="sku" label={t('products.fields.sku')} />
+            <Field.Select name="type" label={t('products.fields.type')}>
+              <MenuItem value="raw">{t('products.types.raw')}</MenuItem>
+              <MenuItem value="finished">{t('products.types.finished')}</MenuItem>
+            </Field.Select>
+          </Box>
 
-          <Stack spacing={3} sx={{ p: 3 }}>
-            <Box
-              rowGap={3}
-              columnGap={2}
-              display="grid"
-              gridTemplateColumns={{
-                xs: 'repeat(1, 1fr)',
-                sm: 'repeat(2, 1fr)',
-              }}
-            >
-              <Field.Text name="name" label={t('products.fields.name')} />
-              <Field.Text name="sku" label={t('products.fields.sku')} />
-              <Field.Select name="type" label={t('products.fields.type')}>
-                <MenuItem value="raw">{t('products.types.raw')}</MenuItem>
-                <MenuItem value="finished">{t('products.types.finished')}</MenuItem>
-              </Field.Select>
-            </Box>
-
-            <Field.Switch name="active" label={t('products.fields.active')} sx={{ m: 0 }} />
-          </Stack>
-        </Card>
-      </Grid>
-    </>
+          <Field.Switch name="active" label={t('products.fields.active')} sx={{ m: 0 }} />
+        </Stack>
+      </Collapse>
+    </Card>
   );
 
   const renderProperties = (
-    <>
-      {mdUp && (
-        <Grid md={4}>
-          <Typography variant="h6" sx={{ mb: 0.5 }}>
-            {t('products.properties')}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-            {t('products.propertiesHint')}
-          </Typography>
-        </Grid>
-      )}
+    <Card>
+      <CardHeader
+        title={t('products.properties')}
+        subheader={t('products.propertiesSubheader')}
+        action={renderCollapseAction(openProperties.value, openProperties.onToggle)}
+        sx={{ mb: openProperties.value ? 3 : 0 }}
+      />
 
-      <Grid xs={12} md={8}>
-        <Card>
-          {!mdUp && <CardHeader title={t('products.properties')} />}
-
-          <Stack spacing={3} sx={{ p: 3 }}>
-            <Box
-              rowGap={3}
-              columnGap={2}
-              display="grid"
-              gridTemplateColumns={{
-                xs: 'repeat(1, 1fr)',
-                sm: 'repeat(2, 1fr)',
-              }}
-            >
-              <Field.Text name="unit" label={t('products.fields.unit')} />
-              <Field.Text
-                name="costPrice"
-                label={t('products.fields.costPrice')}
-                type="number"
-                inputProps={{ min: 0, step: 'any' }}
-              />
-              <Field.Text
-                name="salePrice"
-                label={t('products.fields.salePrice')}
-                type="number"
-                inputProps={{ min: 0, step: 'any' }}
-              />
-              {productType === 'finished' && (
-                <Field.Text name="variant" label={t('products.fields.variant')} />
-              )}
-            </Box>
-          </Stack>
-        </Card>
-      </Grid>
-    </>
+      <Collapse in={openProperties.value}>
+        <Divider />
+        <Stack spacing={3} sx={{ p: 3 }}>
+          <Box
+            columnGap={2}
+            rowGap={3}
+            display="grid"
+            gridTemplateColumns={{ xs: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)' }}
+          >
+            <Field.Text name="unit" label={t('products.fields.unit')} />
+            <Field.Text
+              name="costPrice"
+              label={t('products.fields.costPrice')}
+              type="number"
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ min: 0, step: 'any' }}
+            />
+            <Field.Text
+              name="salePrice"
+              label={t('products.fields.salePrice')}
+              type="number"
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ min: 0, step: 'any' }}
+            />
+            {productType === 'finished' && (
+              <Field.Text name="variant" label={t('products.fields.variant')} />
+            )}
+          </Box>
+        </Stack>
+      </Collapse>
+    </Card>
   );
 
   const renderActions = (
-    <>
-      {mdUp && <Grid md={4} />}
-      <Grid xs={12} md={8} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <LoadingButton type="submit" variant="contained" size="large" loading={isSubmitting}>
-          {currentProduct ? t('products.saveSubmit') : t('products.createSubmit')}
-        </LoadingButton>
-
-        {currentProduct && (
-          <Button
-            color="error"
-            variant="soft"
-            onClick={confirmDeactivate.onTrue}
-            disabled={isSubmitting}
-          >
-            {t('products.deactivate')}
-          </Button>
-        )}
-      </Grid>
-    </>
+    <Stack direction="row" spacing={2} justifyContent="flex-end" alignItems="center">
+      {currentProduct && (
+        <Button
+          color="error"
+          variant="soft"
+          onClick={confirmDeactivate.onTrue}
+          disabled={isSubmitting}
+        >
+          {t('products.deactivate')}
+        </Button>
+      )}
+      <LoadingButton type="submit" variant="contained" size="large" loading={isSubmitting}>
+        {currentProduct ? t('products.saveSubmit') : t('products.createSubmit')}
+      </LoadingButton>
+    </Stack>
   );
 
   return (
     <>
       <Form methods={methods} onSubmit={onSubmit}>
-        <Grid container spacing={3}>
+        <Stack spacing={{ xs: 3, md: 5 }} sx={{ mx: 'auto', maxWidth: { xs: 720, xl: 880 } }}>
           {renderDetails}
           {renderProperties}
           {renderActions}
-        </Grid>
+        </Stack>
       </Form>
 
       <ConfirmDialog

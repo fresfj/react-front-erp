@@ -21,6 +21,7 @@
     "suppliers": "Suppliers",
     "products": "Products",
     "account": "Account",
+    "enterprises": "Enterprises",
     "audit": "Audit",
     "events": "Events",
     "legacyErp": "Legacy ERP",
@@ -59,7 +60,13 @@
       "phone": "Phone",
       "email": "Email",
       "active": "Active"
-    }
+    },
+    "filters": {
+      "allStatus": "All statuses",
+      "activeOnly": "Active",
+      "inactiveOnly": "Inactive"
+    },
+    "empty": "No suppliers found"
   },
   "account": {
     "title": "Account",
@@ -72,6 +79,7 @@
       "general": "General",
       "security": "Security"
     },
+    "avatarHint": "Allowed *.jpeg, *.jpg, *.png, *.gif. Max {{size}}",
     "fields": {
       "displayName": "Name",
       "email": "Email",
@@ -128,8 +136,18 @@
       "costPrice": "Cost price",
       "salePrice": "Sale price",
       "variant": "Variant",
-      "active": "Active"
-    }
+      "active": "Active",
+      "createdAt": "Created at"
+    },
+    "filters": {
+      "allTypes": "All types",
+      "allStatus": "All statuses",
+      "activeOnly": "Active",
+      "inactiveOnly": "Inactive"
+    },
+    "empty": "No products found",
+    "detailsSubheader": "Name, SKU, type and image...",
+    "propertiesSubheader": "Unit, prices and attributes..."
   },
   "inventory": {
     "products": "Products",
@@ -179,9 +197,59 @@
     "mode": "You are offline. Data may come from the local cache.",
     "syncPending": "Syncing with the cloud…"
   },
+  "enterprises": {
+    "title": "Enterprises",
+    "listHeading": "Enterprise list",
+    "createHeading": "Create enterprise",
+    "editHeading": "Edit enterprise",
+    "detailsHeading": "Enterprise details",
+    "newEnterprise": "New enterprise",
+    "createSubmit": "Create enterprise",
+    "saveSubmit": "Save changes",
+    "details": "Details",
+    "detailsHint": "Identifier, name and admin email",
+    "idHint": "Letters, numbers, hyphen and underscore only",
+    "membersHeading": "Members",
+    "membersEmpty": "No members",
+    "inviteTitle": "Invite member",
+    "inviteHint": "Creates Auth user if needed and sets claims",
+    "inviteSubmit": "Invite",
+    "setRole": "Role",
+    "tempPasswordHint": "Optional; auto-generated when empty",
+    "empty": "No enterprises found",
+    "notFound": "Enterprise not found",
+    "loadError": "Could not load enterprises",
+    "createSuccess": "Enterprise created",
+    "updateSuccess": "Enterprise updated",
+    "createError": "Could not create enterprise",
+    "updateError": "Could not update enterprise",
+    "inviteSuccess": "Invite sent / claims set",
+    "inviteError": "Could not invite member",
+    "roleSuccess": "Role updated",
+    "roleError": "Could not update role",
+    "filters": {
+      "allStatus": "All statuses",
+      "activeOnly": "Active",
+      "inactiveOnly": "Inactive"
+    },
+    "fields": {
+      "id": "ID",
+      "name": "Name",
+      "adminEmail": "Admin email",
+      "active": "Active",
+      "memberEmail": "Email",
+      "role": "Role",
+      "tempPassword": "Temporary password"
+    },
+    "roles": {
+      "admin": "Admin",
+      "gestor": "Manager",
+      "operador": "Operator"
+    }
+  },
   "claims": {
     "missingTitle": "Account has no company",
-    "missingBody": "Your user has no enterpriseId/role claims. Ask an admin to set permissions, then sign in again.",
+    "missingBody": "Your user has no enterpriseId/role (nor platformAdmin). Ask an admin to set permissions, then sign in again.",
     "signOut": "Sign out"
   },
   "permission": {

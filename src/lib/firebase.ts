@@ -2,10 +2,14 @@ import type { FirebaseApp } from 'firebase/app';
 import type { Auth as AuthType } from 'firebase/auth';
 import type { Database as DatabaseType } from 'firebase/database';
 import type { Firestore as FirestoreType } from 'firebase/firestore';
+import type { FirebaseStorage } from 'firebase/storage';
+import type { Functions as FunctionsType } from 'firebase/functions';
 
 import { getAuth } from 'firebase/auth';
 import { initializeApp } from 'firebase/app';
+import { getStorage } from 'firebase/storage';
 import { getDatabase } from 'firebase/database';
+import { getFunctions } from 'firebase/functions';
 import {
   getFirestore,
   initializeFirestore,
@@ -39,6 +43,14 @@ export const AUTH: AuthType = hasFirebaseConfig ? getAuth(firebaseApp) : ({} as 
 export const DATABASE: DatabaseType = hasFirebaseConfig
   ? getDatabase(firebaseApp)
   : ({} as DatabaseType);
+
+export const STORAGE: FirebaseStorage = hasFirebaseConfig
+  ? getStorage(firebaseApp)
+  : ({} as FirebaseStorage);
+
+export const FUNCTIONS: FunctionsType = hasFirebaseConfig
+  ? getFunctions(firebaseApp)
+  : ({} as FunctionsType);
 
 function createFirestore(): FirestoreType {
   if (!hasFirebaseConfig) {

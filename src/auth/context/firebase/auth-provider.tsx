@@ -8,7 +8,7 @@ import axios from 'src/utils/axios';
 
 import { AUTH, FIRESTORE } from 'src/lib/firebase';
 
-import { parseFirebaseTenantClaims } from 'src/auth/firebase-claims';
+import { parseFirebaseSessionClaims } from 'src/auth/firebase-claims';
 
 import { AuthContext } from '../auth-context';
 
@@ -33,17 +33,16 @@ async function buildUserState(user: NonNullable<AuthState['user']>) {
 
   const accessToken = await user.getIdToken();
   const tokenResult = await user.getIdTokenResult();
-  const tenantClaims = parseFirebaseTenantClaims(
-    tokenResult.claims as Record<string, unknown>
-  );
+  const session = parseFirebaseSessionClaims(tokenResult.claims as Record<string, unknown>);
 
   return {
     ...user,
     ...profileData,
     accessToken,
-    enterpriseId: tenantClaims?.enterpriseId ?? null,
-    role: tenantClaims?.role ?? null,
-    claimsValid: Boolean(tenantClaims),
+    enterpriseId: session.tenant?.enterpriseId ?? null,
+    role: session.tenant?.role ?? null,
+    platformAdmin: session.platformAdmin,
+    claimsValid: session.claimsValid,
   };
 }
 
@@ -109,6 +108,7 @@ export function AuthProvider({ children }: Props) {
             photoURL: state.user?.photoURL,
             role: state.user?.role ?? null,
             enterpriseId: state.user?.enterpriseId ?? null,
+            platformAdmin: Boolean(state.user?.platformAdmin),
             claimsValid: Boolean(state.user?.claimsValid),
           }
         : null,

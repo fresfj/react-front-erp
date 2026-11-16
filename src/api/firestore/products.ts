@@ -1,7 +1,5 @@
 import {
   doc,
-  query,
-  where,
   addDoc,
   getDoc,
   getDocs,
@@ -60,8 +58,7 @@ function nowIso(): string {
 
 export async function listProducts(enterpriseId: string): Promise<Product[]> {
   const col = enterpriseCollection(enterpriseId, 'products');
-  const q = query(col, where('active', '==', true));
-  const snap = await getDocs(q);
+  const snap = await getDocs(col);
   return snap.docs.map((d) => mapProduct(d.id, d.data() as Record<string, unknown>));
 }
 

@@ -1,91 +1,73 @@
 import type { IProductItem } from 'src/types/product';
 
-import useSWR from 'swr';
 import { useMemo } from 'react';
 
-import { fetcher, endpoints } from 'src/utils/axios';
+import { _products } from 'src/_mock';
 
 // ----------------------------------------------------------------------
+// Demo product actions use local mocks so /dashboard/product works without
+// the Minimals mock API server (CONFIG.site.serverUrl).
 
-const swrOptions = {
-  revalidateIfStale: false,
-  revalidateOnFocus: false,
-  revalidateOnReconnect: false,
-};
+function getProductById(productId: string): IProductItem | undefined {
+  return _products.find((item) => item.id === productId);
+}
 
 // ----------------------------------------------------------------------
-
-type ProductsData = {
-  products: IProductItem[];
-};
 
 export function useGetProducts() {
-  const url = endpoints.product.list;
-
-  const { data, isLoading, error, isValidating } = useSWR<ProductsData>(url, fetcher, swrOptions);
-
   const memoizedValue = useMemo(
     () => ({
-      products: data?.products || [],
-      productsLoading: isLoading,
-      productsError: error,
-      productsValidating: isValidating,
-      productsEmpty: !isLoading && !data?.products.length,
+      products: _products,
+      productsLoading: false,
+      productsError: null as Error | null,
+      productsValidating: false,
+      productsEmpty: !_products.length,
     }),
-    [data?.products, error, isLoading, isValidating]
+    []
   );
 
   return memoizedValue;
 }
 
 // ----------------------------------------------------------------------
-
-type ProductData = {
-  product: IProductItem;
-};
 
 export function useGetProduct(productId: string) {
-  const url = productId ? [endpoints.product.details, { params: { productId } }] : '';
+  const memoizedValue = useMemo(() => {
+    const product = productId ? getProductById(productId) : undefined;
 
-  const { data, isLoading, error, isValidating } = useSWR<ProductData>(url, fetcher, swrOptions);
-
-  const memoizedValue = useMemo(
-    () => ({
-      product: data?.product,
-      productLoading: isLoading,
-      productError: error,
-      productValidating: isValidating,
-    }),
-    [data?.product, error, isLoading, isValidating]
-  );
+    return {
+      product,
+      productLoading: false,
+      productError: productId && !product ? new Error('Product not found') : null,
+      productValidating: false,
+    };
+  }, [productId]);
 
   return memoizedValue;
 }
 
 // ----------------------------------------------------------------------
 
-type SearchResultsData = {
-  results: IProductItem[];
-};
-
 export function useSearchProducts(query: string) {
-  const url = query ? [endpoints.product.search, { params: { query } }] : '';
+  const memoizedValue = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const results = q
+      ? _products.filter(
+          (item) =>
+            item.name.toLowerCase().includes(q) ||
+            item.sku.toLowerCase().includes(q) ||
+            item.category.toLowerCase().includes(q)
+        )
+      : [];
 
-  const { data, isLoading, error, isValidating } = useSWR<SearchResultsData>(url, fetcher, {
-    ...swrOptions,
-    keepPreviousData: true,
-  });
-
-  const memoizedValue = useMemo(
-    () => ({
-      searchResults: data?.results || [],
-      searchLoading: isLoading,
-      searchError: error,
-      searchValidating: isValidating,
-      searchEmpty: !isLoading && !data?.results.length,
-    }),
-    [data?.results, error, isLoading, isValidating]
-  );
+    return {
+      searchResults: results,
+      searchLoading: false,
+      searchError: null as Error | null,
+      searchValidating: false,
+      searchEmpty: !results.length,
+    };
+  }, [query]);
 
   return memoizedValue;
 }

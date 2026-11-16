@@ -6,6 +6,12 @@ export type FirebaseTenantClaims = {
   role: TenantRole;
 };
 
+export type FirebaseSessionClaims = {
+  platformAdmin: boolean;
+  tenant: FirebaseTenantClaims | null;
+  claimsValid: boolean;
+};
+
 export function isTenantRole(value: unknown): value is TenantRole {
   return typeof value === 'string' && (TENANT_ROLES as readonly string[]).includes(value);
 }
@@ -19,4 +25,16 @@ export function parseFirebaseTenantClaims(
     typeof raw === 'string' || typeof raw === 'number' ? String(raw).trim() : '';
   if (!enterpriseId || !isTenantRole(claims.role)) return null;
   return { enterpriseId, role: claims.role };
+}
+
+export function parseFirebaseSessionClaims(
+  claims: Record<string, unknown> | null | undefined
+): FirebaseSessionClaims {
+  const platformAdmin = claims?.platformAdmin === true;
+  const tenant = parseFirebaseTenantClaims(claims);
+  return {
+    platformAdmin,
+    tenant,
+    claimsValid: platformAdmin || Boolean(tenant),
+  };
 }

@@ -20,7 +20,8 @@
     "dev:host": "vite --host",
     "test": "vitest run",
     "claims:set": "node scripts/set-firebase-claims.mjs",
-    "claims:bootstrap": "node scripts/bootstrap-tenant-admin.mjs"
+    "claims:bootstrap": "node scripts/bootstrap-tenant-admin.mjs",
+    "claims:platform-admin": "node scripts/set-platform-admin.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
