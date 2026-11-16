@@ -3,19 +3,20 @@ import type { Product } from 'src/api/firestore/products';
 import { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import CircularProgress from '@mui/material/CircularProgress';
 
 import { paths } from 'src/routes/paths';
 import { useParams } from 'src/routes/hooks';
 
 import { useTranslate } from 'src/locales';
-import { useAuthContext } from 'src/auth/hooks';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { getProduct } from 'src/api/firestore/products';
+import { DashboardContent } from 'src/layouts/dashboard';
 
 import { toast } from 'src/components/snackbar';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+
+import { useAuthContext } from 'src/auth/hooks';
 
 import { ProductForm } from '../product-form';
 

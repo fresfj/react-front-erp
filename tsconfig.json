@@ -42,7 +42,6 @@
     "src/layouts/config-nav-main.tsx",
     "src/layouts/main",
     "src/sections/_examples",
-    "src/sections/account",
     "src/sections/auth/amplify",
     "src/sections/auth/auth0",
     "src/sections/auth/supabase",

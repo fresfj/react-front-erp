@@ -13,9 +13,10 @@ import IconButton from '@mui/material/IconButton';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
 
+import { useBoolean } from 'src/hooks/use-boolean';
+
 import { AUTH } from 'src/lib/firebase';
 import { useTranslate } from 'src/locales';
-import { useBoolean } from 'src/hooks/use-boolean';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
@@ -81,7 +82,7 @@ export function AccountChangePasswordForm() {
   } = methods;
 
   const onSubmit = handleSubmit(async (data) => {
-    const currentUser = AUTH.currentUser;
+    const {currentUser} = AUTH;
 
     if (!currentUser?.email) {
       toast.error(t('account.password.noEmailUser'));

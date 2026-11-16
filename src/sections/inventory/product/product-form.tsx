@@ -1,8 +1,8 @@
 import type { Product, ProductType } from 'src/api/firestore/products';
 
 import { z as zod } from 'zod';
-import { useMemo, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useMemo, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import Box from '@mui/material/Box';
@@ -18,9 +18,9 @@ import LoadingButton from '@mui/lab/LoadingButton';
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
-import { useTranslate } from 'src/locales';
 import { useResponsive } from 'src/hooks/use-responsive';
-import { useAuthContext } from 'src/auth/hooks';
+
+import { useTranslate } from 'src/locales';
 import {
   createProduct,
   updateProduct,
@@ -29,6 +29,8 @@ import {
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
+
+import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 

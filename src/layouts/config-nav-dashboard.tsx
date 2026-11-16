@@ -1,3 +1,5 @@
+import type { NavSectionProps } from 'src/components/nav-section';
+
 import { useMemo } from 'react';
 
 import { paths } from 'src/routes/paths';
@@ -6,8 +8,6 @@ import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 
 import { SvgColor } from 'src/components/svg-color';
-
-import type { NavSectionProps } from 'src/components/nav-section';
 
 // ----------------------------------------------------------------------
 
