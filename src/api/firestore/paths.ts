@@ -8,7 +8,18 @@ import { FIRESTORE } from 'src/lib/firebase';
 
 const ENTERPRISES = 'enterprises';
 
-export type EnterpriseCollectionName = 'suppliers' | 'products' | 'members';
+export type EnterpriseCollectionName =
+  | 'suppliers'
+  | 'customers'
+  | 'products'
+  | 'members'
+  | 'batches'
+  | 'processingOrders'
+  | 'stockMovements'
+  | 'sales'
+  | 'cashSessions'
+  | 'payables'
+  | 'receivables';
 
 export function enterpriseDoc(enterpriseId: string): DocumentReference {
   return doc(FIRESTORE, ENTERPRISES, enterpriseId);

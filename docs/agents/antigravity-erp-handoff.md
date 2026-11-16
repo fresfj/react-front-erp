@@ -79,15 +79,15 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - Docs: este handoff, `AGENTS.md`, skills em `.agents/skills/`
 - **Slice A (Team PermissionGuard):** `resolvePermissionAccess` + `PermissionGuard` nas rotas ERP; invite com `autoComplete` off/`new-password`; `inviteMember` sync `displayName` no Auth + default perms de operador
 - **Slice B (BrasilAPI):** máscaras CEP/CPF/CNPJ + lookup em supplier/customer/enterprise/account; enterprise com CNPJ+endereço (CF); account com nascimento+endereço
+- **Slice C (Financeiro):** DRE com filtro de datas; ranking vendedores (`/cash/ranking`); Contas a pagar/receber CRUD + rules deployadas
 
 ## Pendente (próximo)
 
-1. Smoke manual: CEP `89010-025` e CNPJ conhecido nos forms; criar empresa com CNPJ; account endereço/DOB
-2. Deploy `firestore.rules` se pendente
-3. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
-4. **Slice C:** Contas a pagar/receber + filtros DRE + ranking vendedores
-5. Imagem produto Storage (MVP ainda sem upload no form)
-6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+1. Smoke: DRE/ranking por período; criar payable/receivable e marcar pago
+2. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
+3. Recorrência gerando parcelas; baixa automática no caixa
+4. Imagem produto Storage (MVP ainda sem upload no form)
+5. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
 
 ## Validar
 

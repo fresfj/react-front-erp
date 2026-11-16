@@ -35,6 +35,13 @@ const SaleListPage = lazy(() => import('src/pages/pos/list'));
 const SaleDetailsPage = lazy(() => import('src/pages/pos/details'));
 const CashSessionPage = lazy(() => import('src/pages/cash'));
 const DrePage = lazy(() => import('src/pages/cash/dre'));
+const SellerRankingPage = lazy(() => import('src/pages/cash/ranking'));
+const PayableListPage = lazy(() => import('src/pages/cash/payables-list'));
+const PayableCreatePage = lazy(() => import('src/pages/cash/payables-create'));
+const PayableEditPage = lazy(() => import('src/pages/cash/payables-edit'));
+const ReceivableListPage = lazy(() => import('src/pages/cash/receivables-list'));
+const ReceivableCreatePage = lazy(() => import('src/pages/cash/receivables-create'));
+const ReceivableEditPage = lazy(() => import('src/pages/cash/receivables-edit'));
 const TeamListPage = lazy(() => import('src/pages/team/list'));
 const AccountPage = lazy(() => import('src/pages/account'));
 const EnterpriseListPage = lazy(() => import('src/pages/platform/enterprise/list'));
@@ -173,6 +180,40 @@ export const dashboardRoutes = [
                 <DrePage />
               </PermissionGuard>
             ),
+          },
+          {
+            path: 'ranking',
+            element: (
+              <PermissionGuard permission="dre">
+                <SellerRankingPage />
+              </PermissionGuard>
+            ),
+          },
+          {
+            path: 'payables',
+            element: (
+              <PermissionGuard permission="dre">
+                <Outlet />
+              </PermissionGuard>
+            ),
+            children: [
+              { element: <PayableListPage />, index: true },
+              { path: 'new', element: <PayableCreatePage /> },
+              { path: ':id/edit', element: <PayableEditPage /> },
+            ],
+          },
+          {
+            path: 'receivables',
+            element: (
+              <PermissionGuard permission="dre">
+                <Outlet />
+              </PermissionGuard>
+            ),
+            children: [
+              { element: <ReceivableListPage />, index: true },
+              { path: 'new', element: <ReceivableCreatePage /> },
+              { path: ':id/edit', element: <ReceivableEditPage /> },
+            ],
           },
         ],
       },

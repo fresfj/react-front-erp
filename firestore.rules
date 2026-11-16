@@ -27,24 +27,99 @@ service cloud.firestore {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
       );
-      allow write: if signedIn() && sameEnterprise(enterpriseId) && roleOk();
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
     }
 
     match /enterprises/{enterpriseId}/suppliers/{id} {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
       );
-      allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/batches/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/processingOrders/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/stockMovements/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/sales/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/customers/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/cashSessions/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/payables/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+    }
+
+    match /enterprises/{enterpriseId}/receivables/{id} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
+      allow write: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
+      );
     }
 
     match /enterprises/{enterpriseId}/members/{uid} {
       allow read: if signedIn() && (
-        isPlatformAdmin()
-        || (sameEnterprise(enterpriseId) && request.auth.uid == uid && roleOk())
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
       );
       allow write: if signedIn() && (
         isPlatformAdmin()
-        || (sameEnterprise(enterpriseId) && request.auth.uid == uid && roleOk())
+        || (sameEnterprise(enterpriseId) && (isAdminOrGestor() || request.auth.uid == uid))
       );
     }
 
