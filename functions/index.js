@@ -19,6 +19,23 @@ function assertPlatformAdmin(request) {
   }
 }
 
+function assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId) {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const isPlat = request.auth.token.platformAdmin === true;
+  const isTenantAdmin =
+    request.auth.token.enterpriseId === enterpriseId &&
+    (request.auth.token.role === 'admin' || request.auth.token.role === 'gestor');
+
+  if (!isPlat && !isTenantAdmin) {
+    throw new HttpsError(
+      'permission-denied',
+      'Enterprise admin or platformAdmin permission required'
+    );
+  }
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -101,20 +118,24 @@ exports.updateEnterprise = onCall(async (request) => {
 });
 
 /**
- * inviteMember({ email, enterpriseId, role, tempPassword? })
+ * inviteMember({ email, enterpriseId, role, tempPassword?, displayName?, permissions? })
  * getOrCreate Auth user + setCustomUserClaims + members/{uid}
  */
 exports.inviteMember = onCall(async (request) => {
-  assertPlatformAdmin(request);
-
   const email = String(request.data?.email || '')
     .trim()
     .toLowerCase();
   const enterpriseId = sanitizeId(request.data?.enterpriseId);
   const role = String(request.data?.role || '').trim();
+  const displayName = request.data?.displayName ? String(request.data.displayName).trim() : '';
+  const permissions = Array.isArray(request.data?.permissions)
+    ? request.data.permissions.map((p) => String(p))
+    : undefined;
   const tempPassword = request.data?.tempPassword
     ? String(request.data.tempPassword)
     : undefined;
+
+  assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId);
 
   if (!email || !enterpriseId || !TENANT_ROLES.has(role)) {
     throw new HttpsError(
@@ -127,6 +148,13 @@ exports.inviteMember = onCall(async (request) => {
   if (!enterpriseSnap.exists) {
     throw new HttpsError('not-found', `Enterprise ${enterpriseId} not found`);
   }
+
+  const DEFAULT_OPERATOR_PERMISSIONS = [
+    'pos',
+    'customers',
+    'cash_close',
+    'batches_read',
+  ];
 
   let user;
   let created = false;
@@ -143,10 +171,18 @@ exports.inviteMember = onCall(async (request) => {
     user = await auth.createUser({
       email,
       password,
+      displayName: displayName || undefined,
       emailVerified: true,
       disabled: false,
     });
     created = true;
+  }
+
+  if (displayName) {
+    if (!created && user.displayName !== displayName) {
+      await auth.updateUser(user.uid, { displayName });
+      user = await auth.getUser(user.uid);
+    }
   }
 
   const existingClaims = user.customClaims || {};
@@ -157,15 +193,27 @@ exports.inviteMember = onCall(async (request) => {
   };
   await auth.setCustomUserClaims(user.uid, nextClaims);
 
+  const memberPayload = {
+    email,
+    role,
+    displayName: displayName || user.displayName || '',
+    invitedBy: request.auth.uid,
+    invitedAt: nowIso(),
+    updatedAt: nowIso(),
+    active: true,
+  };
+
+  if (role === 'operador') {
+    memberPayload.permissions =
+      permissions && permissions.length > 0
+        ? permissions
+        : DEFAULT_OPERATOR_PERMISSIONS;
+  } else if (permissions && permissions.length > 0) {
+    memberPayload.permissions = permissions;
+  }
+
   await db.doc(`enterprises/${enterpriseId}/members/${user.uid}`).set(
-    {
-      email,
-      role,
-      displayName: user.displayName || '',
-      invitedBy: request.auth.uid,
-      invitedAt: nowIso(),
-      updatedAt: nowIso(),
-    },
+    memberPayload,
     { merge: true }
   );
 
@@ -187,14 +235,17 @@ exports.inviteMember = onCall(async (request) => {
 });
 
 /**
- * setMemberClaims({ uid, enterpriseId, role })
+ * setMemberClaims({ uid, enterpriseId, role, permissions? })
  */
 exports.setMemberClaims = onCall(async (request) => {
-  assertPlatformAdmin(request);
-
   const uid = String(request.data?.uid || '').trim();
   const enterpriseId = sanitizeId(request.data?.enterpriseId);
   const role = String(request.data?.role || '').trim();
+  const permissions = Array.isArray(request.data?.permissions)
+    ? request.data.permissions.map((p) => String(p))
+    : undefined;
+
+  assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId);
 
   if (!uid || !enterpriseId || !TENANT_ROLES.has(role)) {
     throw new HttpsError(
@@ -212,15 +263,17 @@ exports.setMemberClaims = onCall(async (request) => {
   };
   await auth.setCustomUserClaims(uid, nextClaims);
 
-  await db.doc(`enterprises/${enterpriseId}/members/${uid}`).set(
-    {
-      email: user.email || '',
-      role,
-      updatedAt: nowIso(),
-      claimsSetBy: request.auth.uid,
-    },
-    { merge: true }
-  );
+  const patch = {
+    email: user.email || '',
+    role,
+    updatedAt: nowIso(),
+    claimsSetBy: request.auth.uid,
+  };
+  if (permissions) {
+    patch.permissions = permissions;
+  }
+
+  await db.doc(`enterprises/${enterpriseId}/members/${uid}`).set(patch, { merge: true });
 
   return { uid, enterpriseId, role, claims: nextClaims };
 });
@@ -249,3 +302,32 @@ exports.listEnterpriseMembers = onCall(async (request) => {
 
 // Keep FieldValue import used if needed later
 void FieldValue;
+
+/**
+ * validateSaleDiscount({ enterpriseId, subtotal, discountAmount })
+ * Backend enforcement of operator discount limit (max 5% for operador).
+ */
+exports.validateSaleDiscount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const role = request.auth.token.role;
+  const subtotal = Math.max(0, Number(request.data?.subtotal) || 0);
+  const discountAmount = Math.max(0, Number(request.data?.discountAmount) || 0);
+  const discountPercent = subtotal > 0 ? (discountAmount / subtotal) * 100 : 0;
+
+  const maxAllowed = role === 'admin' || role === 'gestor' ? 100 : 5;
+  if (discountPercent > maxAllowed + 0.0001) {
+    throw new HttpsError(
+      'permission-denied',
+      `Discount of ${discountPercent.toFixed(2)}% exceeds role limit (${maxAllowed}%)`
+    );
+  }
+
+  return {
+    allowed: true,
+    discountPercent: Math.round(discountPercent * 100) / 100,
+    maxAllowed,
+  };
+});
+
