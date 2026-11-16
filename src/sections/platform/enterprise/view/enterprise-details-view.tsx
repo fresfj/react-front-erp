@@ -204,13 +204,13 @@ export function EnterpriseDetailsView({ enterpriseId }: Props) {
                 <Iconify
                   icon={
                     openInvite.value
-                      ? 'eva:arrow-ios-upward-fill'
-                      : 'eva:arrow-ios-downward-fill'
+                      ? 'eva:arrow-ios-downward-fill'
+                      : 'eva:arrow-ios-forward-fill'
                   }
                 />
               </IconButton>
             }
-            sx={{ mb: openInvite.value ? 3 : 0 }}
+            sx={{ mb: 3 }}
           />
           <Collapse in={openInvite.value}>
             <Divider />

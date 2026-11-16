@@ -10,7 +10,6 @@ import { iconButtonClasses } from '@mui/material/IconButton';
 import { useBoolean } from 'src/hooks/use-boolean';
 
 import { allLangs } from 'src/locales';
-import { _contacts, _notifications } from 'src/_mock';
 import { varAlpha, stylesMode } from 'src/theme/styles';
 
 import { bulletColor } from 'src/components/nav-section';
@@ -87,14 +86,14 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
               nav: navData,
               langs: allLangs,
               account: _account,
-              contacts: _contacts,
               workspaces: _workspaces,
-              notifications: _notifications,
             }}
             slotsDisplay={{
               signIn: false,
               purchase: false,
               helpLink: false,
+              contacts: false,
+              notifications: false,
             }}
             slots={{
               topArea: <OfflineBanner />,

@@ -35,12 +35,28 @@ async function buildUserState(user: NonNullable<AuthState['user']>) {
   const tokenResult = await user.getIdTokenResult();
   const session = parseFirebaseSessionClaims(tokenResult.claims as Record<string, unknown>);
 
+  let memberPermissions: string[] | undefined;
+  if (session.tenant?.enterpriseId) {
+    try {
+      const memberSnap = await getDoc(
+        doc(FIRESTORE, 'enterprises', session.tenant.enterpriseId, 'members', user.uid)
+      );
+      const memberData = memberSnap.data() as Record<string, unknown> | undefined;
+      if (memberData && Array.isArray(memberData.permissions)) {
+        memberPermissions = memberData.permissions.map((p) => String(p));
+      }
+    } catch (memberErr) {
+      console.warn('Member permissions lookup skipped:', memberErr);
+    }
+  }
+
   return {
     ...user,
     ...profileData,
     accessToken,
     enterpriseId: session.tenant?.enterpriseId ?? null,
     role: session.tenant?.role ?? null,
+    permissions: memberPermissions,
     platformAdmin: session.platformAdmin,
     claimsValid: session.claimsValid,
   };
@@ -108,6 +124,7 @@ export function AuthProvider({ children }: Props) {
             photoURL: state.user?.photoURL,
             role: state.user?.role ?? null,
             enterpriseId: state.user?.enterpriseId ?? null,
+            permissions: state.user?.permissions ?? undefined,
             platformAdmin: Boolean(state.user?.platformAdmin),
             claimsValid: Boolean(state.user?.claimsValid),
           }
