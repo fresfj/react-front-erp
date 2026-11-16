@@ -9,6 +9,7 @@ import {
 } from 'firebase/firestore';
 
 import { enterpriseCollection } from './paths';
+import { omitUndefined } from './omit-undefined';
 
 // ----------------------------------------------------------------------
 
@@ -67,11 +68,14 @@ export async function createSupplier(
 ): Promise<string> {
   const col = enterpriseCollection(enterpriseId, 'suppliers');
   const timestamp = nowIso();
-  const ref = await addDoc(col, {
-    ...data,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
+  const ref = await addDoc(
+    col,
+    omitUndefined({
+      ...data,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  );
   return ref.id;
 }
 
@@ -83,10 +87,13 @@ export async function updateSupplier(
   const updates = { ...data };
   delete updates.id;
   delete updates.createdAt;
-  await updateDoc(supplierRef(enterpriseId, id), {
-    ...updates,
-    updatedAt: nowIso(),
-  });
+  await updateDoc(
+    supplierRef(enterpriseId, id),
+    omitUndefined({
+      ...updates,
+      updatedAt: nowIso(),
+    })
+  );
 }
 
 export async function deactivateSupplier(enterpriseId: string, id: string): Promise<void> {

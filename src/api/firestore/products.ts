@@ -6,9 +6,11 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  deleteField,
 } from 'firebase/firestore';
 
 import { enterpriseCollection } from './paths';
+import { omitUndefined } from './omit-undefined';
 
 // ----------------------------------------------------------------------
 
@@ -77,11 +79,14 @@ export async function createProduct(
 ): Promise<string> {
   const col = enterpriseCollection(enterpriseId, 'products');
   const timestamp = nowIso();
-  const ref = await addDoc(col, {
-    ...data,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-  });
+  const ref = await addDoc(
+    col,
+    omitUndefined({
+      ...data,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  );
   return ref.id;
 }
 
@@ -93,9 +98,16 @@ export async function updateProduct(
   const updates = { ...data };
   delete updates.id;
   delete updates.createdAt;
+
+  // Explicit undefined variant (e.g. type switched to raw) must remove the field.
+  const clearVariant = Object.prototype.hasOwnProperty.call(data, 'variant') && data.variant === undefined;
+
   await updateDoc(productRef(enterpriseId, id), {
-    ...updates,
-    updatedAt: nowIso(),
+    ...omitUndefined({
+      ...updates,
+      updatedAt: nowIso(),
+    }),
+    ...(clearVariant ? { variant: deleteField() } : {}),
   });
 }
 

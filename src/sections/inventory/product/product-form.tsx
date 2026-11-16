@@ -18,6 +18,7 @@ import LoadingButton from '@mui/lab/LoadingButton';
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
+import { useBoolean } from 'src/hooks/use-boolean';
 import { useResponsive } from 'src/hooks/use-responsive';
 
 import { useTranslate } from 'src/locales';
@@ -29,6 +30,7 @@ import {
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
+import { ConfirmDialog } from 'src/components/custom-dialog';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -66,6 +68,7 @@ export function ProductForm({ currentProduct }: Props) {
   const { t } = useTranslate('common');
   const { user } = useAuthContext();
   const mdUp = useResponsive('up', 'md');
+  const confirmDeactivate = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -137,7 +140,7 @@ export function ProductForm({ currentProduct }: Props) {
     }
   });
 
-  const handleDeactivate = async () => {
+  const handleConfirmDeactivate = async () => {
     if (!enterpriseId || !currentProduct) {
       return;
     }
@@ -145,6 +148,7 @@ export function ProductForm({ currentProduct }: Props) {
     try {
       await deactivateProduct(enterpriseId, currentProduct.id);
       toast.success(t('products.deactivateSuccess'));
+      confirmDeactivate.onFalse();
       router.push(paths.dashboard.products.list);
     } catch (error) {
       console.error(error);
@@ -253,7 +257,12 @@ export function ProductForm({ currentProduct }: Props) {
         </LoadingButton>
 
         {currentProduct && (
-          <Button color="error" variant="soft" onClick={handleDeactivate} disabled={isSubmitting}>
+          <Button
+            color="error"
+            variant="soft"
+            onClick={confirmDeactivate.onTrue}
+            disabled={isSubmitting}
+          >
             {t('products.deactivate')}
           </Button>
         )}
@@ -262,12 +271,26 @@ export function ProductForm({ currentProduct }: Props) {
   );
 
   return (
-    <Form methods={methods} onSubmit={onSubmit}>
-      <Grid container spacing={3}>
-        {renderDetails}
-        {renderProperties}
-        {renderActions}
-      </Grid>
-    </Form>
+    <>
+      <Form methods={methods} onSubmit={onSubmit}>
+        <Grid container spacing={3}>
+          {renderDetails}
+          {renderProperties}
+          {renderActions}
+        </Grid>
+      </Form>
+
+      <ConfirmDialog
+        open={confirmDeactivate.value}
+        onClose={confirmDeactivate.onFalse}
+        title={t('products.deactivate')}
+        content={t('products.deactivateConfirm')}
+        action={
+          <Button variant="contained" color="error" onClick={handleConfirmDeactivate}>
+            {t('products.deactivate')}
+          </Button>
+        }
+      />
+    </>
   );
 }
