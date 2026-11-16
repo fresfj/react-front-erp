@@ -84,12 +84,13 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - **Finance lists:** Contas a receber enriquecidas com cliente (doc/fone/débito), picker de cliente no form; toolbars AP/AR no padrão DataGrid de products (status + vencidas)
 - **WIP commitado:** customers pages/dialogs, beneficiamento/lotes, PDV/sales/cash-sessions, catalog product/supplier enrichments, team page
 - **Slice E (parcelas + caixa + debt):** `splitInstallments` / due dates; AP/AR geram N docs; criar AR sobe `currentDebt`; marcar pago exige caixa aberto (`RECEIPT`/`PAYMENT`); cancelar AR aberto reverte debt
+- **Slice F (Firestore rules × MemberPermissionKey):** `hasPerm` + defaults de operador; mapa 1:1 com PermissionGuard; ORs §8.1 (PDV FIFO / debt / settlement). Spec/plan em `docs/superpowers/{specs,plans}/2026-11-16-firestore-permission-rules*`
 
 ## Pendente (próximo)
 
-1. Smoke: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
-2. Extrato bancário / ledger (Slice G)
-3. **Firestore rules por `MemberPermissionKey`** (Slice F)
+1. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
+2. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
+3. Extrato bancário / ledger (Slice G)
 4. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
 5. Revisar `package-lock.json` local (não commitado)
 

@@ -17,8 +17,8 @@
 - **Guards:** `AuthGuard` + `ClaimsGuard` (`src/auth/guard/claims-guard.tsx`) protegem `/dashboard/*`.
 - **Segurança:**
   - Nunca inventar `role: 'admin'` no client quando a claim estiver ausente.
-  - `firestore.rules` exige `firestore` autenticado + `sameEnterprise(enterpriseId)` (ou `isPlatformAdmin()`).
-  - Para criar/alterar regras em `firestore.rules`, delegar ao subagente `firestore-rules-author`.
+  - `firestore.rules` exige autenticado + `sameEnterprise` (ou `isPlatformAdmin()`); coleções de domínio usam `hasPerm(enterpriseId, MemberPermissionKey)` (admin/gestor liberados; operador via `members/{uid}.permissions` + defaults).
+  - Para criar/alterar regras em `firestore.rules`, seguir spec Slice F e manter ORs §8.1 (PDV/debt/settlement).
   - Credenciais apenas em `.env` (`VITE_FIREBASE_*`). Jamais commitar chaves de Service Account (`*-firebase-adminsdk-*.json`).
 
 ## 3. Padrão Visual e Processo CRUD (Minimals v6)
