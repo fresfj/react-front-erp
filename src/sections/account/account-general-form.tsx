@@ -9,14 +9,17 @@ import { updateProfile } from 'firebase/auth';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
-import Grid from '@mui/material/Unstable_Grid2';
+import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import Grid from '@mui/material/Unstable_Grid2';
 
 import { fData } from 'src/utils/format-number';
+import { digitsOnly, formatCep } from 'src/utils/br-docs';
 
 import { useTranslate } from 'src/locales';
 import { AUTH } from 'src/lib/firebase';
+import { useCepLookup } from 'src/hooks/use-cep-lookup';
 import { getMember, setMember } from 'src/api/firestore/members';
 import { uploadMemberAvatar } from 'src/api/firestore/storage';
 
@@ -31,6 +34,14 @@ export const AccountGeneralSchema = zod.object({
   displayName: zod.string().min(1, { message: 'Required' }),
   email: zod.string().email().or(zod.literal('')),
   phone: zod.string().optional().or(zod.literal('')),
+  birthDate: zod.string().optional().or(zod.literal('')),
+  zipCode: zod.string().optional().or(zod.literal('')),
+  address: zod.string().optional().or(zod.literal('')),
+  addressNumber: zod.string().optional().or(zod.literal('')),
+  complement: zod.string().optional().or(zod.literal('')),
+  neighborhood: zod.string().optional().or(zod.literal('')),
+  city: zod.string().optional().or(zod.literal('')),
+  state: zod.string().optional().or(zod.literal('')),
   photoURL: zod.any().optional().nullable(),
 });
 
@@ -50,6 +61,14 @@ export function AccountGeneralForm() {
       displayName: user?.displayName || '',
       email: user?.email || '',
       phone: '',
+      birthDate: '',
+      zipCode: '',
+      address: '',
+      addressNumber: '',
+      complement: '',
+      neighborhood: '',
+      city: '',
+      state: '',
       photoURL: user?.photoURL || null,
     }),
     [user]
@@ -63,10 +82,34 @@ export function AccountGeneralForm() {
 
   const {
     reset,
+    watch,
     setValue,
     handleSubmit,
     formState: { isSubmitting },
   } = methods;
+
+  const zipCodeWatch = watch('zipCode') || '';
+
+  useCepLookup({
+    cep: zipCodeWatch,
+    onSuccess: (fields) => {
+      setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
+      if (fields.address) setValue('address', fields.address, { shouldDirty: true });
+      if (fields.neighborhood) {
+        setValue('neighborhood', fields.neighborhood, { shouldDirty: true });
+      }
+      if (fields.city) setValue('city', fields.city, { shouldDirty: true });
+      if (fields.state) setValue('state', fields.state, { shouldDirty: true });
+      toast.success(t('brasilapi.cepSuccess', { defaultValue: 'Endereço preenchido pelo CEP' }));
+    },
+    onError: (code) => {
+      toast.error(
+        code === 'CEP_NOT_FOUND'
+          ? t('brasilapi.cepNotFound', { defaultValue: 'CEP não encontrado' })
+          : t('brasilapi.cepError', { defaultValue: 'Falha ao consultar CEP' })
+      );
+    },
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +128,14 @@ export function AccountGeneralForm() {
           displayName: member?.displayName || user?.displayName || '',
           email: user?.email || '',
           phone: member?.phone || '',
+          birthDate: member?.birthDate || '',
+          zipCode: formatCep(member?.zipCode || ''),
+          address: member?.address || '',
+          addressNumber: member?.addressNumber || '',
+          complement: member?.complement || '',
+          neighborhood: member?.neighborhood || '',
+          city: member?.city || '',
+          state: member?.state || '',
           photoURL: member?.photoURL || user?.photoURL || null,
         });
       } catch (error) {
@@ -133,8 +184,16 @@ export function AccountGeneralForm() {
 
       await setMember(enterpriseId, uid, {
         displayName: data.displayName.trim(),
-        phone: data.phone?.trim() || '',
+        phone: digitsOnly(data.phone) || data.phone?.trim() || '',
         photoURL: photoURL || '',
+        birthDate: data.birthDate?.trim() || '',
+        zipCode: digitsOnly(data.zipCode) || '',
+        address: data.address?.trim() || '',
+        addressNumber: data.addressNumber?.trim() || '',
+        complement: data.complement?.trim() || '',
+        neighborhood: data.neighborhood?.trim() || '',
+        city: data.city?.trim() || '',
+        state: data.state?.trim() || '',
       });
 
       const authUser = AUTH.currentUser;
@@ -149,6 +208,7 @@ export function AccountGeneralForm() {
       toast.success(t('account.updateSuccess'));
       reset({
         ...data,
+        zipCode: formatCep(data.zipCode || ''),
         photoURL: photoURL || null,
       });
     } catch (error) {
@@ -195,6 +255,65 @@ export function AccountGeneralForm() {
               <Field.Text name="displayName" label={t('account.fields.displayName')} />
               <Field.Text name="email" label={t('account.fields.email')} disabled />
               <Field.Phone name="phone" label={t('account.fields.phone')} country="BR" />
+              <Field.Text
+                name="birthDate"
+                label={t('account.fields.birthDate', { defaultValue: 'Data de nascimento' })}
+                type="date"
+                InputLabelProps={{ shrink: true }}
+              />
+            </Box>
+
+            <Divider sx={{ my: 3 }} />
+
+            <Typography variant="subtitle2" sx={{ mb: 2 }}>
+              {t('account.addressSection', { defaultValue: 'Endereço' })}
+            </Typography>
+
+            <Box
+              rowGap={3}
+              columnGap={2}
+              display="grid"
+              gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: '1fr 2fr 1fr' }}
+            >
+              <Field.Text
+                name="zipCode"
+                label={t('account.fields.zipCode', { defaultValue: 'CEP' })}
+                placeholder="00000-000"
+                value={formatCep(zipCodeWatch)}
+                onChange={(event) => {
+                  setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
+                }}
+              />
+              <Field.Text
+                name="address"
+                label={t('account.fields.address', { defaultValue: 'Logradouro' })}
+              />
+              <Field.Text
+                name="addressNumber"
+                label={t('account.fields.addressNumber', { defaultValue: 'Número' })}
+              />
+            </Box>
+
+            <Box
+              rowGap={3}
+              columnGap={2}
+              display="grid"
+              gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(4, 1fr)' }}
+              sx={{ mt: 3 }}
+            >
+              <Field.Text
+                name="neighborhood"
+                label={t('account.fields.neighborhood', { defaultValue: 'Bairro' })}
+              />
+              <Field.Text
+                name="complement"
+                label={t('account.fields.complement', { defaultValue: 'Complemento' })}
+              />
+              <Field.Text
+                name="city"
+                label={t('account.fields.city', { defaultValue: 'Cidade' })}
+              />
+              <Field.Text name="state" label={t('account.fields.state', { defaultValue: 'UF' })} />
             </Box>
 
             <Stack alignItems="flex-end" sx={{ mt: 3 }}>

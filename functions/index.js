@@ -47,8 +47,39 @@ function sanitizeId(id) {
     .replace(/[^a-z0-9-_]/g, '-');
 }
 
+function pickEnterpriseAddressFields(data) {
+  const out = {};
+  const keys = [
+    'document',
+    'tradeName',
+    'phone',
+    'zipCode',
+    'address',
+    'addressNumber',
+    'complement',
+    'neighborhood',
+    'city',
+    'state',
+  ];
+  for (const key of keys) {
+    if (data?.[key] === undefined) continue;
+    const raw = data[key];
+    if (raw === null || raw === '') {
+      out[key] = null;
+      continue;
+    }
+    const str = String(raw).trim();
+    if (key === 'document' || key === 'zipCode' || key === 'phone') {
+      out[key] = str.replace(/\D/g, '') || null;
+    } else {
+      out[key] = str || null;
+    }
+  }
+  return out;
+}
+
 /**
- * createEnterprise({ id, name, adminEmail? })
+ * createEnterprise({ id, name, adminEmail?, document?, address fields... })
  */
 exports.createEnterprise = onCall(async (request) => {
   assertPlatformAdmin(request);
@@ -63,6 +94,11 @@ exports.createEnterprise = onCall(async (request) => {
     throw new HttpsError('invalid-argument', 'id and name are required');
   }
 
+  const documentDigits = String(request.data?.document || '').replace(/\D/g, '');
+  if (documentDigits.length !== 14) {
+    throw new HttpsError('invalid-argument', 'document (CNPJ) with 14 digits is required');
+  }
+
   const ref = db.doc(`enterprises/${id}`);
   const existing = await ref.get();
   if (existing.exists) {
@@ -73,6 +109,8 @@ exports.createEnterprise = onCall(async (request) => {
     name,
     active: true,
     adminEmail: adminEmail || null,
+    ...pickEnterpriseAddressFields(request.data),
+    document: documentDigits,
     createdAt: nowIso(),
     updatedAt: nowIso(),
     createdBy: request.auth.uid,
@@ -83,7 +121,7 @@ exports.createEnterprise = onCall(async (request) => {
 });
 
 /**
- * updateEnterprise({ id, name?, active?, adminEmail? })
+ * updateEnterprise({ id, name?, active?, adminEmail?, document?, address fields... })
  */
 exports.updateEnterprise = onCall(async (request) => {
   assertPlatformAdmin(request);
@@ -99,7 +137,7 @@ exports.updateEnterprise = onCall(async (request) => {
     throw new HttpsError('not-found', `Enterprise ${id} not found`);
   }
 
-  const patch = { updatedAt: nowIso() };
+  const patch = { updatedAt: nowIso(), ...pickEnterpriseAddressFields(request.data) };
   if (request.data?.name !== undefined) {
     const name = String(request.data.name).trim();
     if (!name) throw new HttpsError('invalid-argument', 'name cannot be empty');
@@ -111,6 +149,13 @@ exports.updateEnterprise = onCall(async (request) => {
   if (request.data?.adminEmail !== undefined) {
     const email = String(request.data.adminEmail || '').trim().toLowerCase();
     patch.adminEmail = email || null;
+  }
+  if (request.data?.document !== undefined) {
+    const documentDigits = String(request.data.document || '').replace(/\D/g, '');
+    if (documentDigits && documentDigits.length !== 14) {
+      throw new HttpsError('invalid-argument', 'document (CNPJ) must have 14 digits');
+    }
+    patch.document = documentDigits || null;
   }
 
   await ref.set(patch, { merge: true });

@@ -20,9 +20,24 @@ export type Enterprise = {
   active: boolean;
   adminEmail?: string | null;
   adminUid?: string | null;
+  document?: string;
+  tradeName?: string;
+  phone?: string;
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
   createdAt?: string;
   updatedAt?: string;
 };
+
+function optStr(val: unknown): string | undefined {
+  if (val == null || val === '') return undefined;
+  return String(val);
+}
 
 export type EnterpriseMember = {
   uid: string;
@@ -40,10 +55,33 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     active: data.active !== false,
     adminEmail: data.adminEmail != null ? String(data.adminEmail) : null,
     adminUid: data.adminUid != null ? String(data.adminUid) : null,
+    document: optStr(data.document),
+    tradeName: optStr(data.tradeName),
+    phone: optStr(data.phone),
+    zipCode: optStr(data.zipCode),
+    address: optStr(data.address),
+    addressNumber: optStr(data.addressNumber),
+    complement: optStr(data.complement),
+    neighborhood: optStr(data.neighborhood),
+    city: optStr(data.city),
+    state: optStr(data.state),
     createdAt: data.createdAt != null ? String(data.createdAt) : undefined,
     updatedAt: data.updatedAt != null ? String(data.updatedAt) : undefined,
   };
 }
+
+export type EnterpriseAddressInput = {
+  document?: string;
+  tradeName?: string;
+  phone?: string;
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+};
 
 export async function listEnterprisesClient(): Promise<Enterprise[]> {
   const snap = await getDocs(query(collection(FIRESTORE, 'enterprises'), orderBy('name')));
@@ -79,20 +117,24 @@ async function call<TReq extends object, TRes>(name: string, data: TReq): Promis
   return result.data;
 }
 
-export function createEnterprise(input: {
-  id: string;
-  name: string;
-  adminEmail?: string;
-}) {
+export function createEnterprise(
+  input: {
+    id: string;
+    name: string;
+    adminEmail?: string;
+  } & EnterpriseAddressInput
+) {
   return call<typeof input, Enterprise>('createEnterprise', input);
 }
 
-export function updateEnterprise(input: {
-  id: string;
-  name?: string;
-  active?: boolean;
-  adminEmail?: string;
-}) {
+export function updateEnterprise(
+  input: {
+    id: string;
+    name?: string;
+    active?: boolean;
+    adminEmail?: string;
+  } & EnterpriseAddressInput
+) {
   return call<typeof input, Enterprise>('updateEnterprise', input);
 }
 
@@ -101,6 +143,8 @@ export function inviteMember(input: {
   enterpriseId: string;
   role: TenantRole;
   tempPassword?: string;
+  displayName?: string;
+  permissions?: string[];
 }) {
   return call<
     typeof input,
@@ -112,6 +156,7 @@ export function setMemberClaims(input: {
   uid: string;
   enterpriseId: string;
   role: TenantRole;
+  permissions?: string[];
 }) {
   return call<typeof input, { uid: string; enterpriseId: string; role: string }>(
     'setMemberClaims',
