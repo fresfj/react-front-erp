@@ -11,7 +11,9 @@ import { omitUndefined } from './omit-undefined';
 
 // ----------------------------------------------------------------------
 
-export type CashMovementType = 'SUPPLY' | 'WITHDRAWAL'; // Suprimento | Sangria
+export type CashMovementType = 'SUPPLY' | 'WITHDRAWAL' | 'RECEIPT' | 'PAYMENT';
+
+export type CashMovementRefType = 'receivable' | 'payable';
 
 export type CashMovement = {
   id: string;
@@ -20,7 +22,16 @@ export type CashMovement = {
   reason: string;
   createdAt: string;
   createdBy?: string;
+  refType?: CashMovementRefType;
+  refId?: string;
 };
+
+function mapMovementType(raw: unknown): CashMovementType {
+  if (raw === 'WITHDRAWAL') return 'WITHDRAWAL';
+  if (raw === 'RECEIPT') return 'RECEIPT';
+  if (raw === 'PAYMENT') return 'PAYMENT';
+  return 'SUPPLY';
+}
 
 export type CashSessionTotalsByMethod = {
   cash: number;
@@ -87,11 +98,16 @@ function mapCashSession(id: string, data: Record<string, unknown>): CashSession 
       const item = m as Record<string, unknown>;
       return {
         id: String(item.id ?? ''),
-        type: item.type === 'WITHDRAWAL' ? 'WITHDRAWAL' : 'SUPPLY',
+        type: mapMovementType(item.type),
         amount: Number(item.amount ?? 0),
         reason: String(item.reason ?? ''),
         createdAt: String(item.createdAt ?? ''),
         createdBy: item.createdBy != null ? String(item.createdBy) : undefined,
+        refType:
+          item.refType === 'receivable' || item.refType === 'payable'
+            ? item.refType
+            : undefined,
+        refId: item.refId != null ? String(item.refId) : undefined,
       };
     }),
     expectedTotals: mapTotals(data.expectedTotals),
@@ -117,6 +133,18 @@ export async function listCashSessions(enterpriseId: string): Promise<CashSessio
   const snap = await getDocs(col);
   const rows = snap.docs.map((d) => mapCashSession(d.id, d.data() as Record<string, unknown>));
   return rows.sort((a, b) => b.openedAt.localeCompare(a.openedAt));
+}
+
+export async function getOpenCashSession(enterpriseId: string): Promise<CashSession | null> {
+  const rows = await listCashSessions(enterpriseId);
+  return rows.find((s) => s.status === 'open') || null;
+}
+
+export class NoOpenCashSessionError extends Error {
+  constructor(message = 'No open cash session') {
+    super(message);
+    this.name = 'NoOpenCashSessionError';
+  }
 }
 
 export async function getCashSession(

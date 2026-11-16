@@ -19,7 +19,7 @@ import { useRouter } from 'src/routes/hooks';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { createPayable, updatePayable } from 'src/api/firestore/payables';
+import { createPayableWithInstallments, updatePayable } from 'src/api/firestore/payables';
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
@@ -36,6 +36,7 @@ const Schema = zod.object({
   dueDate: zod.string().min(1),
   supplierName: zod.string().optional().or(zod.literal('')),
   recurrence: zod.enum(['none', 'weekly', 'monthly']),
+  installmentCount: zod.coerce.number().int().min(1).max(24),
   status: zod.enum(['open', 'paid', 'cancelled']),
   active: zod.boolean(),
 });
@@ -68,6 +69,7 @@ export function PayableForm({ current }: Props) {
       dueDate: current?.dueDate || '',
       supplierName: current?.supplierName || '',
       recurrence: current?.recurrence || 'none',
+      installmentCount: current?.installmentCount || 2,
       status: current?.status || 'open',
       active: current?.active ?? true,
     }),
@@ -81,9 +83,12 @@ export function PayableForm({ current }: Props) {
 
   const {
     reset,
+    watch,
     handleSubmit,
     formState: { isSubmitting },
   } = methods;
+
+  const recurrence = watch('recurrence');
 
   useEffect(() => {
     if (current) reset(defaultValues);
@@ -92,22 +97,32 @@ export function PayableForm({ current }: Props) {
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
     try {
-      const payload = {
-        description: data.description.trim(),
-        category: data.category as FinancialCategory,
-        amount: Number(data.amount),
-        startDate: data.startDate,
-        dueDate: data.dueDate,
-        supplierName: data.supplierName?.trim() || undefined,
-        recurrence: data.recurrence as FinancialRecurrence,
-        status: data.status as FinancialStatus,
-        active: data.active,
-      };
       if (isEdit && current) {
-        await updatePayable(enterpriseId, current.id, payload);
+        await updatePayable(enterpriseId, current.id, {
+          description: data.description.trim(),
+          category: data.category as FinancialCategory,
+          amount: Number(data.amount),
+          startDate: data.startDate,
+          dueDate: data.dueDate,
+          supplierName: data.supplierName?.trim() || undefined,
+          recurrence: data.recurrence as FinancialRecurrence,
+          status: data.status as FinancialStatus,
+          active: data.active,
+        });
         toast.success(t('finance.payableUpdateSuccess', { defaultValue: 'Conta atualizada' }));
       } else {
-        await createPayable(enterpriseId, payload);
+        await createPayableWithInstallments(enterpriseId, {
+          description: data.description.trim(),
+          category: data.category as FinancialCategory,
+          amount: Number(data.amount),
+          startDate: data.startDate,
+          dueDate: data.dueDate,
+          supplierName: data.supplierName?.trim() || undefined,
+          recurrence: data.recurrence as FinancialRecurrence,
+          installmentCount: data.recurrence === 'none' ? 1 : Number(data.installmentCount),
+          status: data.status as FinancialStatus,
+          active: data.active,
+        });
         toast.success(t('finance.payableCreateSuccess', { defaultValue: 'Conta criada' }));
       }
       router.push(paths.dashboard.cash.payables);
@@ -148,6 +163,17 @@ export function PayableForm({ current }: Props) {
               <MenuItem value="weekly">{t('finance.recurrenceWeekly', { defaultValue: 'Semanal' })}</MenuItem>
               <MenuItem value="monthly">{t('finance.recurrenceMonthly', { defaultValue: 'Mensal' })}</MenuItem>
             </Field.Select>
+            {recurrence !== 'none' && !isEdit && (
+              <Field.Text
+                name="installmentCount"
+                type="number"
+                label={t('finance.installmentCount', { defaultValue: 'Nº de parcelas' })}
+                helperText={t('finance.installmentCountHint', {
+                  defaultValue: 'Valor informado é o total a dividir (máx. 24)',
+                })}
+                inputProps={{ min: 2, max: 24, step: 1 }}
+              />
+            )}
             <Field.Select name="status" label={t('finance.status', { defaultValue: 'Status' })}>
               <MenuItem value="open">{t('finance.statusOpen', { defaultValue: 'Em aberto' })}</MenuItem>
               <MenuItem value="paid">{t('finance.statusPaid', { defaultValue: 'Pago' })}</MenuItem>

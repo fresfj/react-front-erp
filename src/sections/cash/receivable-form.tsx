@@ -31,7 +31,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { listCustomers } from 'src/api/firestore/customers';
-import { createReceivable, updateReceivable } from 'src/api/firestore/receivables';
+import { createReceivableWithInstallments, updateReceivable } from 'src/api/firestore/receivables';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -54,6 +54,7 @@ const Schema = zod.object({
   customerId: zod.string().optional().or(zod.literal('')),
   customerName: zod.string().optional().or(zod.literal('')),
   recurrence: zod.enum(['none', 'weekly', 'monthly']),
+  installmentCount: zod.coerce.number().int().min(1).max(24),
   status: zod.enum(['open', 'paid', 'cancelled']),
   active: zod.boolean(),
 });
@@ -92,6 +93,7 @@ export function ReceivableForm({ current }: Props) {
       customerId: current?.customerId || '',
       customerName: current?.customerName || '',
       recurrence: current?.recurrence || 'none',
+      installmentCount: current?.installmentCount || 2,
       status: current?.status || 'open',
       active: current?.active ?? true,
     }),
@@ -113,6 +115,7 @@ export function ReceivableForm({ current }: Props) {
 
   const customerId = watch('customerId');
   const customerName = watch('customerName');
+  const recurrence = watch('recurrence');
 
   useEffect(() => {
     if (current) reset(defaultValues);
@@ -133,23 +136,35 @@ export function ReceivableForm({ current }: Props) {
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
     try {
-      const payload = {
-        description: data.description.trim(),
-        category: data.category as FinancialCategory,
-        amount: Number(data.amount),
-        startDate: data.startDate,
-        dueDate: data.dueDate,
-        customerId: data.customerId?.trim() || undefined,
-        customerName: data.customerName?.trim() || undefined,
-        recurrence: data.recurrence as FinancialRecurrence,
-        status: data.status as FinancialStatus,
-        active: data.active,
-      };
       if (isEdit && current) {
-        await updateReceivable(enterpriseId, current.id, payload);
+        await updateReceivable(enterpriseId, current.id, {
+          description: data.description.trim(),
+          category: data.category as FinancialCategory,
+          amount: Number(data.amount),
+          startDate: data.startDate,
+          dueDate: data.dueDate,
+          customerId: data.customerId?.trim() || undefined,
+          customerName: data.customerName?.trim() || undefined,
+          recurrence: data.recurrence as FinancialRecurrence,
+          status: data.status as FinancialStatus,
+          active: data.active,
+        });
         toast.success(t('finance.receivableUpdateSuccess', { defaultValue: 'Conta atualizada' }));
       } else {
-        await createReceivable(enterpriseId, payload);
+        await createReceivableWithInstallments(enterpriseId, {
+          description: data.description.trim(),
+          category: data.category as FinancialCategory,
+          amount: Number(data.amount),
+          startDate: data.startDate,
+          dueDate: data.dueDate,
+          customerId: data.customerId?.trim() || undefined,
+          customerName: data.customerName?.trim() || undefined,
+          customerCurrentDebt: selectedCustomer?.currentDebt ?? 0,
+          recurrence: data.recurrence as FinancialRecurrence,
+          installmentCount: data.recurrence === 'none' ? 1 : Number(data.installmentCount),
+          status: data.status as FinancialStatus,
+          active: data.active,
+        });
         toast.success(t('finance.receivableCreateSuccess', { defaultValue: 'Conta criada' }));
       }
       router.push(paths.dashboard.cash.receivables);
@@ -276,6 +291,17 @@ export function ReceivableForm({ current }: Props) {
                   {t('finance.recurrenceMonthly', { defaultValue: 'Mensal' })}
                 </MenuItem>
               </Field.Select>
+              {recurrence !== 'none' && !isEdit && (
+                <Field.Text
+                  name="installmentCount"
+                  type="number"
+                  label={t('finance.installmentCount', { defaultValue: 'Nº de parcelas' })}
+                  helperText={t('finance.installmentCountHint', {
+                    defaultValue: 'Valor informado é o total a dividir (máx. 24)',
+                  })}
+                  inputProps={{ min: 2, max: 24, step: 1 }}
+                />
+              )}
               <Field.Select name="status" label={t('finance.status', { defaultValue: 'Status' })}>
                 <MenuItem value="open">
                   {t('finance.statusOpen', { defaultValue: 'Em aberto' })}

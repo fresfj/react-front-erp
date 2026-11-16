@@ -99,6 +99,12 @@
     "emptyPayables": "No payables",
     "emptyReceivables": "No receivables",
     "selectCustomer": "Select customer",
+    "installment": "Installment",
+    "installmentCount": "Installments",
+    "installmentCountHint": "Amount is the total to split (max 24)",
+    "errors": {
+      "noOpenCash": "Open the cash drawer to record this movement"
+    },
     "filters": {
       "allStatus": "All statuses",
       "overdue": "Overdue"

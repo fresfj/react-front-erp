@@ -99,6 +99,12 @@
     "emptyPayables": "Nenhuma conta a pagar",
     "emptyReceivables": "Nenhuma conta a receber",
     "selectCustomer": "Selecionar cliente",
+    "installment": "Parcela",
+    "installmentCount": "Nº de parcelas",
+    "installmentCountHint": "Valor informado é o total a dividir (máx. 24)",
+    "errors": {
+      "noOpenCash": "Abra o caixa para registrar o movimento"
+    },
     "filters": {
       "allStatus": "Todos os status",
       "overdue": "Vencidas"

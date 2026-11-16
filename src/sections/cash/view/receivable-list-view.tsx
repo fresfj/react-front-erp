@@ -32,7 +32,8 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { listCustomers } from 'src/api/firestore/customers';
-import { listReceivables, updateReceivable } from 'src/api/firestore/receivables';
+import { NoOpenCashSessionError, getOpenCashSession } from 'src/api/firestore/cash-sessions';
+import { listReceivables, markReceivablePaid } from 'src/api/firestore/receivables';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -138,6 +139,7 @@ export function ReceivableListView() {
 
   const filters = useSetState<ReceivableFilters>({ status: '' });
   const [rows, setRows] = useState<ReceivableRow[]>([]);
+  const [customersById, setCustomersById] = useState<Map<string, Customer>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -153,6 +155,7 @@ export function ReceivableListView() {
         listCustomers(enterpriseId),
       ]);
       const byId = new Map<string, Customer>(customers.map((c) => [c.id, c]));
+      setCustomersById(byId);
 
       setRows(
         receivables.map((r) => {
@@ -176,6 +179,35 @@ export function ReceivableListView() {
       setLoading(false);
     }
   }, [enterpriseId]);
+
+  const handleMarkPaid = useCallback(
+    async (row: ReceivableRow) => {
+      if (!enterpriseId) return;
+      try {
+        const session = await getOpenCashSession(enterpriseId);
+        const customer = row.customerId ? customersById.get(row.customerId) : undefined;
+        await markReceivablePaid(enterpriseId, row, {
+          session,
+          createdBy: user?.uid,
+          customerCurrentDebt: customer?.currentDebt ?? 0,
+        });
+        toast.success(t('finance.receivableUpdateSuccess', { defaultValue: 'Atualizado' }));
+        await load();
+      } catch (error) {
+        console.error(error);
+        if (error instanceof NoOpenCashSessionError) {
+          toast.error(
+            t('finance.errors.noOpenCash', {
+              defaultValue: 'Abra o caixa para registrar o recebimento',
+            })
+          );
+          return;
+        }
+        toast.error(getFirebaseErrorMessage(error, 'Erro'));
+      }
+    },
+    [customersById, enterpriseId, load, t, user?.uid]
+  );
 
   useEffect(() => {
     load();
@@ -245,6 +277,15 @@ export function ReceivableListView() {
         minWidth: 160,
       },
       {
+        field: 'installment',
+        headerName: t('finance.installment', { defaultValue: 'Parcela' }),
+        width: 100,
+        valueGetter: (_v, row) =>
+          row.installmentCount > 1
+            ? `${row.installmentIndex}/${row.installmentCount}`
+            : '—',
+      },
+      {
         field: 'amount',
         headerName: t('finance.amount', { defaultValue: 'Valor' }),
         width: 120,
@@ -306,18 +347,7 @@ export function ReceivableListView() {
               <IconButton
                 size="small"
                 color="success"
-                onClick={async () => {
-                  if (!enterpriseId) return;
-                  try {
-                    await updateReceivable(enterpriseId, params.row.id, { status: 'paid' });
-                    toast.success(
-                      t('finance.receivableUpdateSuccess', { defaultValue: 'Atualizado' })
-                    );
-                    load();
-                  } catch (error) {
-                    toast.error(getFirebaseErrorMessage(error, 'Erro'));
-                  }
-                }}
+                onClick={() => handleMarkPaid(params.row)}
               >
                 <Iconify icon="solar:check-circle-bold" />
               </IconButton>
@@ -326,7 +356,7 @@ export function ReceivableListView() {
         ),
       },
     ],
-    [enterpriseId, load, router, t]
+    [handleMarkPaid, router, t]
   );
 
   return (

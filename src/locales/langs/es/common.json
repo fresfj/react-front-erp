@@ -99,6 +99,12 @@
     "emptyPayables": "Sin cuentas por pagar",
     "emptyReceivables": "Sin cuentas por cobrar",
     "selectCustomer": "Seleccionar cliente",
+    "installment": "Cuota",
+    "installmentCount": "Nº de cuotas",
+    "installmentCountHint": "El valor es el total a dividir (máx. 24)",
+    "errors": {
+      "noOpenCash": "Abra la caja para registrar el movimiento"
+    },
     "filters": {
       "allStatus": "Todos los estados",
       "overdue": "Vencidas"

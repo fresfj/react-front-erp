@@ -1,7 +1,7 @@
 # Design: Finance Installments + Cash Settlement + Customer Debt (Slice E)
 
 **Date:** 2026-11-16  
-**Status:** Draft (awaiting user review of this file)  
+**Status:** Approved + implemented  
 **Stack:** Firestore multi-tenant, cash sessions, customers `currentDebt`, payables/receivables CRUD
 
 ## 1. Context

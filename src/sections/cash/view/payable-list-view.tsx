@@ -30,7 +30,8 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { listPayables, updatePayable } from 'src/api/firestore/payables';
+import { NoOpenCashSessionError, getOpenCashSession } from 'src/api/firestore/cash-sessions';
+import { listPayables, markPayablePaid } from 'src/api/firestore/payables';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -152,6 +153,33 @@ export function PayableListView() {
     load();
   }, [load]);
 
+  const handleMarkPaid = useCallback(
+    async (row: Payable) => {
+      if (!enterpriseId) return;
+      try {
+        const session = await getOpenCashSession(enterpriseId);
+        await markPayablePaid(enterpriseId, row, {
+          session,
+          createdBy: user?.uid,
+        });
+        toast.success(t('finance.payableUpdateSuccess', { defaultValue: 'Atualizado' }));
+        await load();
+      } catch (error) {
+        console.error(error);
+        if (error instanceof NoOpenCashSessionError) {
+          toast.error(
+            t('finance.errors.noOpenCash', {
+              defaultValue: 'Abra o caixa para registrar o pagamento',
+            })
+          );
+          return;
+        }
+        toast.error(getFirebaseErrorMessage(error, 'Erro'));
+      }
+    },
+    [enterpriseId, load, t, user?.uid]
+  );
+
   const dataFiltered = useMemo(() => {
     const status = filters.state.status;
     if (!status) return tableData;
@@ -195,6 +223,15 @@ export function PayableListView() {
         width: 140,
         valueGetter: (_v, row) =>
           t(`finance.categories.${row.category}`, { defaultValue: row.category }),
+      },
+      {
+        field: 'installment',
+        headerName: t('finance.installment', { defaultValue: 'Parcela' }),
+        width: 100,
+        valueGetter: (_v, row) =>
+          row.installmentCount > 1
+            ? `${row.installmentIndex}/${row.installmentCount}`
+            : '—',
       },
       {
         field: 'amount',
@@ -261,18 +298,7 @@ export function PayableListView() {
               <IconButton
                 size="small"
                 color="success"
-                onClick={async () => {
-                  if (!enterpriseId) return;
-                  try {
-                    await updatePayable(enterpriseId, params.row.id, { status: 'paid' });
-                    toast.success(
-                      t('finance.payableUpdateSuccess', { defaultValue: 'Atualizado' })
-                    );
-                    load();
-                  } catch (error) {
-                    toast.error(getFirebaseErrorMessage(error, 'Erro'));
-                  }
-                }}
+                onClick={() => handleMarkPaid(params.row)}
               >
                 <Iconify icon="solar:check-circle-bold" />
               </IconButton>
@@ -281,7 +307,7 @@ export function PayableListView() {
         ),
       },
     ],
-    [enterpriseId, load, router, t]
+    [handleMarkPaid, router, t]
   );
 
   return (

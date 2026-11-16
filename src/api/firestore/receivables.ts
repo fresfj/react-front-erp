@@ -1,16 +1,25 @@
 import {
   doc,
-  addDoc,
   getDoc,
   getDocs,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
+
+import { FIRESTORE } from 'src/lib/firebase';
+
+import {
+  splitInstallments,
+  buildInstallmentDueDates,
+} from 'src/sections/cash/installments';
 
 import type {
   FinancialCategory,
   FinancialRecurrence,
   FinancialStatus,
 } from './payables';
+import type { CashSession } from './cash-sessions';
+import { NoOpenCashSessionError } from './cash-sessions';
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
 
@@ -27,13 +36,41 @@ export type Receivable = {
   customerName?: string;
   recurrence: FinancialRecurrence;
   status: FinancialStatus;
+  parentId?: string;
+  installmentIndex: number;
+  installmentCount: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
+export type CreateReceivableInput = {
+  description: string;
+  category: FinancialCategory;
+  /** Total amount to split across installments. */
+  amount: number;
+  startDate: string;
+  dueDate: string;
+  customerId?: string;
+  customerName?: string;
+  /** Current customer debt before create (for atomic bump). */
+  customerCurrentDebt?: number;
+  recurrence: FinancialRecurrence;
+  installmentCount?: number;
+  status?: FinancialStatus;
+  active?: boolean;
+};
+
 function receivableRef(enterpriseId: string, id: string) {
   return doc(enterpriseCollection(enterpriseId, 'receivables'), id);
+}
+
+function customerRef(enterpriseId: string, id: string) {
+  return doc(enterpriseCollection(enterpriseId, 'customers'), id);
+}
+
+function sessionRef(enterpriseId: string, id: string) {
+  return doc(enterpriseCollection(enterpriseId, 'cashSessions'), id);
 }
 
 function nowIso(): string {
@@ -45,7 +82,12 @@ function optStr(val: unknown): string | undefined {
   return String(val);
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 function mapReceivable(id: string, data: Record<string, unknown>): Receivable {
+  const installmentCount = Math.max(1, Number(data.installmentCount ?? 1));
   return {
     id,
     description: String(data.description ?? ''),
@@ -57,6 +99,9 @@ function mapReceivable(id: string, data: Record<string, unknown>): Receivable {
     customerName: optStr(data.customerName),
     recurrence: (data.recurrence as FinancialRecurrence) || 'none',
     status: (data.status as FinancialStatus) || 'open',
+    parentId: optStr(data.parentId),
+    installmentIndex: Math.max(1, Number(data.installmentIndex ?? 1)),
+    installmentCount,
     active: data.active !== false,
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
@@ -79,14 +124,83 @@ export async function getReceivable(
   return mapReceivable(snap.id, snap.data() as Record<string, unknown>);
 }
 
+/** @deprecated Prefer createReceivableWithInstallments */
 export async function createReceivable(
   enterpriseId: string,
   data: Omit<Receivable, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<Receivable> {
+  const created = await createReceivableWithInstallments(enterpriseId, {
+    description: data.description,
+    category: data.category,
+    amount: data.amount,
+    startDate: data.startDate,
+    dueDate: data.dueDate,
+    customerId: data.customerId,
+    customerName: data.customerName,
+    recurrence: data.recurrence,
+    installmentCount: data.installmentCount || 1,
+    status: data.status,
+    active: data.active,
+  });
+  return created[0];
+}
+
+export async function createReceivableWithInstallments(
+  enterpriseId: string,
+  input: CreateReceivableInput
+): Promise<Receivable[]> {
+  const recurrence = input.recurrence || 'none';
+  const count =
+    recurrence === 'none'
+      ? 1
+      : Math.min(24, Math.max(1, Math.floor(input.installmentCount || 1)));
+
+  const amounts = splitInstallments(Number(input.amount), count);
+  const dueDates =
+    recurrence === 'none'
+      ? [input.dueDate || input.startDate]
+      : buildInstallmentDueDates(input.startDate, recurrence, count);
+
   const timestamp = nowIso();
-  const payload = omitUndefined({ ...data, createdAt: timestamp, updatedAt: timestamp });
-  const ref = await addDoc(enterpriseCollection(enterpriseId, 'receivables'), payload);
-  return mapReceivable(ref.id, payload as Record<string, unknown>);
+  const col = enterpriseCollection(enterpriseId, 'receivables');
+  const wb = writeBatch(FIRESTORE);
+  const parentRef = doc(col);
+  const created: Receivable[] = [];
+
+  for (let i = 0; i < count; i += 1) {
+    const ref = i === 0 ? parentRef : doc(col);
+    const payload = omitUndefined({
+      description: input.description.trim(),
+      category: input.category,
+      amount: amounts[i],
+      startDate: input.startDate,
+      dueDate: dueDates[i],
+      customerId: input.customerId,
+      customerName: input.customerName,
+      recurrence,
+      status: input.status || 'open',
+      parentId: parentRef.id,
+      installmentIndex: i + 1,
+      installmentCount: count,
+      active: input.active ?? true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+    wb.set(ref, payload);
+    created.push(mapReceivable(ref.id, payload as Record<string, unknown>));
+  }
+
+  if (input.customerId) {
+    const total = round2(amounts.reduce((s, a) => s + a, 0));
+    const currentDebt = Number(input.customerCurrentDebt ?? 0);
+    wb.update(customerRef(enterpriseId, input.customerId), {
+      currentDebt: round2(currentDebt + total),
+      updatedAt: timestamp,
+    });
+  }
+
+  await wb.commit();
+  return created;
 }
 
 export async function updateReceivable(
@@ -98,4 +212,86 @@ export async function updateReceivable(
     receivableRef(enterpriseId, id),
     omitUndefined({ ...data, updatedAt: nowIso() })
   );
+}
+
+export async function markReceivablePaid(
+  enterpriseId: string,
+  receivable: Receivable,
+  opts: {
+    session: CashSession | null;
+    createdBy?: string;
+    customerCurrentDebt?: number;
+  }
+): Promise<void> {
+  if (receivable.status !== 'open') {
+    throw new Error('Receivable is not open');
+  }
+  if (!opts.session || opts.session.status !== 'open') {
+    throw new NoOpenCashSessionError();
+  }
+
+  const timestamp = nowIso();
+  const wb = writeBatch(FIRESTORE);
+
+  wb.update(receivableRef(enterpriseId, receivable.id), {
+    status: 'paid',
+    updatedAt: timestamp,
+  });
+
+  if (receivable.customerId) {
+    const currentDebt = Number(opts.customerCurrentDebt ?? 0);
+    wb.update(customerRef(enterpriseId, receivable.customerId), {
+      currentDebt: Math.max(0, round2(currentDebt - receivable.amount)),
+      updatedAt: timestamp,
+    });
+  }
+
+  const nextMovements = [
+    ...opts.session.movements,
+    omitUndefined({
+      id: `mov-${Date.now()}`,
+      type: 'RECEIPT' as const,
+      amount: receivable.amount,
+      reason: `Recebimento: ${receivable.description} (${receivable.installmentIndex}/${receivable.installmentCount})`,
+      createdAt: timestamp,
+      createdBy: opts.createdBy,
+      refType: 'receivable' as const,
+      refId: receivable.id,
+    }),
+  ];
+
+  wb.update(sessionRef(enterpriseId, opts.session.id), {
+    movements: nextMovements,
+    updatedAt: timestamp,
+  });
+
+  await wb.commit();
+}
+
+export async function cancelReceivable(
+  enterpriseId: string,
+  receivable: Receivable,
+  opts?: { customerCurrentDebt?: number }
+): Promise<void> {
+  if (receivable.status !== 'open') {
+    throw new Error('Only open receivables can be cancelled');
+  }
+
+  const timestamp = nowIso();
+  const wb = writeBatch(FIRESTORE);
+
+  wb.update(receivableRef(enterpriseId, receivable.id), {
+    status: 'cancelled',
+    updatedAt: timestamp,
+  });
+
+  if (receivable.customerId) {
+    const currentDebt = Number(opts?.customerCurrentDebt ?? 0);
+    wb.update(customerRef(enterpriseId, receivable.customerId), {
+      currentDebt: Math.max(0, round2(currentDebt - receivable.amount)),
+      updatedAt: timestamp,
+    });
+  }
+
+  await wb.commit();
 }
