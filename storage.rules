@@ -13,5 +13,14 @@ service firebase.storage {
       allow write: if signedIn()
         && (request.auth.uid == uid || request.auth.token.platformAdmin == true);
     }
+
+    match /enterprises/{enterpriseId}/products/{allPaths=**} {
+      allow read: if signedIn()
+        && (request.auth.token.enterpriseId == enterpriseId
+          || request.auth.token.platformAdmin == true);
+      allow write: if signedIn()
+        && (request.auth.token.enterpriseId == enterpriseId
+          || request.auth.token.platformAdmin == true);
+    }
   }
 }

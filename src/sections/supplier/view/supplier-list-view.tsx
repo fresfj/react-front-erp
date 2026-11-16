@@ -209,9 +209,31 @@ export function SupplierListView() {
         minWidth: 200,
         hideable: false,
       },
-      { field: 'document', headerName: t('suppliers.fields.document'), width: 160 },
-      { field: 'phone', headerName: t('suppliers.fields.phone'), width: 150 },
-      { field: 'email', headerName: t('suppliers.fields.email'), width: 220 },
+      {
+        field: 'document',
+        headerName: t('suppliers.fields.document'),
+        width: 160,
+        valueGetter: (_v, row) => row.document || '—',
+      },
+      {
+        field: 'phone',
+        headerName: t('suppliers.fields.phone'),
+        width: 150,
+        valueGetter: (_v, row) => row.phone || '—',
+      },
+      {
+        field: 'city',
+        headerName: t('suppliers.fields.city', { defaultValue: 'Cidade/UF' }),
+        width: 160,
+        valueGetter: (_v, row) =>
+          row.city ? `${row.city}${row.state ? `/${row.state}` : ''}` : '—',
+      },
+      {
+        field: 'email',
+        headerName: t('suppliers.fields.email'),
+        width: 200,
+        valueGetter: (_v, row) => row.email || '—',
+      },
       {
         field: 'active',
         headerName: t('suppliers.fields.active'),

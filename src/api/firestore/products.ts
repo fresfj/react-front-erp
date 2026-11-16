@@ -18,11 +18,20 @@ export type Product = {
   id: string;
   name: string;
   sku: string;
+  ean?: string;
   type: ProductType;
+  category?: string;
   unit: string;
   costPrice?: number;
   salePrice?: number;
+  minStock?: number;
+  expirationDate?: string;
+  supplierId?: string;
+  supplierName?: string;
   variant?: string;
+  tags?: string[];
+  taxPercent?: number;
+  imageUrl?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -32,19 +41,33 @@ function productRef(enterpriseId: string, id: string) {
   return doc(enterpriseCollection(enterpriseId, 'products'), id);
 }
 
+function optStr(val: unknown): string | undefined {
+  if (val == null || val === '') return undefined;
+  return String(val);
+}
+
 function mapProduct(id: string, data: Record<string, unknown>): Product {
-  const type = data.type === 'finished' ? 'finished' : 'raw';
+  const type = data.type === 'raw' ? 'raw' : 'finished';
 
   return {
     id,
     name: String(data.name ?? ''),
     sku: String(data.sku ?? ''),
+    ean: optStr(data.ean),
     type,
-    unit: String(data.unit ?? ''),
+    category: optStr(data.category),
+    unit: String(data.unit ?? 'un'),
     costPrice: typeof data.costPrice === 'number' ? data.costPrice : undefined,
     salePrice: typeof data.salePrice === 'number' ? data.salePrice : undefined,
-    variant: data.variant != null ? String(data.variant) : undefined,
-    active: Boolean(data.active),
+    minStock: typeof data.minStock === 'number' ? data.minStock : undefined,
+    expirationDate: optStr(data.expirationDate),
+    supplierId: optStr(data.supplierId),
+    supplierName: optStr(data.supplierName),
+    variant: optStr(data.variant),
+    tags: Array.isArray(data.tags) ? data.tags.map((t) => String(t)) : undefined,
+    taxPercent: typeof data.taxPercent === 'number' ? data.taxPercent : undefined,
+    imageUrl: optStr(data.imageUrl),
+    active: data.active !== false,
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };
@@ -96,8 +119,8 @@ export async function updateProduct(
   delete updates.id;
   delete updates.createdAt;
 
-  // Explicit undefined variant (e.g. type switched to raw) must remove the field.
-  const clearVariant = Object.prototype.hasOwnProperty.call(data, 'variant') && data.variant === undefined;
+  const clearVariant =
+    Object.prototype.hasOwnProperty.call(data, 'variant') && data.variant === undefined;
 
   await updateDoc(productRef(enterpriseId, id), {
     ...omitUndefined({

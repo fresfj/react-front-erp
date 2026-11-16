@@ -14,9 +14,20 @@ import { omitUndefined } from './omit-undefined';
 export type Supplier = {
   id: string;
   name: string;
-  document: string;
+  tradeName?: string;
+  document?: string;
+  stateRegistration?: string;
+  contactPerson?: string;
   phone?: string;
   email?: string;
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  notes?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -26,13 +37,29 @@ function supplierRef(enterpriseId: string, id: string) {
   return doc(enterpriseCollection(enterpriseId, 'suppliers'), id);
 }
 
+function optStr(val: unknown): string | undefined {
+  if (val == null || val === '') return undefined;
+  return String(val);
+}
+
 function mapSupplier(id: string, data: Record<string, unknown>): Supplier {
   return {
     id,
     name: String(data.name ?? ''),
-    document: String(data.document ?? ''),
-    phone: data.phone != null ? String(data.phone) : undefined,
-    email: data.email != null ? String(data.email) : undefined,
+    tradeName: optStr(data.tradeName),
+    document: optStr(data.document),
+    stateRegistration: optStr(data.stateRegistration),
+    contactPerson: optStr(data.contactPerson),
+    phone: optStr(data.phone),
+    email: optStr(data.email),
+    zipCode: optStr(data.zipCode),
+    address: optStr(data.address),
+    addressNumber: optStr(data.addressNumber),
+    complement: optStr(data.complement),
+    neighborhood: optStr(data.neighborhood),
+    city: optStr(data.city),
+    state: optStr(data.state),
+    notes: optStr(data.notes),
     active: Boolean(data.active),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),

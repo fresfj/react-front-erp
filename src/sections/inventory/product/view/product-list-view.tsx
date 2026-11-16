@@ -31,6 +31,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { listProducts, deactivateProduct } from 'src/api/firestore/products';
 
 import { Label } from 'src/components/label';
@@ -237,18 +238,40 @@ export function ProductListView() {
         field: 'name',
         headerName: t('products.fields.name'),
         flex: 1,
-        minWidth: 200,
+        minWidth: 220,
         hideable: false,
+        renderCell: (params) =>
+          params.row.variant
+            ? `${params.row.name} (${params.row.variant})`
+            : params.row.name,
       },
       { field: 'sku', headerName: t('products.fields.sku'), width: 140 },
       {
+        field: 'ean',
+        headerName: 'EAN-13',
+        width: 145,
+        valueGetter: (_v, row) => row.ean || '—',
+      },
+      {
+        field: 'category',
+        headerName: 'Categoria',
+        width: 160,
+        valueGetter: (_v, row) => row.category || '—',
+      },
+      {
         field: 'type',
         headerName: t('products.fields.type'),
-        width: 140,
+        width: 120,
         renderCell: (params) =>
           params.row.type === 'finished' ? t('products.types.finished') : t('products.types.raw'),
       },
-      { field: 'unit', headerName: t('products.fields.unit'), width: 100 },
+      { field: 'unit', headerName: t('products.fields.unit'), width: 90 },
+      {
+        field: 'minStock',
+        headerName: 'Est. Mín.',
+        width: 100,
+        valueGetter: (_v, row) => row.minStock ?? '—',
+      },
       {
         field: 'costPrice',
         headerName: t('products.fields.costPrice'),
@@ -317,14 +340,33 @@ export function ProductListView() {
             { name: t('products.listHeading') },
           ]}
           action={
-            <Button
-              component={RouterLink}
-              href={paths.dashboard.products.create}
-              variant="contained"
-              startIcon={<Iconify icon="mingcute:add-line" />}
-            >
-              {t('products.newProduct')}
-            </Button>
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="soft"
+                color="info"
+                startIcon={<Iconify icon="solar:magic-stick-3-bold" />}
+                onClick={async () => {
+                  if (!enterpriseId) return;
+                  try {
+                    await seedDemoErpCatalog(enterpriseId);
+                    toast.success('Produtos, Fornecedor e Lotes de teste carregados!');
+                    await loadProducts();
+                  } catch (error) {
+                    toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar produtos demo'));
+                  }
+                }}
+              >
+                Produtos de Teste
+              </Button>
+              <Button
+                component={RouterLink}
+                href={paths.dashboard.products.create}
+                variant="contained"
+                startIcon={<Iconify icon="mingcute:add-line" />}
+              >
+                {t('products.newProduct')}
+              </Button>
+            </Stack>
           }
           sx={{ mb: { xs: 3, md: 5 } }}
         />
