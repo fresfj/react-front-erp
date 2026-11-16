@@ -78,16 +78,16 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - Scripts claims + SA gitignored
 - Docs: este handoff, `AGENTS.md`, skills em `.agents/skills/`
 - **Slice A (Team PermissionGuard):** `resolvePermissionAccess` + `PermissionGuard` nas rotas ERP; invite com `autoComplete` off/`new-password`; `inviteMember` sync `displayName` no Auth + default perms de operador
+- **Slice B (BrasilAPI):** máscaras CEP/CPF/CNPJ + lookup em supplier/customer/enterprise/account; enterprise com CNPJ+endereço (CF); account com nascimento+endereço
 
 ## Pendente (próximo)
 
-1. Smoke manual: operador só `pos` → URL `/dashboard/products` e `/dashboard/cash/dre` → Forbidden; invite → Account com nome
-2. Deploy `functions:inviteMember` (se ainda pendente) + `firestore.rules`
+1. Smoke manual: CEP `89010-025` e CNPJ conhecido nos forms; criar empresa com CNPJ; account endereço/DOB
+2. Deploy `firestore.rules` se pendente
 3. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
-4. **Slice B:** BrasilAPI CEP/CNPJ + dados completos empresa/account
-5. **Slice C:** Contas a pagar/receber + filtros DRE + ranking vendedores
-6. Imagem produto Storage (MVP ainda sem upload no form)
-7. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+4. **Slice C:** Contas a pagar/receber + filtros DRE + ranking vendedores
+5. Imagem produto Storage (MVP ainda sem upload no form)
+6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
 
 ## Validar
 
