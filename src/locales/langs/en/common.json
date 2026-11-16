@@ -61,7 +61,44 @@
   "account": {
     "title": "Account"
   },
-
+  "products": {
+    "title": "Products",
+    "listHeading": "Product list",
+    "createHeading": "Create product",
+    "editHeading": "Edit product",
+    "newProduct": "New product",
+    "createSubmit": "Create product",
+    "saveSubmit": "Save changes",
+    "details": "Details",
+    "detailsHint": "Product name, SKU and type",
+    "properties": "Properties",
+    "propertiesHint": "Unit, prices and variant",
+    "deactivate": "Deactivate",
+    "deactivateConfirm": "Are you sure you want to deactivate this product?",
+    "createSuccess": "Product created successfully",
+    "updateSuccess": "Product updated successfully",
+    "deactivateSuccess": "Product deactivated successfully",
+    "createError": "Could not create product",
+    "updateError": "Could not update product",
+    "deactivateError": "Could not deactivate product",
+    "loadError": "Could not load products",
+    "notFound": "Product not found",
+    "errorMissingEnterprise": "Enterprise is not configured in this session",
+    "types": {
+      "raw": "Raw material",
+      "finished": "Finished"
+    },
+    "fields": {
+      "name": "Name",
+      "sku": "SKU",
+      "type": "Type",
+      "unit": "Unit",
+      "costPrice": "Cost price",
+      "salePrice": "Sale price",
+      "variant": "Variant",
+      "active": "Active"
+    }
+  },
   "inventory": {
     "products": "Products",
     "listHeading": "Product list",

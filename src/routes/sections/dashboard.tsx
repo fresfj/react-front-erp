@@ -17,7 +17,9 @@ const IndexPage = lazy(() => import('src/pages/dashboard'));
 const SupplierListPage = lazy(() => import('src/pages/supplier/list'));
 const SupplierCreatePage = lazy(() => import('src/pages/supplier/create'));
 const SupplierEditPage = lazy(() => import('src/pages/supplier/edit'));
-const ProductsStubPage = lazy(() => import('src/pages/products'));
+const ProductListPage = lazy(() => import('src/pages/inventory/product/list'));
+const ProductCreatePage = lazy(() => import('src/pages/inventory/product/create'));
+const ProductEditPage = lazy(() => import('src/pages/inventory/product/edit'));
 const AccountStubPage = lazy(() => import('src/pages/account'));
 
 // ----------------------------------------------------------------------
@@ -51,9 +53,9 @@ export const dashboardRoutes = [
         path: 'products',
         children: [
           { element: <Navigate to={paths.dashboard.products.list} replace />, index: true },
-          { path: 'list', element: <ProductsStubPage /> },
-          { path: 'create', element: <ProductsStubPage /> },
-          { path: ':id/edit', element: <ProductsStubPage /> },
+          { path: 'list', element: <ProductListPage /> },
+          { path: 'create', element: <ProductCreatePage /> },
+          { path: ':id/edit', element: <ProductEditPage /> },
         ],
       },
       {

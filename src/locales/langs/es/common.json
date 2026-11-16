@@ -61,7 +61,44 @@
   "account": {
     "title": "Cuenta"
   },
-
+  "products": {
+    "title": "Productos",
+    "listHeading": "Lista de productos",
+    "createHeading": "Crear producto",
+    "editHeading": "Editar producto",
+    "newProduct": "Nuevo producto",
+    "createSubmit": "Crear producto",
+    "saveSubmit": "Guardar cambios",
+    "details": "Detalles",
+    "detailsHint": "Nombre, SKU y tipo del producto",
+    "properties": "Propiedades",
+    "propertiesHint": "Unidad, precios y variante",
+    "deactivate": "Desactivar",
+    "deactivateConfirm": "¿Seguro que desea desactivar este producto?",
+    "createSuccess": "Producto creado con éxito",
+    "updateSuccess": "Producto actualizado con éxito",
+    "deactivateSuccess": "Producto desactivado con éxito",
+    "createError": "No se pudo crear el producto",
+    "updateError": "No se pudo actualizar el producto",
+    "deactivateError": "No se pudo desactivar el producto",
+    "loadError": "No se pudieron cargar los productos",
+    "notFound": "Producto no encontrado",
+    "errorMissingEnterprise": "Empresa no configurada en la sesión",
+    "types": {
+      "raw": "Insumo",
+      "finished": "Acabado"
+    },
+    "fields": {
+      "name": "Nombre",
+      "sku": "SKU",
+      "type": "Tipo",
+      "unit": "Unidad",
+      "costPrice": "Precio de costo",
+      "salePrice": "Precio de venta",
+      "variant": "Variante",
+      "active": "Activo"
+    }
+  },
   "inventory": {
     "products": "Productos",
     "listHeading": "Lista de productos",
