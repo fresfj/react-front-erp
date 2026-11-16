@@ -81,15 +81,17 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - **Slice B (BrasilAPI):** máscaras CEP/CPF/CNPJ + lookup em supplier/customer/enterprise/account; enterprise com CNPJ+endereço (CF); account com nascimento+endereço
 - **Slice C (Financeiro):** DRE com filtro de datas; ranking vendedores (`/cash/ranking`); Contas a pagar/receber CRUD + rules deployadas
 - **Slice D (DatePicker + PeriodFilterBar):** `RHFDatePicker` persiste `YYYY-MM-DD`; `PeriodFilterBar` (chips + CustomDateRangePicker) em overview/DRE/ranking; forms ERP (`account`, `product`, `batch`, `payable`, `receivable`) usam `Field.DatePicker`
+- **Finance lists:** Contas a receber enriquecidas com cliente (doc/fone/débito), picker de cliente no form; toolbars AP/AR no padrão DataGrid de products (status + vencidas)
+- **WIP commitado:** customers pages/dialogs, beneficiamento/lotes, PDV/sales/cash-sessions, catalog product/supplier enrichments, team page
 
 ## Pendente (próximo)
 
-1. Smoke: PeriodFilterBar em `/dashboard`, DRE, ranking; DatePicker nos forms
+1. Smoke: `/dashboard/cash/receivables` com cliente+débito; filtros status/vencidas
 2. Extrato bancário / ledger (adiado do Slice D)
 3. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
-4. Recorrência gerando parcelas; baixa automática no caixa
-5. Imagem produto Storage (MVP ainda sem upload no form)
-6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+4. Recorrência gerando parcelas; baixa automática no caixa (e sincronizar `currentDebt` do cliente ao receber)
+5. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+6. Revisar `package-lock.json` local (não commitado)
 
 ## Validar
 
