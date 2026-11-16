@@ -15,6 +15,42 @@ service cloud.firestore {
       return request.auth.token.platformAdmin == true;
     }
 
+    function memberDoc(enterpriseId) {
+      return get(/databases/$(database)/documents/enterprises/$(enterpriseId)/members/$(request.auth.uid));
+    }
+
+    function hasDefaultOperatorPerm(key) {
+      return key in ['pos', 'customers', 'cash_close', 'batches_read'];
+    }
+
+    function memberHasExplicitPerm(enterpriseId, key) {
+      return memberDoc(enterpriseId).data.keys().hasAny(['permissions'])
+        && memberDoc(enterpriseId).data.permissions is list
+        && key in memberDoc(enterpriseId).data.permissions;
+    }
+
+    function memberUsesDefaultPerms(enterpriseId) {
+      return !memberDoc(enterpriseId).data.keys().hasAny(['permissions'])
+        || memberDoc(enterpriseId).data.permissions == null
+        || !(memberDoc(enterpriseId).data.permissions is list)
+        || memberDoc(enterpriseId).data.permissions.size() == 0;
+    }
+
+    function hasPerm(enterpriseId, key) {
+      return signedIn() && (
+        isPlatformAdmin()
+        || (sameEnterprise(enterpriseId) && isAdminOrGestor())
+        || (
+          sameEnterprise(enterpriseId)
+          && roleOk()
+          && (
+            memberHasExplicitPerm(enterpriseId, key)
+            || (memberUsesDefaultPerms(enterpriseId) && hasDefaultOperatorPerm(key))
+          )
+        )
+      );
+    }
+
     match /enterprises/{enterpriseId} {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
@@ -24,93 +60,56 @@ service cloud.firestore {
     }
 
     match /enterprises/{enterpriseId}/products/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      allow read, write: if hasPerm(enterpriseId, 'products');
     }
 
     match /enterprises/{enterpriseId}/suppliers/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-    }
-
-    match /enterprises/{enterpriseId}/batches/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-    }
-
-    match /enterprises/{enterpriseId}/processingOrders/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-    }
-
-    match /enterprises/{enterpriseId}/stockMovements/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-    }
-
-    match /enterprises/{enterpriseId}/sales/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      allow read, write: if hasPerm(enterpriseId, 'suppliers');
     }
 
     match /enterprises/{enterpriseId}/customers/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      allow read: if hasPerm(enterpriseId, 'customers');
+      // OR: PDV credit_tab + AR/AP debt sync (spec §8.1)
+      allow write: if hasPerm(enterpriseId, 'customers')
+        || hasPerm(enterpriseId, 'pos')
+        || hasPerm(enterpriseId, 'dre');
+    }
+
+    match /enterprises/{enterpriseId}/sales/{id} {
+      allow read, write: if hasPerm(enterpriseId, 'pos');
     }
 
     match /enterprises/{enterpriseId}/cashSessions/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      // OR: settlement from payables/receivables (spec §8.1)
+      allow read: if hasPerm(enterpriseId, 'cash_close')
+        || hasPerm(enterpriseId, 'dre');
+      allow write: if hasPerm(enterpriseId, 'cash_close')
+        || hasPerm(enterpriseId, 'dre');
     }
 
     match /enterprises/{enterpriseId}/payables/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      allow read, write: if hasPerm(enterpriseId, 'dre');
     }
 
     match /enterprises/{enterpriseId}/receivables/{id} {
-      allow read: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
-      allow write: if signedIn() && (
-        isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
-      );
+      allow read, write: if hasPerm(enterpriseId, 'dre');
+    }
+
+    match /enterprises/{enterpriseId}/processingOrders/{id} {
+      allow read, write: if hasPerm(enterpriseId, 'processing');
+    }
+
+    match /enterprises/{enterpriseId}/batches/{id} {
+      allow read: if hasPerm(enterpriseId, 'batches_read');
+      // OR: FIFO deduction during POS sale (spec §8.1)
+      allow write: if hasPerm(enterpriseId, 'batches_write')
+        || hasPerm(enterpriseId, 'pos');
+    }
+
+    match /enterprises/{enterpriseId}/stockMovements/{id} {
+      allow read: if hasPerm(enterpriseId, 'batches_read');
+      allow write: if hasPerm(enterpriseId, 'batches_write')
+        || hasPerm(enterpriseId, 'pos');
     }
 
     match /enterprises/{enterpriseId}/members/{uid} {
