@@ -1,6 +1,7 @@
 import type { Sale } from 'src/api/firestore/sales';
 import type { CashSession } from 'src/api/firestore/cash-sessions';
 
+import dayjs from 'dayjs';
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
@@ -10,7 +11,6 @@ import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import TextField from '@mui/material/TextField';
 import TableRow from '@mui/material/TableRow';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -33,11 +33,17 @@ import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { useDateRangePicker } from 'src/components/custom-date-range-picker';
+import {
+  PeriodFilterBar,
+  resolvePeriodBounds,
+  isIsoInPeriodBounds,
+  type DateFilterPreset,
+} from 'src/components/period-filter';
 
 import { useAuthContext } from 'src/auth/hooks';
 
 import { calculateDreReport } from '../cash-calculator';
-import { daysAgoYmd, todayYmd, isTimestampInDateRange } from '../date-range';
 
 // ----------------------------------------------------------------------
 
@@ -48,8 +54,26 @@ export function DreView() {
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [sessions, setSessions] = useState<CashSession[]>([]);
-  const [startDate, setStartDate] = useState(() => daysAgoYmd(30));
-  const [endDate, setEndDate] = useState(() => todayYmd());
+  const [preset, setPreset] = useState<DateFilterPreset>('30d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+
+  const bounds = useMemo(
+    () => resolvePeriodBounds(preset, rangePicker.startDate, rangePicker.endDate),
+    [preset, rangePicker.startDate, rangePicker.endDate]
+  );
+
+  const periodLabel = useMemo(() => {
+    if (preset === 'all') {
+      return t('periodFilter.all', { defaultValue: 'Todo o período' });
+    }
+    if (preset === 'custom' && rangePicker.shortLabel) {
+      return rangePicker.shortLabel;
+    }
+    if (bounds.start && bounds.end) {
+      return `${bounds.start.format('YYYY-MM-DD')} → ${bounds.end.format('YYYY-MM-DD')}`;
+    }
+    return '';
+  }, [bounds.end, bounds.start, preset, rangePicker.shortLabel, t]);
 
   const loadData = useCallback(async () => {
     if (!enterpriseId) return;
@@ -71,16 +95,16 @@ export function DreView() {
   }, [loadData]);
 
   const filteredSales = useMemo(
-    () => sales.filter((s) => isTimestampInDateRange(s.createdAt, startDate, endDate)),
-    [sales, startDate, endDate]
+    () => sales.filter((s) => isIsoInPeriodBounds(s.createdAt, bounds)),
+    [sales, bounds]
   );
 
   const filteredSessions = useMemo(
     () =>
       sessions.filter((s) =>
-        isTimestampInDateRange(s.openedAt || s.createdAt, startDate, endDate)
+        isIsoInPeriodBounds(s.openedAt, bounds)
       ),
-    [sessions, startDate, endDate]
+    [sessions, bounds]
   );
 
   const totalWithdrawals = useMemo(
@@ -127,47 +151,19 @@ export function DreView() {
         sx={{ mb: { xs: 3, md: 5 } }}
       />
 
-      <Card sx={{ p: 3, mb: 3 }}>
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          spacing={2}
-          alignItems={{ sm: 'center' }}
-        >
-          <TextField
-            label={t('finance.dateStart', { defaultValue: 'Data início' })}
-            type="date"
-            size="small"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
-          <TextField
-            label={t('finance.dateEnd', { defaultValue: 'Data fim' })}
-            type="date"
-            size="small"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-          />
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() => {
-              setStartDate(daysAgoYmd(30));
-              setEndDate(todayYmd());
-            }}
-          >
-            {t('finance.last30Days', { defaultValue: 'Últimos 30 dias' })}
-          </Button>
-        </Stack>
-      </Card>
+      <PeriodFilterBar
+        preset={preset}
+        onPresetChange={setPreset}
+        rangePicker={rangePicker}
+        title={t('periodFilter.title', { defaultValue: 'Filtro de período' })}
+      />
 
       <Grid container spacing={3}>
         <Grid xs={12} md={8}>
           <Card>
             <CardHeader
               title="Demonstrativo de Resultado (Receita × CMV de Lotes × Lucro)"
-              subheader={`Baseado em ${dre.salesCount} vendas concluídas (${startDate} → ${endDate})`}
+              subheader={`Baseado em ${dre.salesCount} vendas concluídas (${periodLabel})`}
               sx={{ mb: 3 }}
             />
             <Divider />

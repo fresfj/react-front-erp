@@ -16,7 +16,7 @@ import { useAuthContext } from 'src/auth/hooks';
 
 import { ReceivableForm } from 'src/sections/cash/receivable-form';
 
-const metadata = { title: `Editar conta a receber - ${CONFIG.appName}` };
+const metadata = { title: `Editar conta a receber - ${CONFIG.site.name}` };
 
 export default function Page() {
   const { id = '' } = useParams();

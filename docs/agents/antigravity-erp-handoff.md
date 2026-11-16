@@ -80,14 +80,16 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - **Slice A (Team PermissionGuard):** `resolvePermissionAccess` + `PermissionGuard` nas rotas ERP; invite com `autoComplete` off/`new-password`; `inviteMember` sync `displayName` no Auth + default perms de operador
 - **Slice B (BrasilAPI):** máscaras CEP/CPF/CNPJ + lookup em supplier/customer/enterprise/account; enterprise com CNPJ+endereço (CF); account com nascimento+endereço
 - **Slice C (Financeiro):** DRE com filtro de datas; ranking vendedores (`/cash/ranking`); Contas a pagar/receber CRUD + rules deployadas
+- **Slice D (DatePicker + PeriodFilterBar):** `RHFDatePicker` persiste `YYYY-MM-DD`; `PeriodFilterBar` (chips + CustomDateRangePicker) em overview/DRE/ranking; forms ERP (`account`, `product`, `batch`, `payable`, `receivable`) usam `Field.DatePicker`
 
 ## Pendente (próximo)
 
-1. Smoke: DRE/ranking por período; criar payable/receivable e marcar pago
-2. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
-3. Recorrência gerando parcelas; baixa automática no caixa
-4. Imagem produto Storage (MVP ainda sem upload no form)
-5. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+1. Smoke: PeriodFilterBar em `/dashboard`, DRE, ranking; DatePicker nos forms
+2. Extrato bancário / ledger (adiado do Slice D)
+3. **Firestore rules por `MemberPermissionKey`** (blindar plano de dados além do front)
+4. Recorrência gerando parcelas; baixa automática no caixa
+5. Imagem produto Storage (MVP ainda sem upload no form)
+6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
 
 ## Validar
 

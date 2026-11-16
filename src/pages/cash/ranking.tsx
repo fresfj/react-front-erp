@@ -6,7 +6,7 @@ import { SellerRankingView } from 'src/sections/cash/view/seller-ranking-view';
 
 // ----------------------------------------------------------------------
 
-const metadata = { title: `Ranking | Financeiro - ${CONFIG.appName}` };
+const metadata = { title: `Ranking | Financeiro - ${CONFIG.site.name}` };
 
 export default function Page() {
   return (

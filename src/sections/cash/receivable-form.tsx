@@ -141,8 +141,8 @@ export function ReceivableForm({ current }: Props) {
               ))}
             </Field.Select>
             <Field.Text name="amount" label={t('finance.amount', { defaultValue: 'Valor' })} type="number" />
-            <Field.Text name="startDate" label={t('finance.dateStart', { defaultValue: 'Início' })} type="date" InputLabelProps={{ shrink: true }} />
-            <Field.Text name="dueDate" label={t('finance.dueDate', { defaultValue: 'Vencimento' })} type="date" InputLabelProps={{ shrink: true }} />
+            <Field.DatePicker name="startDate" label={t('finance.dateStart', { defaultValue: 'Início' })} />
+            <Field.DatePicker name="dueDate" label={t('finance.dueDate', { defaultValue: 'Vencimento' })} />
             <Field.Text name="customerName" label={t('finance.customerName', { defaultValue: 'Cliente' })} />
             <Field.Select name="recurrence" label={t('finance.recurrence', { defaultValue: 'Recorrência' })}>
               <MenuItem value="none">{t('finance.recurrenceNone', { defaultValue: 'Nenhuma' })}</MenuItem>

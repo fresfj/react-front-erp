@@ -16,7 +16,7 @@ import { useAuthContext } from 'src/auth/hooks';
 
 import { PayableForm } from 'src/sections/cash/payable-form';
 
-const metadata = { title: `Editar conta a pagar - ${CONFIG.appName}` };
+const metadata = { title: `Editar conta a pagar - ${CONFIG.site.name}` };
 
 export default function Page() {
   const { id = '' } = useParams();

@@ -9,7 +9,7 @@ import { paths } from 'src/routes/paths';
 
 import { PayableForm } from 'src/sections/cash/payable-form';
 
-const metadata = { title: `Nova conta a pagar - ${CONFIG.appName}` };
+const metadata = { title: `Nova conta a pagar - ${CONFIG.site.name}` };
 
 export default function Page() {
   return (

@@ -9,7 +9,7 @@ import { paths } from 'src/routes/paths';
 
 import { ReceivableForm } from 'src/sections/cash/receivable-form';
 
-const metadata = { title: `Nova conta a receber - ${CONFIG.appName}` };
+const metadata = { title: `Nova conta a receber - ${CONFIG.site.name}` };
 
 export default function Page() {
   return (

@@ -47,6 +47,17 @@
     "cnpjNotFound": "CNPJ no encontrado",
     "cnpjError": "Error al consultar el CNPJ"
   },
+  "periodFilter": {
+    "title": "Filtro de período",
+    "overviewTitle": "Filtro de período de ventas e indicadores",
+    "today": "Hoy",
+    "last7Days": "Últimos 7 días",
+    "last30Days": "30 días",
+    "last90Days": "90 días",
+    "all": "Todo el período",
+    "custom": "Personalizado",
+    "pickRange": "Seleccionar período"
+  },
   "finance": {
     "dateStart": "Fecha inicio",
     "dateEnd": "Fecha fin",

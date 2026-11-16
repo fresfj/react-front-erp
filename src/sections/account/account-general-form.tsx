@@ -255,11 +255,9 @@ export function AccountGeneralForm() {
               <Field.Text name="displayName" label={t('account.fields.displayName')} />
               <Field.Text name="email" label={t('account.fields.email')} disabled />
               <Field.Phone name="phone" label={t('account.fields.phone')} country="BR" />
-              <Field.Text
+              <Field.DatePicker
                 name="birthDate"
                 label={t('account.fields.birthDate', { defaultValue: 'Data de nascimento' })}
-                type="date"
-                InputLabelProps={{ shrink: true }}
               />
             </Box>
 

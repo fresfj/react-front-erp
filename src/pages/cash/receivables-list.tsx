@@ -4,7 +4,7 @@ import { CONFIG } from 'src/config-global';
 
 import { ReceivableListView } from 'src/sections/cash/view/receivable-list-view';
 
-const metadata = { title: `Contas a receber - ${CONFIG.appName}` };
+const metadata = { title: `Contas a receber - ${CONFIG.site.name}` };
 
 export default function Page() {
   return (

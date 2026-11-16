@@ -24,36 +24,36 @@
 
 **Files:** Modify `src/components/hook-form/rhf-date-picker.tsx`
 
-- [ ] Change `onChange` to `field.onChange(newValue ? dayjs(newValue).format('YYYY-MM-DD') : '')`
+- [x] Change `onChange` to `field.onChange(newValue ? dayjs(newValue).format('YYYY-MM-DD') : '')`
 - [ ] Commit: `fix(hook-form): persist DatePicker values as YYYY-MM-DD`
 
 ### Task 2: PeriodFilterBar component
 
 **Files:** Create `src/components/period-filter/period-filter-bar.tsx` + `index.ts`
 
-- [ ] Export `DateFilterPreset` type and `PeriodFilterBar` with props: preset, onPresetChange, rangePicker, title?
-- [ ] Chips + Personalizado opens `rangePicker.onOpen` + render `CustomDateRangePicker` with rangePicker props
-- [ ] i18n keys `periodFilter.*`
+- [x] Export `DateFilterPreset` type and `PeriodFilterBar` with props: preset, onPresetChange, rangePicker, title?
+- [x] Chips + Personalizado opens `rangePicker.onOpen` + render `CustomDateRangePicker` with rangePicker props
+- [x] i18n keys `periodFilter.*`
 - [ ] Commit
 
 ### Task 3: Wire DRE + ranking + overview
 
 **Files:** `dre-view.tsx`, `seller-ranking-view.tsx`, `overview-app-view.tsx`
 
-- [ ] Replace TextField type=date / duplicate chip UI with PeriodFilterBar
-- [ ] Filter using dayjs from preset or custom range (reuse overview filter logic; can keep `isTimestampInDateRange` by converting dayjs → YMD)
+- [x] Replace TextField type=date / duplicate chip UI with PeriodFilterBar
+- [x] Filter using dayjs from preset or custom range (reuse overview filter logic; can keep `isTimestampInDateRange` by converting dayjs → YMD)
 - [ ] Commit
 
 ### Task 4: Forms → Field.DatePicker
 
 **Files:** account-general-form, product-form, batch-form, payable-form, receivable-form
 
-- [ ] Replace each `Field.Text type="date"` with `Field.DatePicker`
-- [ ] Grep: no `type="date"` left in those ERP files
+- [x] Replace each `Field.Text type="date"` with `Field.DatePicker`
+- [x] Grep: no `type="date"` left in those ERP files
 - [ ] Commit + handoff note
 
 ### Task 5: Verify
 
-- [ ] `vitest` existing cash tests still pass
-- [ ] Grep gate for type="date" in ERP paths listed in spec
-- [ ] Update handoff backlog (banking/parcels/rules deferred)
+- [x] `vitest` existing cash tests still pass
+- [x] Grep gate for type="date" in ERP paths listed in spec
+- [x] Update handoff backlog (banking/parcels/rules deferred)

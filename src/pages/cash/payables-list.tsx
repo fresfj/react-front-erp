@@ -4,7 +4,7 @@ import { CONFIG } from 'src/config-global';
 
 import { PayableListView } from 'src/sections/cash/view/payable-list-view';
 
-const metadata = { title: `Contas a pagar - ${CONFIG.appName}` };
+const metadata = { title: `Contas a pagar - ${CONFIG.site.name}` };
 
 export default function Page() {
   return (

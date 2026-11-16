@@ -30,7 +30,7 @@ export function RHFDatePicker({ name, onChangeColumn, slotProps, ...other }: RHF
           {...field}
           value={field.value ? dayjs(field.value) : null}
           onChange={(newValue) => {
-            field.onChange(dayjs(newValue).format());
+            field.onChange(newValue ? dayjs(newValue).format('YYYY-MM-DD') : '');
             if (onChangeColumn) {
               onChangeColumn();
             }
