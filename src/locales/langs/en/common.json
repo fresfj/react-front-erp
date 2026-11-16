@@ -59,7 +59,36 @@
     }
   },
   "account": {
-    "title": "Account"
+    "title": "Account",
+    "saveSubmit": "Save changes",
+    "updateSuccess": "Profile updated successfully",
+    "updateError": "Could not update profile",
+    "loadError": "Could not load profile",
+    "errorMissingEnterprise": "Enterprise not configured in session",
+    "tabs": {
+      "general": "General",
+      "security": "Security"
+    },
+    "fields": {
+      "displayName": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "photoURL": "Photo URL"
+    },
+    "password": {
+      "oldPassword": "Current password",
+      "newPassword": "New password",
+      "confirmNewPassword": "Confirm new password",
+      "minLengthHint": "Password must be at least 6 characters",
+      "updateSuccess": "Password changed successfully",
+      "updateError": "Could not change password",
+      "wrongPassword": "Current password is incorrect",
+      "weakPassword": "New password is too weak",
+      "requiresRecentLogin": "Sign in again to change your password",
+      "tooManyRequests": "Too many attempts. Try again later",
+      "userMismatch": "User not found or mismatched",
+      "noEmailUser": "Account has no email for reauthentication"
+    }
   },
   "products": {
     "title": "Products",

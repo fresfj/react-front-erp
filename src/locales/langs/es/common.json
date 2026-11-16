@@ -59,7 +59,36 @@
     }
   },
   "account": {
-    "title": "Cuenta"
+    "title": "Cuenta",
+    "saveSubmit": "Guardar cambios",
+    "updateSuccess": "Perfil actualizado con éxito",
+    "updateError": "No se pudo actualizar el perfil",
+    "loadError": "No se pudo cargar el perfil",
+    "errorMissingEnterprise": "Empresa no configurada en la sesión",
+    "tabs": {
+      "general": "General",
+      "security": "Seguridad"
+    },
+    "fields": {
+      "displayName": "Nombre",
+      "email": "Correo",
+      "phone": "Teléfono",
+      "photoURL": "URL de la foto"
+    },
+    "password": {
+      "oldPassword": "Contraseña actual",
+      "newPassword": "Nueva contraseña",
+      "confirmNewPassword": "Confirmar nueva contraseña",
+      "minLengthHint": "La contraseña debe tener al menos 6 caracteres",
+      "updateSuccess": "Contraseña cambiada con éxito",
+      "updateError": "No se pudo cambiar la contraseña",
+      "wrongPassword": "La contraseña actual es incorrecta",
+      "weakPassword": "La nueva contraseña es demasiado débil",
+      "requiresRecentLogin": "Inicie sesión de nuevo para cambiar la contraseña",
+      "tooManyRequests": "Demasiados intentos. Intente más tarde",
+      "userMismatch": "Usuario no encontrado o incompatible",
+      "noEmailUser": "La cuenta no tiene correo para reautenticación"
+    }
   },
   "products": {
     "title": "Productos",

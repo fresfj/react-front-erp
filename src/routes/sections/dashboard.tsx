@@ -20,7 +20,7 @@ const SupplierEditPage = lazy(() => import('src/pages/supplier/edit'));
 const ProductListPage = lazy(() => import('src/pages/inventory/product/list'));
 const ProductCreatePage = lazy(() => import('src/pages/inventory/product/create'));
 const ProductEditPage = lazy(() => import('src/pages/inventory/product/edit'));
-const AccountStubPage = lazy(() => import('src/pages/account'));
+const AccountPage = lazy(() => import('src/pages/account'));
 
 // ----------------------------------------------------------------------
 
@@ -62,8 +62,8 @@ export const dashboardRoutes = [
         path: 'account',
         children: [
           { element: <Navigate to={paths.dashboard.account.general} replace />, index: true },
-          { path: 'general', element: <AccountStubPage /> },
-          { path: 'change-password', element: <AccountStubPage /> },
+          { path: 'general', element: <AccountPage /> },
+          { path: 'change-password', element: <AccountPage /> },
         ],
       },
       // Legacy URLs → dashboard root (page sources kept, unrouted)

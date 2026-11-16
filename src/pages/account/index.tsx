@@ -1,30 +1,21 @@
 import { Helmet } from 'react-helmet-async';
 
-import Typography from '@mui/material/Typography';
-
 import { CONFIG } from 'src/config-global';
-import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
+
+import { AccountView } from 'src/sections/account/view/account-view';
 
 // ----------------------------------------------------------------------
 
-const metadata = { title: `Account - ${CONFIG.site.name}` };
+const metadata = { title: `Account | Dashboard - ${CONFIG.site.name}` };
 
-export default function AccountStubPage() {
-  const { t } = useTranslate('common');
-
+export default function Page() {
   return (
     <>
       <Helmet>
         <title> {metadata.title}</title>
       </Helmet>
 
-      <DashboardContent>
-        <Typography variant="h4">{t('nav.account')}</Typography>
-        <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
-          {t('common.comingSoon')}
-        </Typography>
-      </DashboardContent>
+      <AccountView />
     </>
   );
 }
