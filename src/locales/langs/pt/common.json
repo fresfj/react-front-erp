@@ -98,6 +98,11 @@
     "markReceived": "Marcar recebido",
     "emptyPayables": "Nenhuma conta a pagar",
     "emptyReceivables": "Nenhuma conta a receber",
+    "selectCustomer": "Selecionar cliente",
+    "filters": {
+      "allStatus": "Todos os status",
+      "overdue": "Vencidas"
+    },
     "categories": {
       "utilities_power": "Luz / Energia",
       "utilities_internet": "Internet",

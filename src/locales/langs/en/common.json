@@ -98,6 +98,11 @@
     "markReceived": "Mark received",
     "emptyPayables": "No payables",
     "emptyReceivables": "No receivables",
+    "selectCustomer": "Select customer",
+    "filters": {
+      "allStatus": "All statuses",
+      "overdue": "Overdue"
+    },
     "categories": {
       "utilities_power": "Power / Utilities",
       "utilities_internet": "Internet",
