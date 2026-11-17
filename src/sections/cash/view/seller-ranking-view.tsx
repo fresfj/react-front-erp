@@ -16,12 +16,12 @@ import CardHeader from '@mui/material/CardHeader';
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
-import { fCurrency, fNumber } from 'src/utils/format-number';
+import { fNumber, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { listSales } from 'src/api/firestore/sales';
+import { DashboardContent } from 'src/layouts/dashboard';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';

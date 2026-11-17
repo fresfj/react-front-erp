@@ -30,6 +30,8 @@ const ICONS = {
   dashboard: icon('ic-dashboard'),
 };
 
+type NavItem = NavSectionProps['data'][number]['items'][number];
+
 // ----------------------------------------------------------------------
 
 export function useNavData(): NavSectionProps['data'] {
@@ -43,152 +45,234 @@ export function useNavData(): NavSectionProps['data'] {
     [user?.permissions, user?.role]
   );
 
-  return useMemo(
-    () => [
-      {
-        // Sem subheader ("Visão geral" / headers de seção)
-        items: [
-          ...(perms.has('dre') || isAdminOrGestor
-            ? [{ title: t('nav.app'), path: paths.dashboard.root, icon: ICONS.dashboard }]
-            : []),
-          ...(platformAdmin
-            ? [
+  return useMemo(() => {
+    const overviewItems: NavItem[] = [
+      ...(perms.has('dre') || isAdminOrGestor
+        ? [{ title: t('nav.app'), path: paths.dashboard.root, icon: ICONS.dashboard }]
+        : []),
+    ];
+
+    const managementItems: NavItem[] = [
+      ...(perms.has('pos')
+        ? [
+            {
+              title: t('nav.pos'),
+              // root path keeps parent active on /pos/sales/:id (deep match)
+              path: paths.dashboard.pos.root,
+              icon: ICONS.invoice,
+              children: [
+                { title: t('nav.posCheckout'), path: paths.dashboard.pos.checkout },
+                { title: t('nav.salesHistory'), path: paths.dashboard.pos.sales },
+              ],
+            },
+          ]
+        : []),
+      ...(perms.has('customers')
+        ? [
+            {
+              title: t('nav.customers', { defaultValue: 'Clientes' }),
+              path: paths.dashboard.customers.root,
+              icon: ICONS.user,
+              children: [
                 {
-                  title: t('nav.enterprises'),
-                  path: paths.dashboard.enterprises.list,
-                  icon: ICONS.banking,
-                },
-              ]
-            : []),
-          ...(perms.has('pos')
-            ? [
-                {
-                  title: t('nav.pos'),
-                  path: paths.dashboard.pos.root,
-                  icon: ICONS.invoice,
-                  children: [
-                    { title: t('nav.posCheckout'), path: paths.dashboard.pos.checkout },
-                    { title: t('nav.salesHistory'), path: paths.dashboard.pos.sales },
-                  ],
-                },
-              ]
-            : []),
-          ...(perms.has('customers')
-            ? [
-                {
-                  title: t('nav.customers', { defaultValue: 'Clientes' }),
+                  title: t('nav.customersList', { defaultValue: 'Lista' }),
                   path: paths.dashboard.customers.list,
-                  icon: ICONS.user,
                 },
-              ]
-            : []),
-          ...(perms.has('cash_close') || perms.has('dre')
-            ? [
                 {
-                  title: t('nav.cash', { defaultValue: 'Financeiro e Caixa' }),
-                  path: paths.dashboard.cash.root,
-                  icon: ICONS.banking,
-                  children: [
-                    ...(perms.has('cash_close')
-                      ? [
-                          {
-                            title: t('nav.cashSession', {
-                              defaultValue: 'Caixa (Fechamento Cego)',
-                            }),
-                            path: paths.dashboard.cash.root,
-                          },
-                        ]
-                      : []),
-                    ...(perms.has('dre')
-                      ? [
-                          {
-                            title: t('nav.dre', { defaultValue: 'DRE Financeiro' }),
-                            path: paths.dashboard.cash.dre,
-                          },
-                          {
-                            title: t('nav.cashLedger', { defaultValue: 'Extrato de caixa' }),
-                            path: paths.dashboard.cash.ledger,
-                          },
-                          {
-                            title: t('nav.sellerRanking', {
-                              defaultValue: 'Ranking de vendedores',
-                            }),
-                            path: paths.dashboard.cash.ranking,
-                          },
-                          {
-                            title: t('nav.payables', { defaultValue: 'Contas a pagar' }),
-                            path: paths.dashboard.cash.payables,
-                          },
-                          {
-                            title: t('nav.receivables', { defaultValue: 'Contas a receber' }),
-                            path: paths.dashboard.cash.receivables,
-                          },
-                        ]
-                      : []),
-                  ],
+                  title: t('nav.customersCreate', { defaultValue: 'Novo cliente' }),
+                  path: paths.dashboard.customers.create,
                 },
-              ]
-            : []),
-          ...(perms.has('products')
-            ? [
+              ],
+            },
+          ]
+        : []),
+      ...(perms.has('products')
+        ? [
+            {
+              title: t('nav.products'),
+              path: paths.dashboard.products.root,
+              icon: ICONS.product,
+              children: [
                 {
-                  title: t('nav.products'),
+                  title: t('nav.productsList', { defaultValue: 'Lista' }),
                   path: paths.dashboard.products.list,
-                  icon: ICONS.product,
                 },
-              ]
-            : []),
-          ...(perms.has('suppliers')
-            ? [
                 {
-                  title: t('nav.suppliers'),
+                  title: t('nav.productsCreate', { defaultValue: 'Novo produto' }),
+                  path: paths.dashboard.products.create,
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(perms.has('suppliers')
+        ? [
+            {
+              title: t('nav.suppliers'),
+              path: paths.dashboard.suppliers.root,
+              icon: ICONS.ecommerce,
+              children: [
+                {
+                  title: t('nav.suppliersList', { defaultValue: 'Lista' }),
                   path: paths.dashboard.suppliers.list,
-                  icon: ICONS.ecommerce,
                 },
-              ]
-            : []),
-          ...(perms.has('processing')
-            ? [
                 {
-                  title: t('nav.processing'),
+                  title: t('nav.suppliersCreate', { defaultValue: 'Novo fornecedor' }),
+                  path: paths.dashboard.suppliers.create,
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(perms.has('processing')
+        ? [
+            {
+              title: t('nav.processing'),
+              path: paths.dashboard.processing.root,
+              icon: ICONS.kanban,
+              children: [
+                {
+                  title: t('nav.processingList', { defaultValue: 'Ordens' }),
                   path: paths.dashboard.processing.list,
-                  icon: ICONS.kanban,
                 },
-              ]
-            : []),
-          ...(perms.has('batches_read') || perms.has('batches_write')
-            ? [
                 {
-                  title: t('nav.batches'),
-                  path: paths.dashboard.batches.list,
-                  icon: ICONS.order,
-                  children: [
-                    { title: t('nav.batchesList'), path: paths.dashboard.batches.list },
-                    ...(perms.has('batches_write')
-                      ? [{ title: t('nav.batchEntry'), path: paths.dashboard.batches.create }]
-                      : []),
-                    { title: t('nav.stockMovements'), path: paths.dashboard.batches.movements },
-                  ],
+                  title: t('nav.processingCreate', { defaultValue: 'Nova ordem' }),
+                  path: paths.dashboard.processing.create,
                 },
-              ]
-            : []),
-          ...(isAdminOrGestor
-            ? [
+              ],
+            },
+          ]
+        : []),
+      ...(perms.has('batches_read') || perms.has('batches_write')
+        ? [
+            {
+              title: t('nav.batches'),
+              // MUST be root (/batches), not /batches/list — otherwise create/movements
+              // do not keep the parent highlighted (useActiveLink deep includes).
+              path: paths.dashboard.batches.root,
+              icon: ICONS.order,
+              children: [
+                { title: t('nav.batchesList'), path: paths.dashboard.batches.list },
+                ...(perms.has('batches_write')
+                  ? [{ title: t('nav.batchEntry'), path: paths.dashboard.batches.create }]
+                  : []),
+                { title: t('nav.stockMovements'), path: paths.dashboard.batches.movements },
+              ],
+            },
+          ]
+        : []),
+    ];
+
+    const financeItems: NavItem[] = [
+      ...(perms.has('cash_close') || perms.has('dre')
+        ? [
+            {
+              title: t('nav.cash', { defaultValue: 'Financeiro e Caixa' }),
+              path: paths.dashboard.cash.root,
+              icon: ICONS.banking,
+              children: [
+                ...(perms.has('cash_close')
+                  ? [
+                      {
+                        title: t('nav.cashSession', {
+                          defaultValue: 'Caixa (Fechamento Cego)',
+                        }),
+                        path: paths.dashboard.cash.root,
+                      },
+                    ]
+                  : []),
+                ...(perms.has('dre')
+                  ? [
+                      {
+                        title: t('nav.dre', { defaultValue: 'DRE Financeiro' }),
+                        path: paths.dashboard.cash.dre,
+                      },
+                      {
+                        title: t('nav.cashLedger', { defaultValue: 'Extrato de caixa' }),
+                        path: paths.dashboard.cash.ledger,
+                      },
+                      {
+                        title: t('nav.sellerRanking', {
+                          defaultValue: 'Ranking de vendedores',
+                        }),
+                        path: paths.dashboard.cash.ranking,
+                      },
+                      {
+                        title: t('nav.payables', { defaultValue: 'Contas a pagar' }),
+                        path: paths.dashboard.cash.payables,
+                      },
+                      {
+                        title: t('nav.receivables', { defaultValue: 'Contas a receber' }),
+                        path: paths.dashboard.cash.receivables,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
+    ];
+
+    const adminItems: NavItem[] = [
+      ...(platformAdmin
+        ? [
+            {
+              title: t('nav.enterprises'),
+              path: paths.dashboard.enterprises.root,
+              icon: ICONS.banking,
+              children: [
                 {
-                  title: t('nav.team', { defaultValue: 'Colaboradores (Acesso)' }),
+                  title: t('nav.enterprisesList', { defaultValue: 'Lista' }),
+                  path: paths.dashboard.enterprises.list,
+                },
+                {
+                  title: t('nav.enterprisesCreate', { defaultValue: 'Nova empresa' }),
+                  path: paths.dashboard.enterprises.create,
+                },
+              ],
+            },
+          ]
+        : []),
+      ...(isAdminOrGestor
+        ? [
+            {
+              title: t('nav.team', { defaultValue: 'Colaboradores (Acesso)' }),
+              path: paths.dashboard.team.root,
+              icon: ICONS.lock,
+              children: [
+                {
+                  title: t('nav.teamList', { defaultValue: 'Lista' }),
                   path: paths.dashboard.team.list,
-                  icon: ICONS.lock,
                 },
-              ]
-            : []),
+              ],
+            },
+          ]
+        : []),
+      {
+        title: t('nav.account'),
+        path: paths.dashboard.account.root,
+        icon: ICONS.user,
+        children: [
           {
-            title: t('nav.account'),
+            title: t('nav.accountGeneral', { defaultValue: 'Geral' }),
             path: paths.dashboard.account.general,
-            icon: ICONS.user,
+          },
+          {
+            title: t('nav.accountPassword', { defaultValue: 'Alterar senha' }),
+            path: paths.dashboard.account.changePassword,
           },
         ],
       },
-    ],
-    [isAdminOrGestor, perms, platformAdmin, t]
-  );
+    ];
+
+    return [
+      { subheader: t('nav.overview'), items: overviewItems },
+      { subheader: t('nav.management'), items: managementItems },
+      {
+        subheader: t('nav.finance', { defaultValue: 'Financeiro' }),
+        items: financeItems,
+      },
+      { subheader: t('nav.administration'), items: adminItems },
+    ].filter((section) => section.items.length > 0);
+  }, [isAdminOrGestor, perms, platformAdmin, t]);
 }

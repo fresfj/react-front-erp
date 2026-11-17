@@ -1,11 +1,11 @@
+import type { Batch } from 'src/api/firestore/batches';
 import type { Product } from 'src/api/firestore/products';
 import type { Supplier } from 'src/api/firestore/suppliers';
-import type { Batch } from 'src/api/firestore/batches';
 
 import { z as zod } from 'zod';
-import { useMemo, useState, useEffect, useCallback } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -30,8 +30,8 @@ import { useRouter } from 'src/routes/hooks';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
-import { fCurrency, fPercent, fNumber } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { fNumber, fPercent, fCurrency } from 'src/utils/format-number';
 
 import { useTranslate } from 'src/locales';
 import { listProducts } from 'src/api/firestore/products';
@@ -249,7 +249,7 @@ export function ProcessingForm() {
     }
 
     const selectedBatch = rawBatches.find((b) => b.id === data.rawBatchId);
-    const selectedSupplier = suppliers.find((s) => s.id === data.supplierId);
+    const targetSupplier = suppliers.find((s) => s.id === data.supplierId);
 
     try {
       const outputsPayload = data.outputs.map((out, idx) => {
@@ -278,8 +278,8 @@ export function ProcessingForm() {
         rawBatchId: selectedBatch?.id,
         rawLotCode: selectedBatch?.lotCode,
         rawBatchCurrentRemaining: selectedBatch?.remainingQty,
-        supplierId: selectedSupplier?.id,
-        supplierName: selectedSupplier?.name,
+        supplierId: targetSupplier?.id,
+        supplierName: targetSupplier?.name,
         rawQtyUsed: Number(data.rawQtyUsed),
         rawUnitCost: Number(data.rawUnitCost),
         rawTotalCost: allocation.rawTotalCost,

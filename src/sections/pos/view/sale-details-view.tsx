@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Grid from '@mui/material/Unstable_Grid2';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
@@ -12,15 +11,16 @@ import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
 import MenuList from '@mui/material/MenuList';
 import MenuItem from '@mui/material/MenuItem';
+import Grid from '@mui/material/Unstable_Grid2';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
-import DialogTitle from '@mui/material/DialogTitle';
 import LoadingButton from '@mui/lab/LoadingButton';
+import DialogTitle from '@mui/material/DialogTitle';
+import ListItemText from '@mui/material/ListItemText';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
-import ListItemText from '@mui/material/ListItemText';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
@@ -28,7 +28,7 @@ import { RouterLink } from 'src/routes/components';
 import { useBoolean } from 'src/hooks/use-boolean';
 
 import { fDateTime } from 'src/utils/format-time';
-import { fCurrency, fNumber } from 'src/utils/format-number';
+import { fNumber, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
@@ -145,14 +145,14 @@ export function SaleDetailsView({ saleId }: Props) {
         .join('\n');
       const body = encodeURIComponent(
         `Olá ${sale.customerName || 'Cliente'},\n\nSegue o resumo do seu Cupom Fiscal / NFC-e:\n\n` +
-          `Venda: ${sale.code}\nData: ${fDateTime(sale.createdAt)}\n` +
-          (sale.nfceKey ? `Chave de Acesso NFC-e: ${sale.nfceKey}\nProtocolo: ${sale.nfceProtocol}\n` : '') +
-          `\nItens:\n${itemsLines}\n\n` +
+          `Venda: ${sale.code}\nData: ${fDateTime(sale.createdAt)}\n${ 
+          sale.nfceKey ? `Chave de Acesso NFC-e: ${sale.nfceKey}\nProtocolo: ${sale.nfceProtocol}\n` : '' 
+          }\nItens:\n${itemsLines}\n\n` +
           `Subtotal: ${fCurrency(sale.subtotal)}\n` +
           `Desconto: ${fCurrency(sale.discountAmount)}\n` +
-          `Total Pago: ${fCurrency(sale.total)}\n\n` +
-          (emailMessage ? `${emailMessage}\n\n` : '') +
-          `Obrigado pela preferência!`
+          `Total Pago: ${fCurrency(sale.total)}\n\n${ 
+          emailMessage ? `${emailMessage}\n\n` : '' 
+          }Obrigado pela preferência!`
       );
 
       window.open(`mailto:${cleanEmail}?subject=${subject}&body=${body}`, '_blank');

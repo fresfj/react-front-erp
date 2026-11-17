@@ -247,6 +247,34 @@ export async function createSale(enterpriseId: string, input: CreateSaleInput): 
       currentDebt: nextDebt,
       updatedAt: timestamp,
     });
+
+    const receivablesCol = enterpriseCollection(enterpriseId, 'receivables');
+    const recRef = doc(receivablesCol);
+    const due = new Date();
+    due.setDate(due.getDate() + 30);
+    const dueDate = due.toISOString().slice(0, 10);
+
+    wb.set(
+      recRef,
+      omitUndefined({
+        description: `Venda #${input.code} - Crediário / Fiado`,
+        category: 'other',
+        amount: input.creditTabAmount,
+        startDate: timestamp.slice(0, 10),
+        dueDate,
+        customerId: input.customerId,
+        customerName: input.customerName || 'Cliente balcão',
+        recurrence: 'none',
+        installmentIndex: 1,
+        installmentCount: 1,
+        status: 'open',
+        active: true,
+        refType: 'sale',
+        refId: newSaleRef.id,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+    );
   }
 
   wb.set(

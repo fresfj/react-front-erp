@@ -1,29 +1,16 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { Enterprise } from 'src/api/firestore/platform';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import IconButton from '@mui/material/IconButton';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
-
-import { useSetState } from 'src/hooks/use-set-state';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
@@ -34,6 +21,7 @@ import { listEnterprisesClient } from 'src/api/firestore/platform';
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
@@ -41,57 +29,10 @@ import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
-type Filters = { active: '' | 'active' | 'inactive' };
-
-type ToolbarProps = {
-  filters: ReturnType<typeof useSetState<Filters>>;
-  activeLabel: string;
-  allStatus: string;
-  activeOnly: string;
-  inactiveOnly: string;
-};
-
-function EnterpriseToolbar({
-  filters,
-  activeLabel,
-  allStatus,
-  activeOnly,
-  inactiveOnly,
-}: ToolbarProps) {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        spacing={1.5}
-        direction={{ xs: 'column', md: 'row' }}
-        sx={{ p: 2.5, width: 1, pr: { xs: 2.5, md: 1 } }}
-      >
-        <TextField
-          select
-          label={activeLabel}
-          value={filters.state.active}
-          onChange={(e) => filters.setState({ active: e.target.value as Filters['active'] })}
-          sx={{ minWidth: { md: 160 } }}
-        >
-          <MenuItem value="">{allStatus}</MenuItem>
-          <MenuItem value="active">{activeOnly}</MenuItem>
-          <MenuItem value="inactive">{inactiveOnly}</MenuItem>
-        </TextField>
-        <Stack
-          direction="row"
-          spacing={1}
-          flexGrow={1}
-          justifyContent="flex-end"
-          alignItems="center"
-        >
-          <GridToolbarQuickFilter />
-          <GridToolbarColumnsButton />
-          <GridToolbarFilterButton />
-          <GridToolbarExport />
-        </Stack>
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Ativa' },
+  { value: 'inactive', label: 'Inativa' },
+];
 
 // ----------------------------------------------------------------------
 
@@ -100,7 +41,7 @@ export function EnterpriseListView() {
   const router = useRouter();
   const { user } = useAuthContext();
 
-  const filters = useSetState<Filters>({ active: '' });
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Enterprise[]>([]);
 
@@ -130,23 +71,21 @@ export function EnterpriseListView() {
 
   const dataFiltered = useMemo(() => {
     let rows = tableData;
-    if (filters.state.active === 'active') rows = rows.filter((r) => r.active);
-    if (filters.state.active === 'inactive') rows = rows.filter((r) => !r.active);
+    if (statusFilter.length) {
+      rows = rows.filter((r) => statusFilter.includes(r.active ? 'active' : 'inactive'));
+    }
     return rows;
-  }, [filters.state.active, tableData]);
+  }, [statusFilter, tableData]);
 
-  const CustomToolbar = useCallback(
-    () => (
-      <EnterpriseToolbar
-        filters={filters}
-        activeLabel={t('enterprises.fields.active')}
-        allStatus={t('enterprises.filters.allStatus')}
-        activeOnly={t('enterprises.filters.activeOnly')}
-        inactiveOnly={t('enterprises.filters.inactiveOnly')}
-      />
-    ),
-    [filters, t]
-  );
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'status',
+      label: t('enterprises.fields.active', { defaultValue: 'Status' }),
+      options: STATUS_OPTIONS,
+      value: statusFilter,
+      onChange: setStatusFilter,
+    },
+  ];
 
   const columns = useMemo<GridColDef<Enterprise>[]>(
     () => [
@@ -177,28 +116,31 @@ export function EnterpriseListView() {
         ),
       },
       {
+        type: 'actions',
         field: 'actions',
         headerName: ' ',
-        width: 100,
+        align: 'right',
+        headerAlign: 'right',
+        width: 80,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5}>
-            <IconButton
-              size="small"
-              onClick={() => router.push(paths.dashboard.enterprises.details(params.row.id))}
-            >
-              <Iconify icon="solar:eye-bold" />
-            </IconButton>
-            <IconButton
-              size="small"
-              onClick={() => router.push(paths.dashboard.enterprises.edit(params.row.id))}
-            >
-              <Iconify icon="solar:pen-bold" />
-            </IconButton>
-          </Stack>
-        ),
+        getActions: (params) => [
+          <GridActionsCellItem
+            key="view"
+            showInMenu
+            icon={<Iconify icon="solar:eye-bold" />}
+            label="Visualizar"
+            onClick={() => router.push(paths.dashboard.enterprises.details(params.row.id))}
+          />,
+          <GridActionsCellItem
+            key="edit"
+            showInMenu
+            icon={<Iconify icon="solar:pen-bold" />}
+            label="Editar"
+            onClick={() => router.push(paths.dashboard.enterprises.edit(params.row.id))}
+          />,
+        ],
       },
     ],
     [router, t]
@@ -240,21 +182,16 @@ export function EnterpriseListView() {
       />
 
       <Card sx={{ height: 720 }}>
-        <DataGrid
+        <ErpDataGrid<Enterprise>
           rows={dataFiltered}
           columns={columns}
           loading={loading}
           getRowId={(row) => row.id}
-          pageSizeOptions={[5, 10, 25]}
-          initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-          slots={{
-            toolbar: CustomToolbar as GridSlots['toolbar'],
-            noRowsOverlay: () => <EmptyContent title={t('enterprises.empty')} />,
-            noResultsOverlay: () => <EmptyContent title={t('enterprises.empty')} />,
-          }}
-          sx={{
-            border: 0,
-            [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+          emptyTitle={t('enterprises.empty')}
+          toolbar={{
+            selectFilters,
+            searchPlaceholder: 'Pesquisar empresa por nome, código ou e-mail…',
+            filteredResults: dataFiltered.length,
           }}
         />
       </Card>

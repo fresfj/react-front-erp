@@ -13,15 +13,15 @@ import {
   buildInstallmentDueDates,
 } from 'src/sections/cash/installments';
 
+import { enterpriseCollection } from './paths';
+import { omitUndefined } from './omit-undefined';
+import type { CashSession } from './cash-sessions';
+import { NoOpenCashSessionError } from './cash-sessions';
 import type {
   FinancialCategory,
   FinancialRecurrence,
   FinancialStatus,
 } from './payables';
-import type { CashSession } from './cash-sessions';
-import { NoOpenCashSessionError } from './cash-sessions';
-import { enterpriseCollection } from './paths';
-import { omitUndefined } from './omit-undefined';
 
 // ----------------------------------------------------------------------
 
@@ -40,6 +40,8 @@ export type Receivable = {
   installmentIndex: number;
   installmentCount: number;
   active: boolean;
+  refType?: string;
+  refId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -103,6 +105,8 @@ function mapReceivable(id: string, data: Record<string, unknown>): Receivable {
     installmentIndex: Math.max(1, Number(data.installmentIndex ?? 1)),
     installmentCount,
     active: data.active !== false,
+    refType: optStr(data.refType),
+    refId: optStr(data.refId),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };
@@ -292,6 +296,80 @@ export async function cancelReceivable(
       updatedAt: timestamp,
     });
   }
+
+  await wb.commit();
+}
+
+export async function settleCustomerDebtWithSession(
+  enterpriseId: string,
+  customer: { id: string; name?: string; currentDebt: number },
+  amount: number,
+  opts: {
+    session: CashSession | null;
+    createdBy?: string;
+    description?: string;
+  }
+): Promise<void> {
+  if (!opts.session || opts.session.status !== 'open') {
+    throw new NoOpenCashSessionError();
+  }
+
+  const timestamp = nowIso();
+  const wb = writeBatch(FIRESTORE);
+
+  // 1. Cria o receivable quitado
+  const recCol = enterpriseCollection(enterpriseId, 'receivables');
+  const newRecRef = doc(recCol);
+  const roundAmount = round2(amount);
+
+  wb.set(
+    newRecRef,
+    omitUndefined({
+      description: opts.description || `Recebimento Débito / Fiado - ${customer.name || 'Cliente'}`,
+      category: 'other' as const,
+      amount: roundAmount,
+      startDate: timestamp.slice(0, 10),
+      dueDate: timestamp.slice(0, 10),
+      customerId: customer.id,
+      customerName: customer.name || 'Cliente balcão',
+      recurrence: 'none' as const,
+      installmentIndex: 1,
+      installmentCount: 1,
+      status: 'paid' as const,
+      active: true,
+      refType: 'customer_debt',
+      refId: customer.id,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })
+  );
+
+  // 2. Abate dívida do cliente
+  const nextDebt = Math.max(0, round2(customer.currentDebt - roundAmount));
+  wb.update(customerRef(enterpriseId, customer.id), {
+    currentDebt: nextDebt,
+    updatedAt: timestamp,
+  });
+
+  // 3. Movimentação no Caixa
+  const nextMovements = [
+    ...opts.session.movements,
+    omitUndefined({
+      id: `mov-${Date.now()}`,
+      type: 'RECEIPT' as const,
+      amount: roundAmount,
+      reason: `Recebimento Débito: ${customer.name || 'Cliente'}`,
+      createdAt: timestamp,
+      createdBy: opts.createdBy,
+      refType: 'receivable' as const,
+      refId: newRecRef.id,
+    }),
+  ];
+
+  wb.update(sessionRef(enterpriseId, opts.session.id), {
+    movements: nextMovements,
+    updatedAt: timestamp,
+  });
 
   await wb.commit();
 }

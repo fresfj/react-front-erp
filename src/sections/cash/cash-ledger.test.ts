@@ -9,13 +9,12 @@ import { buildCashLedger } from './cash-ledger';
 
 function makeSession(overrides: Partial<CashSession> & Pick<CashSession, 'id'>): CashSession {
   return {
-    id: overrides.id,
-    code: overrides.code ?? 'CX-01',
-    openingBalance: overrides.openingBalance ?? 0,
-    movements: overrides.movements ?? [],
-    status: overrides.status ?? 'open',
-    openedAt: overrides.openedAt ?? '2026-11-10T10:00:00.000Z',
-    updatedAt: overrides.updatedAt ?? '2026-11-10T10:00:00.000Z',
+    code: 'CX-01',
+    openingBalance: 0,
+    movements: [],
+    status: 'open',
+    openedAt: '2026-11-10T10:00:00.000Z',
+    updatedAt: '2026-11-10T10:00:00.000Z',
     ...overrides,
   };
 }

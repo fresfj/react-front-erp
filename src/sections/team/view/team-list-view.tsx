@@ -1,5 +1,6 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { TenantRole } from 'src/auth/firebase-claims';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 import type { TeamMember, MemberPermissionKey } from 'src/api/firestore/members';
 
 import { z as zod } from 'zod';
@@ -21,20 +22,12 @@ import Checkbox from '@mui/material/Checkbox';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
-import DialogTitle from '@mui/material/DialogTitle';
 import LoadingButton from '@mui/lab/LoadingButton';
+import DialogTitle from '@mui/material/DialogTitle';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 
@@ -44,25 +37,32 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { TENANT_ROLES } from 'src/auth/firebase-claims';
 import { inviteMember, setMemberClaims } from 'src/api/firestore/platform';
 import {
   listTeamMembers,
   ALL_MEMBER_PERMISSIONS,
-  DEFAULT_OPERATOR_PERMISSIONS,
   updateTeamMemberPermissions,
+  DEFAULT_OPERATOR_PERMISSIONS,
 } from 'src/api/firestore/members';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
-import { EmptyContent } from 'src/components/empty-content';
 import { Form, Field } from 'src/components/hook-form';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
+import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
 import { useAuthContext } from 'src/auth/hooks';
+import { TENANT_ROLES } from 'src/auth/firebase-claims';
 
 // ----------------------------------------------------------------------
+
+const ROLE_OPTIONS = [
+  { value: 'operador', label: 'Operador (PDV)' },
+  { value: 'gestor', label: 'Gestor' },
+  { value: 'admin', label: 'Administrador' },
+];
 
 const InviteMemberSchema = zod.object({
   displayName: zod.string().min(1, { message: 'Informe o nome do colaborador' }),
@@ -72,26 +72,6 @@ const InviteMemberSchema = zod.object({
 });
 
 type InviteMemberSchemaType = zod.infer<typeof InviteMemberSchema>;
-
-function TeamToolbar() {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        direction="row"
-        spacing={1}
-        flexGrow={1}
-        justifyContent="flex-end"
-        alignItems="center"
-        sx={{ p: 2 }}
-      >
-        <GridToolbarQuickFilter />
-        <GridToolbarColumnsButton />
-        <GridToolbarFilterButton />
-        <GridToolbarExport />
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
 
 // ----------------------------------------------------------------------
 
@@ -108,6 +88,7 @@ export function TeamListView() {
 
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [roleFilter, setRoleFilter] = useState<string[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<MemberPermissionKey[]>(
     DEFAULT_OPERATOR_PERMISSIONS
   );
@@ -249,6 +230,21 @@ export function TeamListView() {
     }
   };
 
+  const dataFiltered = useMemo(() => {
+    if (!roleFilter.length) return members;
+    return members.filter((m) => roleFilter.includes(m.role));
+  }, [members, roleFilter]);
+
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'role',
+      label: 'Cargo / Perfil',
+      options: ROLE_OPTIONS,
+      value: roleFilter,
+      onChange: setRoleFilter,
+    },
+  ];
+
   const columns = useMemo<GridColDef<TeamMember>[]>(
     () => [
       {
@@ -309,23 +305,27 @@ export function TeamListView() {
         ),
       },
       {
+        type: 'actions',
         field: 'actions',
         headerName: ' ',
-        width: 90,
+        align: 'right',
+        headerAlign: 'right',
+        width: 80,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) =>
-          isAdmin ? (
-            <IconButton
-              size="small"
-              color="primary"
-              title="Configurar permissões e módulos liberados"
-              onClick={() => handleOpenEditPermissions(params.row)}
-            >
-              <Iconify icon="solar:settings-bold" />
-            </IconButton>
-          ) : null,
+        getActions: (params) =>
+          isAdmin
+            ? [
+                <GridActionsCellItem
+                  key="perms"
+                  showInMenu
+                  icon={<Iconify icon="solar:settings-bold" />}
+                  label="Configurar Permissões"
+                  onClick={() => handleOpenEditPermissions(params.row)}
+                />,
+              ]
+            : [],
       },
     ],
     [handleOpenEditPermissions, isAdmin]
@@ -458,24 +458,17 @@ export function TeamListView() {
             )}
 
             <Card sx={{ height: 600 }}>
-              <DataGrid
-                rows={members}
+              <ErpDataGrid<TeamMember>
+                rows={dataFiltered}
                 columns={columns}
                 loading={loading}
                 getRowId={(row) => row.uid}
                 getRowHeight={() => 'auto'}
-                pageSizeOptions={[5, 10, 25]}
-                initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-                slots={{
-                  toolbar: TeamToolbar as GridSlots['toolbar'],
-                  noRowsOverlay: () => (
-                    <EmptyContent title="Nenhum colaborador cadastrado ainda" />
-                  ),
-                  noResultsOverlay: () => <EmptyContent title="Nenhum resultado encontrado" />,
-                }}
-                sx={{
-                  border: 0,
-                  [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+                emptyTitle="Nenhum colaborador cadastrado ainda"
+                toolbar={{
+                  selectFilters,
+                  searchPlaceholder: 'Pesquisar colaborador por nome, e-mail…',
+                  filteredResults: dataFiltered.length,
                 }}
               />
             </Card>

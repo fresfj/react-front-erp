@@ -29,12 +29,12 @@ import { useTranslate } from 'src/locales';
 import { listProducts } from 'src/api/firestore/products';
 import { listSuppliers } from 'src/api/firestore/suppliers';
 import { createBatchEntry } from 'src/api/firestore/batches';
-import { generateLotCode } from 'src/sections/processing/cost-allocation';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 
+import { generateLotCode } from 'src/sections/processing/cost-allocation';
 import { SupplierListDialog } from 'src/sections/supplier/supplier-list-dialog';
 import { SupplierQuickNewDialog } from 'src/sections/supplier/supplier-quick-new-dialog';
 

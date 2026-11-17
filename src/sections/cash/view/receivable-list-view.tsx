@@ -1,30 +1,17 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { Customer } from 'src/api/firestore/customers';
 import type { Receivable } from 'src/api/firestore/receivables';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import IconButton from '@mui/material/IconButton';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
-
-import { useSetState } from 'src/hooks/use-set-state';
 
 import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
@@ -32,12 +19,17 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { listCustomers } from 'src/api/firestore/customers';
-import { NoOpenCashSessionError, getOpenCashSession } from 'src/api/firestore/cash-sessions';
-import { listReceivables, markReceivablePaid } from 'src/api/firestore/receivables';
+import {
+  listReceivables,
+  markReceivablePaid,
+  settleCustomerDebtWithSession,
+} from 'src/api/firestore/receivables';
+import { getOpenCashSession, NoOpenCashSessionError } from 'src/api/firestore/cash-sessions';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
@@ -53,81 +45,12 @@ type ReceivableRow = Receivable & {
   isOverdue: boolean;
 };
 
-type ReceivableFilters = {
-  status: '' | 'open' | 'paid' | 'cancelled' | 'overdue';
-};
-
-type ToolbarProps = {
-  filters: ReturnType<typeof useSetState<ReceivableFilters>>;
-  statusLabel: string;
-  allStatus: string;
-  openLabel: string;
-  paidLabel: string;
-  cancelledLabel: string;
-  overdueLabel: string;
-};
-
-function ReceivableToolbar({
-  filters,
-  statusLabel,
-  allStatus,
-  openLabel,
-  paidLabel,
-  cancelledLabel,
-  overdueLabel,
-}: ToolbarProps) {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        spacing={1.5}
-        direction={{ xs: 'column', md: 'row' }}
-        sx={{ p: 2.5, width: 1, pr: { xs: 2.5, md: 1 } }}
-      >
-        <TextField
-          select
-          label={statusLabel}
-          value={filters.state.status}
-          onChange={(event) =>
-            filters.setState({ status: event.target.value as ReceivableFilters['status'] })
-          }
-          sx={{ minWidth: { md: 200 } }}
-        >
-          <MenuItem value="">{allStatus}</MenuItem>
-          <MenuItem value="open">{openLabel}</MenuItem>
-          <MenuItem value="overdue">{overdueLabel}</MenuItem>
-          <MenuItem value="paid">{paidLabel}</MenuItem>
-          <MenuItem value="cancelled">{cancelledLabel}</MenuItem>
-        </TextField>
-
-        <Stack
-          direction="row"
-          spacing={1}
-          flexGrow={1}
-          justifyContent="flex-end"
-          alignItems="center"
-          flexWrap="wrap"
-          useFlexGap
-        >
-          <GridToolbarQuickFilter />
-          <GridToolbarColumnsButton />
-          <GridToolbarFilterButton />
-          <GridToolbarExport />
-        </Stack>
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
-
-function todayYmd(): string {
-  const d = new Date();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${m}-${day}`;
-}
-
-function isReceivableOverdue(row: Receivable): boolean {
-  return row.status === 'open' && !!row.dueDate && row.dueDate < todayYmd();
-}
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Em aberto' },
+  { value: 'overdue', label: 'Vencida' },
+  { value: 'paid', label: 'Recebido' },
+  { value: 'cancelled', label: 'Cancelado' },
+];
 
 // ----------------------------------------------------------------------
 
@@ -135,166 +58,197 @@ export function ReceivableListView() {
   const { t } = useTranslate('common');
   const router = useRouter();
   const { user } = useAuthContext();
+
   const enterpriseId = user?.enterpriseId as string | undefined;
 
-  const filters = useSetState<ReceivableFilters>({ status: '' });
-  const [rows, setRows] = useState<ReceivableRow[]>([]);
-  const [customersById, setCustomersById] = useState<Map<string, Customer>>(new Map());
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [receivables, setReceivables] = useState<Receivable[]>([]);
+  const [customers, setCustomers] = useState<Record<string, Customer>>({});
 
-  const load = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!enterpriseId) {
-      setRows([]);
+      setReceivables([]);
+      setCustomers({});
       setLoading(false);
       return;
     }
+
     setLoading(true);
     try {
-      const [receivables, customers] = await Promise.all([
+      const [recs, custs] = await Promise.all([
         listReceivables(enterpriseId),
         listCustomers(enterpriseId),
       ]);
-      const byId = new Map<string, Customer>(customers.map((c) => [c.id, c]));
-      setCustomersById(byId);
-
-      setRows(
-        receivables.map((r) => {
-          const customer = r.customerId ? byId.get(r.customerId) : undefined;
-          return {
-            ...r,
-            customerName: customer?.name || r.customerName || '',
-            customerDocument: customer?.document,
-            customerPhone: customer?.phone,
-            customerEmail: customer?.email,
-            customerDebt: customer?.currentDebt ?? 0,
-            isOverdue: isReceivableOverdue(r),
-          };
-        })
-      );
+      setReceivables(recs);
+      const map: Record<string, Customer> = {};
+      custs.forEach((c) => {
+        map[c.id] = c;
+      });
+      setCustomers(map);
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Erro ao listar'));
-      setRows([]);
+      toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar contas a receber'));
+      setReceivables([]);
     } finally {
       setLoading(false);
     }
   }, [enterpriseId]);
 
-  const handleMarkPaid = useCallback(
-    async (row: ReceivableRow) => {
-      if (!enterpriseId) return;
-      try {
-        const session = await getOpenCashSession(enterpriseId);
-        const customer = row.customerId ? customersById.get(row.customerId) : undefined;
-        await markReceivablePaid(enterpriseId, row, {
-          session,
-          createdBy: user?.uid,
-          customerCurrentDebt: customer?.currentDebt ?? 0,
-        });
-        toast.success(t('finance.receivableUpdateSuccess', { defaultValue: 'Atualizado' }));
-        await load();
-      } catch (error) {
-        console.error(error);
-        if (error instanceof NoOpenCashSessionError) {
-          toast.error(
-            t('finance.errors.noOpenCash', {
-              defaultValue: 'Abra o caixa para registrar o recebimento',
-            })
-          );
-          return;
-        }
-        toast.error(getFirebaseErrorMessage(error, 'Erro'));
-      }
-    },
-    [customersById, enterpriseId, load, t, user?.uid]
-  );
-
   useEffect(() => {
-    load();
-  }, [load]);
+    loadData();
+  }, [loadData]);
+
+  const rows: ReceivableRow[] = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+
+    const normalRows: ReceivableRow[] = receivables.map((r) => {
+      const cust = r.customerId ? customers[r.customerId] : undefined;
+      const isOverdue = r.status === 'open' && Boolean(r.dueDate && r.dueDate < today);
+      return {
+        ...r,
+        customerDocument: cust?.document,
+        customerPhone: cust?.phone,
+        customerEmail: cust?.email,
+        customerDebt: cust?.currentDebt ?? 0,
+        isOverdue,
+      };
+    });
+
+    // Mapear valor em aberto por cliente
+    const openAmountsByCust: Record<string, number> = {};
+    receivables.forEach((r) => {
+      if (r.customerId && r.status === 'open') {
+        openAmountsByCust[r.customerId] =
+          Math.round(((openAmountsByCust[r.customerId] || 0) + r.amount) * 100) / 100;
+      }
+    });
+
+    // Adicionar clientes que possuem saldo devedor/fiado não coberto por títulos em aberto
+    const syntheticDebtRows: ReceivableRow[] = [];
+    Object.values(customers).forEach((cust) => {
+      const debt = Number(cust.currentDebt ?? 0);
+      if (debt <= 0.001) return;
+      const openAmount = openAmountsByCust[cust.id] || 0;
+      const uncoveredDebt = Math.round((debt - openAmount) * 100) / 100;
+      if (uncoveredDebt > 0.001) {
+        syntheticDebtRows.push({
+          id: `debt-${cust.id}`,
+          description: `Débito / Fiado em Aberto — ${cust.name}`,
+          category: 'other',
+          amount: uncoveredDebt,
+          startDate: cust.createdAt ? cust.createdAt.slice(0, 10) : today,
+          dueDate: today,
+          customerId: cust.id,
+          customerName: cust.name,
+          recurrence: 'none',
+          status: 'open',
+          installmentIndex: 1,
+          installmentCount: 1,
+          active: true,
+          refType: 'customer_debt',
+          refId: cust.id,
+          createdAt: cust.createdAt || today,
+          updatedAt: cust.updatedAt || today,
+          customerDocument: cust.document,
+          customerPhone: cust.phone,
+          customerEmail: cust.email,
+          customerDebt: cust.currentDebt,
+          isOverdue: false,
+        });
+      }
+    });
+
+    return [...normalRows, ...syntheticDebtRows];
+  }, [customers, receivables]);
 
   const dataFiltered = useMemo(() => {
-    const status = filters.state.status;
-    if (!status) return rows;
-    if (status === 'overdue') return rows.filter((r) => r.isOverdue);
-    return rows.filter((r) => r.status === status);
-  }, [filters.state.status, rows]);
+    if (!statusFilter.length) return rows;
+    return rows.filter((r) => {
+      if (statusFilter.includes('overdue') && r.isOverdue) return true;
+      return statusFilter.includes(r.status);
+    });
+  }, [rows, statusFilter]);
 
-  const CustomToolbar = useCallback(
-    () => (
-      <ReceivableToolbar
-        filters={filters}
-        statusLabel={t('finance.status', { defaultValue: 'Status' })}
-        allStatus={t('finance.filters.allStatus', { defaultValue: 'Todos os status' })}
-        openLabel={t('finance.statusOpen', { defaultValue: 'Em aberto' })}
-        paidLabel={t('finance.statusPaid', { defaultValue: 'Pago / Recebido' })}
-        cancelledLabel={t('finance.statusCancelled', { defaultValue: 'Cancelado' })}
-        overdueLabel={t('finance.filters.overdue', { defaultValue: 'Vencidas' })}
-      />
-    ),
-    [filters, t]
+  const handleMarkPaid = useCallback(
+    async (row: ReceivableRow) => {
+      if (!enterpriseId || !user) return;
+      try {
+        const session = await getOpenCashSession(enterpriseId);
+
+        if (row.id.startsWith('debt-')) {
+          const cust = row.customerId ? customers[row.customerId] : undefined;
+          if (!cust) return;
+          await settleCustomerDebtWithSession(enterpriseId, cust, row.amount, {
+            session,
+            createdBy: user.displayName || user.email || 'Operador',
+            description: row.description,
+          });
+          toast.success(
+            t('finance.receivablePaidSuccess', { defaultValue: 'Conta recebida com sucesso!' })
+          );
+          await loadData();
+          return;
+        }
+
+        await markReceivablePaid(enterpriseId, row, {
+          session,
+          customerCurrentDebt: row.customerDebt,
+          createdBy: user.displayName || user.email || 'Operador',
+        });
+        toast.success(
+          t('finance.receivablePaidSuccess', { defaultValue: 'Conta recebida com sucesso!' })
+        );
+        await loadData();
+      } catch (error) {
+        if (error instanceof NoOpenCashSessionError) {
+          toast.error(
+            'É necessário ter um caixa aberto no sistema para registrar o recebimento financeiro.'
+          );
+        } else {
+          console.error(error);
+          toast.error(getFirebaseErrorMessage(error, 'Erro ao baixar recebimento'));
+        }
+      }
+    },
+    [customers, enterpriseId, loadData, t, user]
   );
+
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'status',
+      label: t('finance.status', { defaultValue: 'Status' }),
+      options: STATUS_OPTIONS,
+      value: statusFilter,
+      onChange: setStatusFilter,
+    },
+  ];
 
   const columns = useMemo<GridColDef<ReceivableRow>[]>(
     () => [
       {
         field: 'customerName',
-        headerName: t('finance.customerName', { defaultValue: 'Cliente' }),
+        headerName: t('finance.customer', { defaultValue: 'Cliente' }),
         flex: 1,
-        minWidth: 180,
+        minWidth: 200,
         hideable: false,
-        valueGetter: (_v, row) => row.customerName || '—',
-      },
-      {
-        field: 'customerDocument',
-        headerName: t('customers.fields.document', { defaultValue: 'CPF / CNPJ' }),
-        width: 140,
-        valueGetter: (_v, row) => row.customerDocument || '—',
-      },
-      {
-        field: 'customerPhone',
-        headerName: t('customers.fields.phone', { defaultValue: 'Telefone' }),
-        width: 130,
-        valueGetter: (_v, row) => row.customerPhone || '—',
-      },
-      {
-        field: 'customerDebt',
-        headerName: t('customers.fields.currentDebt', { defaultValue: 'Débito atual' }),
-        width: 130,
-        renderCell: (params) => (
-          <Label
-            variant="soft"
-            color={params.row.customerDebt > 0 ? 'error' : 'success'}
-          >
-            {fCurrency(params.row.customerDebt)}
-          </Label>
-        ),
+        valueGetter: (_v, r) => r.customerName || 'Cliente balcão',
       },
       {
         field: 'description',
         headerName: t('finance.description', { defaultValue: 'Descrição' }),
-        flex: 1,
-        minWidth: 160,
-      },
-      {
-        field: 'installment',
-        headerName: t('finance.installment', { defaultValue: 'Parcela' }),
-        width: 100,
-        valueGetter: (_v, row) =>
-          row.installmentCount > 1
-            ? `${row.installmentIndex}/${row.installmentCount}`
-            : '—',
+        minWidth: 180,
       },
       {
         field: 'amount',
         headerName: t('finance.amount', { defaultValue: 'Valor' }),
-        width: 120,
-        valueFormatter: (v) => fCurrency(Number(v) || 0),
+        width: 130,
+        renderCell: (params) => fCurrency(params.row.amount),
       },
       {
         field: 'dueDate',
         headerName: t('finance.dueDate', { defaultValue: 'Vencimento' }),
-        width: 120,
+        width: 130,
         renderCell: (params) => (
           <Label variant="soft" color={params.row.isOverdue ? 'error' : 'default'}>
             {params.row.dueDate || '—'}
@@ -329,31 +283,50 @@ export function ReceivableListView() {
         ),
       },
       {
+        type: 'actions',
         field: 'actions',
         headerName: ' ',
-        width: 100,
+        align: 'right',
+        headerAlign: 'right',
+        width: 80,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5}>
-            <IconButton
-              size="small"
-              onClick={() => router.push(paths.dashboard.cash.receivableEdit(params.row.id))}
-            >
-              <Iconify icon="solar:pen-bold" />
-            </IconButton>
-            {params.row.status === 'open' && (
-              <IconButton
-                size="small"
-                color="success"
-                onClick={() => handleMarkPaid(params.row)}
-              >
-                <Iconify icon="solar:check-circle-bold" />
-              </IconButton>
-            )}
-          </Stack>
-        ),
+        getActions: (params) => [
+          ...(params.row.id.startsWith('debt-')
+            ? [
+                <GridActionsCellItem
+                  key="view-customer"
+                  showInMenu
+                  icon={<Iconify icon="solar:user-id-bold" />}
+                  label="Ver / Editar Cliente"
+                  onClick={() =>
+                    router.push(paths.dashboard.customers.edit(params.row.customerId!))
+                  }
+                />,
+              ]
+            : [
+                <GridActionsCellItem
+                  key="edit"
+                  showInMenu
+                  icon={<Iconify icon="solar:pen-bold" />}
+                  label="Editar"
+                  onClick={() => router.push(paths.dashboard.cash.receivableEdit(params.row.id))}
+                />,
+              ]),
+          ...(params.row.status === 'open'
+            ? [
+                <GridActionsCellItem
+                  key="pay"
+                  showInMenu
+                  icon={<Iconify icon="solar:check-circle-bold" />}
+                  label="Marcar como Recebido"
+                  onClick={() => handleMarkPaid(params.row)}
+                  sx={{ color: 'success.main' }}
+                />,
+              ]
+            : []),
+        ],
       },
     ],
     [handleMarkPaid, router, t]
@@ -362,11 +335,11 @@ export function ReceivableListView() {
   return (
     <DashboardContent>
       <CustomBreadcrumbs
-        heading={t('finance.receivablesHeading', { defaultValue: 'Contas a receber' })}
+        heading={t('finance.receivablesTitle', { defaultValue: 'Contas a Receber' })}
         links={[
           { name: t('app.dashboard'), href: paths.dashboard.root },
           { name: t('nav.cash', { defaultValue: 'Financeiro' }), href: paths.dashboard.cash.root },
-          { name: t('nav.receivables', { defaultValue: 'A receber' }) },
+          { name: t('finance.receivablesTitle', { defaultValue: 'Contas a Receber' }) },
         ]}
         action={
           <Button
@@ -375,7 +348,7 @@ export function ReceivableListView() {
             variant="contained"
             startIcon={<Iconify icon="mingcute:add-line" />}
           >
-            {t('finance.newReceivable', { defaultValue: 'Nova conta' })}
+            {t('finance.newReceivable', { defaultValue: 'Nova Conta' })}
           </Button>
         }
         sx={{ mb: { xs: 3, md: 5 } }}
@@ -385,7 +358,7 @@ export function ReceivableListView() {
         <EmptyContent
           filled
           title={t('products.errorMissingEnterprise', {
-            defaultValue: 'Empresa não configurada na sessão',
+            defaultValue: 'Empresa não selecionada',
           })}
           sx={{ py: 10 }}
         />
@@ -393,29 +366,16 @@ export function ReceivableListView() {
 
       {enterpriseId && (
         <Card sx={{ height: 720 }}>
-          <DataGrid
+          <ErpDataGrid<ReceivableRow>
             rows={dataFiltered}
             columns={columns}
             loading={loading}
             getRowId={(r) => r.id}
-            pageSizeOptions={[5, 10, 25]}
-            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-            slots={{
-              toolbar: CustomToolbar as GridSlots['toolbar'],
-              noRowsOverlay: () => (
-                <EmptyContent
-                  title={t('finance.emptyReceivables', { defaultValue: 'Nenhuma conta' })}
-                />
-              ),
-              noResultsOverlay: () => (
-                <EmptyContent
-                  title={t('finance.emptyReceivables', { defaultValue: 'Nenhuma conta' })}
-                />
-              ),
-            }}
-            sx={{
-              border: 0,
-              [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+            emptyTitle={t('finance.emptyReceivables', { defaultValue: 'Nenhuma conta' })}
+            toolbar={{
+              selectFilters,
+              searchPlaceholder: 'Pesquisar por cliente, descrição…',
+              filteredResults: dataFiltered.length,
             }}
           />
         </Card>

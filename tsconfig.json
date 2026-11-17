@@ -33,8 +33,6 @@
   "exclude": [
     "node_modules",
     "docs",
-    "**/*.test.ts",
-    "**/*.test.tsx",
     "src/auth/context/amplify",
     "src/auth/context/auth0",
     "src/auth/context/supabase",

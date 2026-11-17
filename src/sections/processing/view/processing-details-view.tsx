@@ -19,7 +19,7 @@ import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { fDateTime } from 'src/utils/format-time';
-import { fCurrency, fNumber } from 'src/utils/format-number';
+import { fNumber, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';

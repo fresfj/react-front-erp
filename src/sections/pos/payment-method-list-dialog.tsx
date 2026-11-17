@@ -1,4 +1,3 @@
-import type { PaymentMethod } from './pos-calculator';
 
 import { useState, useCallback } from 'react';
 
@@ -18,6 +17,8 @@ import { Scrollbar } from 'src/components/scrollbar';
 import { SearchNotFound } from 'src/components/search-not-found';
 
 import { PAYMENT_METHODS } from './pos-calculator';
+
+import type { PaymentMethod } from './pos-calculator';
 
 // ----------------------------------------------------------------------
 

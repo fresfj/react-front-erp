@@ -36,7 +36,11 @@ Use este runbook para construir ou evoluir qualquer módulo do ERP Minimals gara
 ### Passo 3 — Listagem (`src/sections/<module>/view/<entity>-list-view.tsx`)
 1. Envolver em `DashboardContent` + `CustomBreadcrumbs` (com botão CTA `Novo ...`).
 2. Tratar ausência de `enterpriseId` exibindo `<EmptyContent filled title={t('<module>.errorMissingEnterprise')} />`.
-3. Renderizar `<Card sx={{ height: 720 }}>` contendo `<DataGrid>` com `CustomToolbar` (`GridToolbarQuickFilter`, `GridToolbarColumnsButton`, `GridToolbarFilterButton`, `GridToolbarExport`) e `ConfirmDialog` para inativação.
+3. Renderizar `<Card sx={{ height: 720 }}>` usando o componente padrão `<ErpDataGrid<Entity>>` de `src/components/erp-data-grid`:
+   - Configurar `toolbar={{ selectFilters, searchPlaceholder: 'Pesquisar...', filteredResults: dataFiltered.length }}`.
+   - Filtros de domínio via `selectFilters: ErpGridSelectFilter[]` (padrão oficial Minimals: `FormControl` multi-select + checkbox).
+   - Coluna de ações: `type: 'actions'` com `GridActionsCellItem` e `showInMenu: true` (menu padrão de 3 pontinhos `eva:more-vertical-fill`), com ação de exclusão em `color: 'error.main'`.
+   - Confirmações destrutivas com `<ConfirmDialog>`.
 
 ### Passo 4 — Páginas Finas, Rotas e i18n
 1. Criar páginas finas (`Helmet` + View) em `src/pages/<module>/`.

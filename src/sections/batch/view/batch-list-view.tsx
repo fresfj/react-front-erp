@@ -1,33 +1,21 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { Batch } from 'src/api/firestore/batches';
-import type { ProductType } from 'src/api/firestore/products';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import IconButton from '@mui/material/IconButton';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
-import { useSetState } from 'src/hooks/use-set-state';
 
 import { fDateTime } from 'src/utils/format-time';
-import { fCurrency, fNumber } from 'src/utils/format-number';
+import { fNumber, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
@@ -37,6 +25,7 @@ import { listBatches, deactivateBatch } from 'src/api/firestore/batches';
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
@@ -45,88 +34,16 @@ import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
-type BatchFilters = {
-  productType: '' | ProductType;
-  active: '' | 'active' | 'inactive' | 'available';
-};
+const TYPE_OPTIONS = [
+  { value: 'raw', label: 'Matéria-prima' },
+  { value: 'finished', label: 'Produto Acabado' },
+];
 
-type ToolbarProps = {
-  filters: ReturnType<typeof useSetState<BatchFilters>>;
-  typeLabel: string;
-  activeLabel: string;
-  allTypes: string;
-  rawLabel: string;
-  finishedLabel: string;
-  allStatus: string;
-  activeOnly: string;
-  inactiveOnly: string;
-  availableOnly: string;
-};
-
-function BatchToolbar({
-  filters,
-  typeLabel,
-  activeLabel,
-  allTypes,
-  rawLabel,
-  finishedLabel,
-  allStatus,
-  activeOnly,
-  inactiveOnly,
-  availableOnly,
-}: ToolbarProps) {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        spacing={1.5}
-        direction={{ xs: 'column', md: 'row' }}
-        sx={{ p: 2.5, width: 1, pr: { xs: 2.5, md: 1 } }}
-      >
-        <TextField
-          select
-          label={typeLabel}
-          value={filters.state.productType}
-          onChange={(e) =>
-            filters.setState({ productType: e.target.value as BatchFilters['productType'] })
-          }
-          sx={{ minWidth: { md: 180 } }}
-        >
-          <MenuItem value="">{allTypes}</MenuItem>
-          <MenuItem value="raw">{rawLabel}</MenuItem>
-          <MenuItem value="finished">{finishedLabel}</MenuItem>
-        </TextField>
-
-        <TextField
-          select
-          label={activeLabel}
-          value={filters.state.active}
-          onChange={(e) =>
-            filters.setState({ active: e.target.value as BatchFilters['active'] })
-          }
-          sx={{ minWidth: { md: 180 } }}
-        >
-          <MenuItem value="">{allStatus}</MenuItem>
-          <MenuItem value="available">{availableOnly}</MenuItem>
-          <MenuItem value="active">{activeOnly}</MenuItem>
-          <MenuItem value="inactive">{inactiveOnly}</MenuItem>
-        </TextField>
-
-        <Stack
-          direction="row"
-          spacing={1}
-          flexGrow={1}
-          justifyContent="flex-end"
-          alignItems="center"
-        >
-          <GridToolbarQuickFilter />
-          <GridToolbarColumnsButton />
-          <GridToolbarFilterButton />
-          <GridToolbarExport />
-        </Stack>
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
+const STATUS_OPTIONS = [
+  { value: 'available', label: 'Com saldo disponível' },
+  { value: 'active', label: 'Ativo' },
+  { value: 'inactive', label: 'Inativo' },
+];
 
 // ----------------------------------------------------------------------
 
@@ -137,7 +54,8 @@ export function BatchListView() {
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
-  const filters = useSetState<BatchFilters>({ productType: '', active: '' });
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Batch[]>([]);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
@@ -168,23 +86,34 @@ export function BatchListView() {
 
   const dataFiltered = useMemo(() => {
     let rows = tableData;
-    if (filters.state.productType) {
-      rows = rows.filter((r) => r.productType === filters.state.productType);
+
+    if (typeFilter.length) {
+      rows = rows.filter((row) => typeFilter.includes(row.productType));
     }
-    if (filters.state.active === 'available') {
-      rows = rows.filter((r) => r.active && r.remainingQty > 0);
+
+    if (statusFilter.length) {
+      rows = rows.filter((row) => {
+        if (statusFilter.includes('available') && row.remainingQty > 0) return true;
+        if (statusFilter.includes('active') && row.active) return true;
+        if (statusFilter.includes('inactive') && !row.active) return true;
+        return false;
+      });
     }
-    if (filters.state.active === 'active') {
-      rows = rows.filter((r) => r.active);
-    }
-    if (filters.state.active === 'inactive') {
-      rows = rows.filter((r) => !r.active);
-    }
+
     return rows;
-  }, [filters.state.active, filters.state.productType, tableData]);
+  }, [statusFilter, tableData, typeFilter]);
+
+  const handleAskDeactivate = useCallback(
+    (id: string) => {
+      setDeactivateId(id);
+      confirm.onTrue();
+    },
+    [confirm]
+  );
 
   const handleConfirmDeactivate = useCallback(async () => {
     if (!enterpriseId || !deactivateId) return;
+
     try {
       await deactivateBatch(enterpriseId, deactivateId);
       toast.success(t('batches.deactivateSuccess'));
@@ -197,81 +126,95 @@ export function BatchListView() {
     }
   }, [confirm, deactivateId, enterpriseId, loadBatches, t]);
 
-  const CustomToolbar = useCallback(
-    () => (
-      <BatchToolbar
-        filters={filters}
-        typeLabel={t('batches.fields.productType')}
-        activeLabel={t('batches.fields.active')}
-        allTypes={t('batches.filters.allTypes')}
-        rawLabel={t('products.types.raw')}
-        finishedLabel={t('products.types.finished')}
-        allStatus={t('batches.filters.allStatus')}
-        activeOnly={t('batches.filters.activeOnly')}
-        inactiveOnly={t('batches.filters.inactiveOnly')}
-        availableOnly={t('batches.filters.availableOnly')}
-      />
-    ),
-    [filters, t]
-  );
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'type',
+      label: t('batches.fields.type', { defaultValue: 'Tipo de Produto' }),
+      options: TYPE_OPTIONS,
+      value: typeFilter,
+      onChange: setTypeFilter,
+    },
+    {
+      id: 'status',
+      label: t('batches.fields.active', { defaultValue: 'Status' }),
+      options: STATUS_OPTIONS,
+      value: statusFilter,
+      onChange: setStatusFilter,
+    },
+  ];
 
   const columns = useMemo<GridColDef<Batch>[]>(
     () => [
       {
         field: 'lotCode',
-        headerName: t('batches.fields.lotCode'),
-        width: 170,
+        headerName: t('batches.fields.code'),
+        width: 140,
         hideable: false,
       },
       {
         field: 'productName',
         headerName: t('batches.fields.product'),
         flex: 1,
-        minWidth: 180,
-        renderCell: (params) => `${params.row.productName} (${params.row.productSku})`,
+        minWidth: 200,
       },
       {
         field: 'productType',
-        headerName: t('batches.fields.productType'),
-        width: 120,
-        renderCell: (params) =>
-          params.row.productType === 'finished'
-            ? t('products.types.finished')
-            : t('products.types.raw'),
-      },
-      {
-        field: 'origin',
-        headerName: t('batches.fields.origin'),
-        width: 170,
-        valueGetter: (_val, row) =>
-          row.processingOrderCode
-            ? `${t('batches.originProcessing')} (${row.processingOrderCode})`
-            : row.supplierName || t('batches.originSupplier'),
+        headerName: t('batches.fields.type'),
+        width: 140,
+        renderCell: (params) => (
+          <Label
+            variant="soft"
+            color={params.row.productType === 'finished' ? 'primary' : 'warning'}
+          >
+            {params.row.productType === 'finished'
+              ? t('products.types.finished')
+              : t('products.types.raw')}
+          </Label>
+        ),
       },
       {
         field: 'initialQty',
-        headerName: t('batches.fields.initialQty'),
+        headerName: t('batches.fields.initialQuantity'),
         width: 120,
-        renderCell: (params) => `${fNumber(params.row.initialQty)} ${params.row.unit}`,
+        renderCell: (params) =>
+          `${fNumber(params.row.initialQty)} ${params.row.unit || 'kg'}`,
       },
       {
         field: 'remainingQty',
-        headerName: t('batches.fields.remainingQty'),
+        headerName: t('batches.fields.currentQuantity'),
         width: 130,
         renderCell: (params) => (
           <Label
-            color={params.row.remainingQty > 0 ? 'info' : 'warning'}
             variant="soft"
+            color={
+              params.row.remainingQty <= 0
+                ? 'default'
+                : params.row.remainingQty < params.row.initialQty * 0.2
+                  ? 'warning'
+                  : 'success'
+            }
           >
-            {fNumber(params.row.remainingQty)} {params.row.unit}
+            {`${fNumber(params.row.remainingQty)} ${params.row.unit || 'kg'}`}
           </Label>
         ),
       },
       {
         field: 'unitCost',
         headerName: t('batches.fields.unitCost'),
-        width: 130,
+        width: 120,
         renderCell: (params) => fCurrency(params.row.unitCost),
+      },
+      {
+        field: 'totalCost',
+        headerName: t('batches.fields.totalCost'),
+        width: 130,
+        renderCell: (params) => fCurrency(params.row.remainingQty * params.row.unitCost),
+      },
+      {
+        field: 'supplierName',
+        headerName: t('batches.fields.supplier'),
+        width: 160,
+        valueGetter: (_v, row) => row.supplierName || '—',
       },
       {
         field: 'active',
@@ -293,28 +236,31 @@ export function BatchListView() {
           params.row.createdAt ? fDateTime(params.row.createdAt) || '—' : '—',
       },
       {
+        type: 'actions',
         field: 'actions',
         headerName: ' ',
+        align: 'right',
+        headerAlign: 'right',
         width: 80,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) =>
-          params.row.active ? (
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => {
-                setDeactivateId(params.row.id);
-                confirm.onTrue();
-              }}
-            >
-              <Iconify icon="solar:trash-bin-trash-bold" />
-            </IconButton>
-          ) : null,
+        getActions: (params) =>
+          params.row.active
+            ? [
+                <GridActionsCellItem
+                  key="deactivate"
+                  showInMenu
+                  icon={<Iconify icon="solar:trash-bin-trash-bold" />}
+                  label="Desativar Lote"
+                  onClick={() => handleAskDeactivate(params.row.id)}
+                  sx={{ color: 'error.main' }}
+                />,
+              ]
+            : [],
       },
     ],
-    [confirm, t]
+    [handleAskDeactivate, t]
   );
 
   return (
@@ -360,21 +306,16 @@ export function BatchListView() {
 
         {enterpriseId && (
           <Card sx={{ height: 720 }}>
-            <DataGrid
+            <ErpDataGrid<Batch>
               rows={dataFiltered}
               columns={columns}
               loading={loading}
               getRowId={(row) => row.id}
-              pageSizeOptions={[5, 10, 25]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              slots={{
-                toolbar: CustomToolbar as GridSlots['toolbar'],
-                noRowsOverlay: () => <EmptyContent title={t('batches.empty')} />,
-                noResultsOverlay: () => <EmptyContent title={t('batches.empty')} />,
-              }}
-              sx={{
-                border: 0,
-                [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+              emptyTitle={t('batches.empty')}
+              toolbar={{
+                selectFilters,
+                searchPlaceholder: 'Pesquisar lote por código, produto ou fornecedor…',
+                filteredResults: dataFiltered.length,
               }}
             />
           </Card>

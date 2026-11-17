@@ -15,12 +15,12 @@ import { AnalyticsWidgetSummary } from "src/sections/overview/analytics/analytic
 
 import { getYear } from 'src/utils/format-time';
 
+import type { IgetTrnPeriodo } from 'src/types/productos';
+
 import VentasComprasCHA from './ventas-compras-cha';
 import VentasMensualesDTQ from './ventas-mensuales-dtq';
 import ComprasMensualesDTQ from './compras-mensuales-dtq';
 import TopProveedoresProductoDTQ from './top-proveedores-dtq';
-
-import type { IgetTrnPeriodo } from 'src/types/productos';
 
 // ----------------------------------------------------------------------
 type Props = {

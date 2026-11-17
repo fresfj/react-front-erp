@@ -10,14 +10,13 @@ import { formatStr, addDaysDate, convertDayjsToDate } from "src/utils/format-tim
 import { useGetSaldo } from "src/api/productos";
 import { useCalendarRangePicker } from "src/core/components/calendar";
 
+import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 
-import { Label } from 'src/components/label/label';
+import type { IgetSaldo, IgetTrnProducto } from 'src/types/productos';
 
 import TransaccionesProductoDTQ from './transacciones-dtq';
-
-import type { IgetSaldo, IgetTrnProducto } from 'src/types/productos';
 
 
 type Props = {

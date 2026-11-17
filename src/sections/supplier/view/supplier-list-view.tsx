@@ -1,30 +1,18 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { Supplier } from 'src/api/firestore/suppliers';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Card from '@mui/material/Card';
-import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
-import IconButton from '@mui/material/IconButton';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
+import { GridActionsCellItem } from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
-import { useSetState } from 'src/hooks/use-set-state';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
@@ -35,6 +23,7 @@ import { listSuppliers, deactivateSupplier } from 'src/api/firestore/suppliers';
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
@@ -43,62 +32,10 @@ import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
-type SupplierFilters = {
-  active: '' | 'active' | 'inactive';
-};
-
-type ToolbarProps = {
-  filters: ReturnType<typeof useSetState<SupplierFilters>>;
-  activeLabel: string;
-  allStatus: string;
-  activeOnly: string;
-  inactiveOnly: string;
-};
-
-function SupplierToolbar({
-  filters,
-  activeLabel,
-  allStatus,
-  activeOnly,
-  inactiveOnly,
-}: ToolbarProps) {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        spacing={1.5}
-        direction={{ xs: 'column', md: 'row' }}
-        sx={{ p: 2.5, width: 1, pr: { xs: 2.5, md: 1 } }}
-      >
-        <TextField
-          select
-          label={activeLabel}
-          value={filters.state.active}
-          onChange={(event) =>
-            filters.setState({ active: event.target.value as SupplierFilters['active'] })
-          }
-          sx={{ minWidth: { md: 160 } }}
-        >
-          <MenuItem value="">{allStatus}</MenuItem>
-          <MenuItem value="active">{activeOnly}</MenuItem>
-          <MenuItem value="inactive">{inactiveOnly}</MenuItem>
-        </TextField>
-
-        <Stack
-          direction="row"
-          spacing={1}
-          flexGrow={1}
-          justifyContent="flex-end"
-          alignItems="center"
-        >
-          <GridToolbarQuickFilter />
-          <GridToolbarColumnsButton />
-          <GridToolbarFilterButton />
-          <GridToolbarExport />
-        </Stack>
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
+const STATUS_OPTIONS = [
+  { value: 'active', label: 'Ativo' },
+  { value: 'inactive', label: 'Inativo' },
+];
 
 // ----------------------------------------------------------------------
 
@@ -111,8 +48,7 @@ export function SupplierListView() {
   const enterpriseId = user?.enterpriseId as string | undefined;
   const canWrite = user?.role !== 'operador';
 
-  const filters = useSetState<SupplierFilters>({ active: '' });
-
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Supplier[]>([]);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
@@ -144,16 +80,12 @@ export function SupplierListView() {
   const dataFiltered = useMemo(() => {
     let rows = tableData;
 
-    if (filters.state.active === 'active') {
-      rows = rows.filter((row) => row.active);
-    }
-
-    if (filters.state.active === 'inactive') {
-      rows = rows.filter((row) => !row.active);
+    if (statusFilter.length) {
+      rows = rows.filter((row) => statusFilter.includes(row.active ? 'active' : 'inactive'));
     }
 
     return rows;
-  }, [filters.state.active, tableData]);
+  }, [statusFilter, tableData]);
 
   const handleEditRow = useCallback(
     (id: string) => {
@@ -187,18 +119,15 @@ export function SupplierListView() {
     }
   }, [canWrite, confirm, deactivateId, enterpriseId, loadSuppliers, t]);
 
-  const CustomToolbar = useCallback(
-    () => (
-      <SupplierToolbar
-        filters={filters}
-        activeLabel={t('suppliers.fields.active')}
-        allStatus={t('suppliers.filters.allStatus')}
-        activeOnly={t('suppliers.filters.activeOnly')}
-        inactiveOnly={t('suppliers.filters.inactiveOnly')}
-      />
-    ),
-    [filters, t]
-  );
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'status',
+      label: t('suppliers.fields.active', { defaultValue: 'Status' }),
+      options: STATUS_OPTIONS,
+      value: statusFilter,
+      onChange: setStatusFilter,
+    },
+  ];
 
   const columns = useMemo<GridColDef<Supplier>[]>(
     () => [
@@ -247,28 +176,36 @@ export function SupplierListView() {
         ),
       },
       {
+        type: 'actions',
         field: 'actions',
         headerName: ' ',
-        width: 100,
+        align: 'right',
+        headerAlign: 'right',
+        width: 80,
         sortable: false,
         filterable: false,
         disableColumnMenu: true,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5}>
-            <IconButton size="small" onClick={() => handleEditRow(params.row.id)}>
-              <Iconify icon="solar:pen-bold" />
-            </IconButton>
-            {canWrite && (
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => handleAskDeactivate(params.row.id)}
-              >
-                <Iconify icon="solar:trash-bin-trash-bold" />
-              </IconButton>
-            )}
-          </Stack>
-        ),
+        getActions: (params) => [
+          <GridActionsCellItem
+            key="edit"
+            showInMenu
+            icon={<Iconify icon="solar:pen-bold" />}
+            label="Editar"
+            onClick={() => handleEditRow(params.row.id)}
+          />,
+          ...(canWrite
+            ? [
+                <GridActionsCellItem
+                  key="delete"
+                  showInMenu
+                  icon={<Iconify icon="solar:trash-bin-trash-bold" />}
+                  label="Desativar"
+                  onClick={() => handleAskDeactivate(params.row.id)}
+                  sx={{ color: 'error.main' }}
+                />,
+              ]
+            : []),
+        ],
       },
     ],
     [canWrite, handleAskDeactivate, handleEditRow, t]
@@ -309,21 +246,16 @@ export function SupplierListView() {
 
         {enterpriseId && (
           <Card sx={{ height: 720 }}>
-            <DataGrid
+            <ErpDataGrid<Supplier>
               rows={dataFiltered}
               columns={columns}
               loading={loading}
               getRowId={(row) => row.id}
-              pageSizeOptions={[5, 10, 25]}
-              initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-              slots={{
-                toolbar: CustomToolbar as GridSlots['toolbar'],
-                noRowsOverlay: () => <EmptyContent title={t('suppliers.empty')} />,
-                noResultsOverlay: () => <EmptyContent title={t('suppliers.empty')} />,
-              }}
-              sx={{
-                border: 0,
-                [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+              emptyTitle={t('suppliers.empty')}
+              toolbar={{
+                selectFilters,
+                searchPlaceholder: 'Pesquisar fornecedor, CNPJ/CPF, e-mail…',
+                filteredResults: dataFiltered.length,
               }}
             />
           </Card>

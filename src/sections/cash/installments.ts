@@ -1,8 +1,7 @@
 import type { Dayjs } from 'dayjs';
+import type { FinancialRecurrence } from 'src/api/firestore/payables';
 
 import dayjs from 'dayjs';
-
-import type { FinancialRecurrence } from 'src/api/firestore/payables';
 
 // ----------------------------------------------------------------------
 

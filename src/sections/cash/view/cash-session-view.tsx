@@ -1,5 +1,6 @@
+import type { GridColDef } from '@mui/x-data-grid';
 import type { Sale } from 'src/api/firestore/sales';
-import type { GridColDef, GridSlots } from '@mui/x-data-grid';
+import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 import type { CashSession, CashMovementType } from 'src/api/firestore/cash-sessions';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
@@ -18,15 +19,6 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import InputAdornment from '@mui/material/InputAdornment';
-import {
-  DataGrid,
-  gridClasses,
-  GridToolbarExport,
-  GridToolbarContainer,
-  GridToolbarQuickFilter,
-  GridToolbarFilterButton,
-  GridToolbarColumnsButton,
-} from '@mui/x-data-grid';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
@@ -38,8 +30,8 @@ import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { listSales } from 'src/api/firestore/sales';
+import { DashboardContent } from 'src/layouts/dashboard';
 import {
   openCashSession,
   listCashSessions,
@@ -50,7 +42,7 @@ import {
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
-import { EmptyContent } from 'src/components/empty-content';
+import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
 import { useAuthContext } from 'src/auth/hooks';
@@ -63,25 +55,10 @@ import {
 
 // ----------------------------------------------------------------------
 
-function CashToolbar() {
-  return (
-    <GridToolbarContainer>
-      <Stack
-        direction="row"
-        spacing={1}
-        flexGrow={1}
-        justifyContent="flex-end"
-        alignItems="center"
-        sx={{ p: 2 }}
-      >
-        <GridToolbarQuickFilter />
-        <GridToolbarColumnsButton />
-        <GridToolbarFilterButton />
-        <GridToolbarExport />
-      </Stack>
-    </GridToolbarContainer>
-  );
-}
+const STATUS_OPTIONS = [
+  { value: 'open', label: 'Aberto' },
+  { value: 'closed', label: 'Fechado' },
+];
 
 export function CashSessionView() {
   const { t } = useTranslate('common');
@@ -92,6 +69,7 @@ export function CashSessionView() {
   const movementModal = useBoolean();
   const blindCloseModal = useBoolean();
 
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -234,6 +212,21 @@ export function CashSessionView() {
       toast.error(getFirebaseErrorMessage(error, 'Erro ao fechar caixa'));
     }
   };
+
+  const dataFiltered = useMemo(() => {
+    if (!statusFilter.length) return sessions;
+    return sessions.filter((s) => statusFilter.includes(s.status));
+  }, [sessions, statusFilter]);
+
+  const selectFilters: ErpGridSelectFilter[] = [
+    {
+      id: 'status',
+      label: 'Status do Caixa',
+      options: STATUS_OPTIONS,
+      value: statusFilter,
+      onChange: setStatusFilter,
+    },
+  ];
 
   const columns = useMemo<GridColDef<CashSession>[]>(
     () => [
@@ -420,21 +413,16 @@ export function CashSessionView() {
         )}
 
         <Card sx={{ height: 640 }}>
-          <DataGrid
-            rows={sessions}
+          <ErpDataGrid<CashSession>
+            rows={dataFiltered}
             columns={columns}
             loading={loading}
             getRowId={(row) => row.id}
-            pageSizeOptions={[5, 10, 25]}
-            initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
-            slots={{
-              toolbar: CashToolbar as GridSlots['toolbar'],
-              noRowsOverlay: () => <EmptyContent title="Nenhuma sessão de caixa registrada" />,
-              noResultsOverlay: () => <EmptyContent title="Nenhum resultado encontrado" />,
-            }}
-            sx={{
-              border: 0,
-              [`& .${gridClasses.cell}`]: { alignItems: 'center', display: 'inline-flex' },
+            emptyTitle="Nenhuma sessão de caixa registrada"
+            toolbar={{
+              selectFilters,
+              searchPlaceholder: 'Pesquisar caixa por código, operador…',
+              filteredResults: dataFiltered.length,
             }}
           />
         </Card>

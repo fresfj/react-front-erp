@@ -13,7 +13,7 @@ import ButtonBase from '@mui/material/ButtonBase';
 import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
 
-import { fCurrency, fNumber } from 'src/utils/format-number';
+import { fNumber, fCurrency } from 'src/utils/format-number';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';

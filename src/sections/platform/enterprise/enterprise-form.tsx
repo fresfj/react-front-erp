@@ -21,7 +21,7 @@ import { useBoolean } from 'src/hooks/use-boolean';
 import { useCepLookup } from 'src/hooks/use-cep-lookup';
 import { useCnpjLookup } from 'src/hooks/use-cnpj-lookup';
 
-import { digitsOnly, formatCep, formatCnpj } from 'src/utils/br-docs';
+import { formatCep, digitsOnly, formatCnpj } from 'src/utils/br-docs';
 
 import { useTranslate } from 'src/locales';
 import { createEnterprise, updateEnterprise } from 'src/api/firestore/platform';

@@ -7,13 +7,13 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Grid from '@mui/material/Unstable_Grid2';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
+import Grid from '@mui/material/Unstable_Grid2';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
@@ -28,12 +28,12 @@ import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
-import { fCurrency, fPercent } from 'src/utils/format-number';
+import { fPercent, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { createSale } from 'src/api/firestore/sales';
+import { DashboardContent } from 'src/layouts/dashboard';
 import { listProducts } from 'src/api/firestore/products';
 import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { getEffectivePermissions } from 'src/api/firestore/members';
@@ -47,8 +47,8 @@ import { Scrollbar } from 'src/components/scrollbar';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
-import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
 import { CustomerListDialog } from 'src/sections/customer/customer-list-dialog';
+import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
 import { CustomerQuickNewDialog } from 'src/sections/customer/customer-quick-new-dialog';
 
 import { useAuthContext } from 'src/auth/hooks';
