@@ -1,17 +1,17 @@
 import type { Sale } from 'src/api/firestore/sales';
-import type { CashSession } from 'src/api/firestore/cash-sessions';
+import type { Payable } from 'src/api/firestore/payables';
 
 import dayjs from 'dayjs';
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Grid from '@mui/material/Unstable_Grid2';
 import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import TableRow from '@mui/material/TableRow';
+import Grid from '@mui/material/Unstable_Grid2';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
@@ -21,13 +21,13 @@ import Typography from '@mui/material/Typography';
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
-import { fCurrency, fPercent } from 'src/utils/format-number';
+import { fPercent, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { listSales } from 'src/api/firestore/sales';
-import { listCashSessions } from 'src/api/firestore/cash-sessions';
+import { listPayables } from 'src/api/firestore/payables';
+import { DashboardContent } from 'src/layouts/dashboard';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -43,6 +43,7 @@ import {
 
 import { useAuthContext } from 'src/auth/hooks';
 
+import { buildAccrualDre } from '../accrual-dre';
 import { calculateDreReport } from '../cash-calculator';
 
 // ----------------------------------------------------------------------
@@ -53,7 +54,7 @@ export function DreView() {
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const [sales, setSales] = useState<Sale[]>([]);
-  const [sessions, setSessions] = useState<CashSession[]>([]);
+  const [payables, setPayables] = useState<Payable[]>([]);
   const [preset, setPreset] = useState<DateFilterPreset>('30d');
   const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
 
@@ -78,12 +79,12 @@ export function DreView() {
   const loadData = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      const [salesRows, sessionRows] = await Promise.all([
+      const [salesRows, payableRows] = await Promise.all([
         listSales(enterpriseId),
-        listCashSessions(enterpriseId),
+        listPayables(enterpriseId),
       ]);
       setSales(salesRows);
-      setSessions(sessionRows);
+      setPayables(payableRows);
     } catch (error) {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar DRE'));
@@ -94,40 +95,18 @@ export function DreView() {
     loadData();
   }, [loadData]);
 
-  const filteredSales = useMemo(
-    () => sales.filter((s) => isIsoInPeriodBounds(s.createdAt, bounds)),
-    [sales, bounds]
-  );
-
-  const filteredSessions = useMemo(
-    () =>
-      sessions.filter((s) =>
-        isIsoInPeriodBounds(s.openedAt, bounds)
-      ),
-    [sessions, bounds]
-  );
-
-  const totalWithdrawals = useMemo(
-    () =>
-      filteredSessions.reduce(
-        (acc, sess) =>
-          acc +
-          sess.movements
-            .filter((m) => m.type === 'WITHDRAWAL')
-            .reduce((sum, m) => sum + m.amount, 0),
-        0
-      ),
-    [filteredSessions]
-  );
-
   const dre = useMemo(
-    () =>
-      calculateDreReport({
-        sales: filteredSales,
-        operatingExpenses: totalWithdrawals,
-      }),
-    [filteredSales, totalWithdrawals]
+    () => buildAccrualDre({ sales, payables, bounds }),
+    [sales, payables, bounds]
   );
+
+  const paymentDre = useMemo(() => {
+    const filteredSales = sales.filter((s) => isIsoInPeriodBounds(s.createdAt, bounds));
+    return calculateDreReport({ sales: filteredSales });
+  }, [sales, bounds]);
+
+  const av = (value: number) =>
+    dre.netRevenue > 0 ? fPercent((value / dre.netRevenue) * 100) : '0%';
 
   return (
     <DashboardContent>
@@ -158,12 +137,46 @@ export function DreView() {
         title={t('periodFilter.title', { defaultValue: 'Filtro de período' })}
       />
 
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid xs={12} md={4}>
+          <Card sx={{ p: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              {t('overviewKpi.kpiNetRevenue', { defaultValue: 'Receita líquida' })}
+            </Typography>
+            <Typography variant="h4">{fCurrency(dre.netRevenue)}</Typography>
+          </Card>
+        </Grid>
+        <Grid xs={12} md={4}>
+          <Card sx={{ p: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              {t('dre.operatingExpenses', { defaultValue: 'Despesas operacionais' })}
+            </Typography>
+            <Typography variant="h4">{fCurrency(dre.operatingExpenses)}</Typography>
+          </Card>
+        </Grid>
+        <Grid xs={12} md={4}>
+          <Card sx={{ p: 3 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              {t('dre.netProfit', { defaultValue: 'Lucro líquido' })}
+            </Typography>
+            <Typography
+              variant="h4"
+              color={dre.netProfit >= 0 ? 'success.main' : 'error.main'}
+            >
+              {fCurrency(dre.netProfit)}
+            </Typography>
+          </Card>
+        </Grid>
+      </Grid>
+
       <Grid container spacing={3}>
         <Grid xs={12} md={8}>
           <Card>
             <CardHeader
-              title="Demonstrativo de Resultado (Receita × CMV de Lotes × Lucro)"
-              subheader={`Baseado em ${dre.salesCount} vendas concluídas (${periodLabel})`}
+              title="Demonstrativo de Resultado"
+              subheader={`${t('dre.accrualSubtitle', {
+                defaultValue: 'Regime de competência (vendas PDV + contas a pagar)',
+              })} • ${dre.salesCount} vendas (${periodLabel})`}
               sx={{ mb: 3 }}
             />
             <Divider />
@@ -179,7 +192,9 @@ export function DreView() {
                 <TableRow>
                   <TableCell sx={{ fontWeight: 600 }}>(+) Receita Operacional Bruta</TableCell>
                   <TableCell align="right">{fCurrency(dre.grossRevenue)}</TableCell>
-                  <TableCell align="right">100%</TableCell>
+                  <TableCell align="right">
+                    {dre.grossRevenue > 0 ? '100%' : '0%'}
+                  </TableCell>
                 </TableRow>
 
                 <TableRow>
@@ -204,14 +219,12 @@ export function DreView() {
 
                 <TableRow>
                   <TableCell sx={{ color: 'warning.main' }}>
-                    (-) CMV — Custo das Mercadorias Vendidas (Rateio dos Lotes)
+                    (-) CMV — Custo das Mercadorias Vendidas
                   </TableCell>
                   <TableCell align="right" sx={{ color: 'warning.main' }}>
                     - {fCurrency(dre.cogs)}
                   </TableCell>
-                  <TableCell align="right">
-                    {dre.netRevenue > 0 ? fPercent((dre.cogs / dre.netRevenue) * 100) : '0%'}
-                  </TableCell>
+                  <TableCell align="right">{av(dre.cogs)}</TableCell>
                 </TableRow>
 
                 <TableRow sx={{ bgcolor: 'background.neutral' }}>
@@ -226,23 +239,34 @@ export function DreView() {
                   </TableCell>
                 </TableRow>
 
+                {dre.expenseLines.map((line) => (
+                  <TableRow key={line.category}>
+                    <TableCell sx={{ color: 'error.main', pl: 4 }}>
+                      (-){' '}
+                      {t(`finance.categories.${line.category}`, {
+                        defaultValue: line.category,
+                      })}
+                    </TableCell>
+                    <TableCell align="right" sx={{ color: 'error.main' }}>
+                      - {fCurrency(line.amount)}
+                    </TableCell>
+                    <TableCell align="right">{fPercent(line.pctOfRevenue)}</TableCell>
+                  </TableRow>
+                ))}
+
                 <TableRow>
-                  <TableCell sx={{ color: 'error.main' }}>
-                    (-) Despesas Operacionais / Sangrias de Caixa
+                  <TableCell sx={{ color: 'error.main', fontWeight: 600 }}>
+                    (-) {t('dre.operatingExpenses', { defaultValue: 'Despesas operacionais' })}
                   </TableCell>
-                  <TableCell align="right" sx={{ color: 'error.main' }}>
+                  <TableCell align="right" sx={{ color: 'error.main', fontWeight: 600 }}>
                     - {fCurrency(dre.operatingExpenses)}
                   </TableCell>
-                  <TableCell align="right">
-                    {dre.netRevenue > 0
-                      ? fPercent((dre.operatingExpenses / dre.netRevenue) * 100)
-                      : '0%'}
-                  </TableCell>
+                  <TableCell align="right">{av(dre.operatingExpenses)}</TableCell>
                 </TableRow>
 
                 <TableRow>
                   <TableCell sx={{ typography: 'subtitle1' }}>
-                    (=) Resultado Líquido do Exercício (Lucro / Prejuízo)
+                    (=) {t('dre.netProfit', { defaultValue: 'Lucro líquido' })}
                   </TableCell>
                   <TableCell
                     align="right"
@@ -268,22 +292,26 @@ export function DreView() {
           <Card>
             <CardHeader
               title="Recebimentos por Meio de Pagamento"
-              subheader="Líquido de troco"
+              subheader="Líquido de troco (PDV)"
               sx={{ mb: 3 }}
             />
             <Divider sx={{ borderStyle: 'dashed' }} />
             <Stack spacing={2} sx={{ p: 3, typography: 'body2' }}>
-              {(Object.keys(dre.byMethod) as Array<keyof typeof dre.byMethod>).map((method) => (
-                <Stack key={method} direction="row" justifyContent="space-between">
-                  <Box component="span" sx={{ color: 'text.secondary' }}>
-                    {t(`pos.paymentMethods.${method}`, {
-                      defaultValue:
-                        method === 'credit_tab' ? 'Crediário / Fiado (A Prazo)' : method,
-                    })}
-                  </Box>
-                  <Typography variant="subtitle2">{fCurrency(dre.byMethod[method])}</Typography>
-                </Stack>
-              ))}
+              {(Object.keys(paymentDre.byMethod) as Array<keyof typeof paymentDre.byMethod>).map(
+                (method) => (
+                  <Stack key={method} direction="row" justifyContent="space-between">
+                    <Box component="span" sx={{ color: 'text.secondary' }}>
+                      {t(`pos.paymentMethods.${method}`, {
+                        defaultValue:
+                          method === 'credit_tab' ? 'Crediário / Fiado (A Prazo)' : method,
+                      })}
+                    </Box>
+                    <Typography variant="subtitle2">
+                      {fCurrency(paymentDre.byMethod[method])}
+                    </Typography>
+                  </Stack>
+                )
+              )}
             </Stack>
           </Card>
         </Grid>
