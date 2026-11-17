@@ -1,18 +1,27 @@
+import type { TenantRole } from 'src/auth/firebase-claims';
+import type { EnterpriseSubscription } from './billing';
+
 import { httpsCallable } from 'firebase/functions';
 import {
-  collection,
   doc,
+  query,
   getDoc,
   getDocs,
   orderBy,
-  query,
+  updateDoc,
+  collection,
 } from 'firebase/firestore';
 
 import { FIRESTORE, FUNCTIONS } from 'src/lib/firebase';
 
-import type { TenantRole } from 'src/auth/firebase-claims';
+import { omitUndefined } from './omit-undefined';
+import { mapEnterpriseSubscription } from './billing';
 
 // ----------------------------------------------------------------------
+
+export type ReceiptModelType = '58mm' | '80mm' | 'a5';
+
+export type { EnterpriseSubscription };
 
 export type Enterprise = {
   id: string;
@@ -30,6 +39,24 @@ export type Enterprise = {
   neighborhood?: string;
   city?: string;
   state?: string;
+  stateRegistration?: string;
+  // Configuração Fiscal e Impressão de Cupom (NFC-e / Recibo)
+  nfceSeries?: string;
+  nfceEnvironment?: 'homologation' | 'production';
+  receiptFooterMessage?: string;
+  receiptDefaultModel?: ReceiptModelType;
+  receiptShowLogo?: boolean;
+  receiptBold?: boolean;
+  // Taxas de Pagamento (Maquininha) e Entrega (DRE)
+  defaultDeliveryFee?: number;
+  passPaymentFeesToCustomer?: boolean;
+  creditCardFeeRate?: number;
+  creditCardInstallmentFeeRate?: number;
+  debitCardFeeRate?: number;
+  pixFeeRate?: number;
+  pixFeeFixed?: number;
+  creditTabFeeRate?: number;
+  subscription?: EnterpriseSubscription;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -65,6 +92,36 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     neighborhood: optStr(data.neighborhood),
     city: optStr(data.city),
     state: optStr(data.state),
+    stateRegistration: optStr(data.stateRegistration),
+    nfceSeries: optStr(data.nfceSeries) ?? '1',
+    nfceEnvironment:
+      data.nfceEnvironment === 'production' ? 'production' : 'homologation',
+    receiptFooterMessage:
+      optStr(data.receiptFooterMessage) ?? 'OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE',
+    receiptDefaultModel:
+      data.receiptDefaultModel === '58mm' ||
+      data.receiptDefaultModel === '80mm' ||
+      data.receiptDefaultModel === 'a5'
+        ? (data.receiptDefaultModel as ReceiptModelType)
+        : '58mm',
+    receiptShowLogo: data.receiptShowLogo !== false,
+    receiptBold: data.receiptBold !== false,
+    defaultDeliveryFee:
+      data.defaultDeliveryFee != null ? Number(data.defaultDeliveryFee) : 0,
+    passPaymentFeesToCustomer: Boolean(data.passPaymentFeesToCustomer),
+    creditCardFeeRate:
+      data.creditCardFeeRate != null ? Number(data.creditCardFeeRate) : 2.15,
+    creditCardInstallmentFeeRate:
+      data.creditCardInstallmentFeeRate != null
+        ? Number(data.creditCardInstallmentFeeRate)
+        : 1.5,
+    debitCardFeeRate:
+      data.debitCardFeeRate != null ? Number(data.debitCardFeeRate) : 1.29,
+    pixFeeRate: data.pixFeeRate != null ? Number(data.pixFeeRate) : 0,
+    pixFeeFixed: data.pixFeeFixed != null ? Number(data.pixFeeFixed) : 0,
+    creditTabFeeRate:
+      data.creditTabFeeRate != null ? Number(data.creditTabFeeRate) : 0,
+    subscription: mapEnterpriseSubscription(data.subscription),
     createdAt: data.createdAt != null ? String(data.createdAt) : undefined,
     updatedAt: data.updatedAt != null ? String(data.updatedAt) : undefined,
   };
@@ -81,6 +138,21 @@ export type EnterpriseAddressInput = {
   neighborhood?: string;
   city?: string;
   state?: string;
+  stateRegistration?: string;
+  nfceSeries?: string;
+  nfceEnvironment?: 'homologation' | 'production';
+  receiptFooterMessage?: string;
+  receiptDefaultModel?: ReceiptModelType;
+  receiptShowLogo?: boolean;
+  receiptBold?: boolean;
+  defaultDeliveryFee?: number;
+  passPaymentFeesToCustomer?: boolean;
+  creditCardFeeRate?: number;
+  creditCardInstallmentFeeRate?: number;
+  debitCardFeeRate?: number;
+  pixFeeRate?: number;
+  pixFeeFixed?: number;
+  creditTabFeeRate?: number;
 };
 
 export async function listEnterprisesClient(): Promise<Enterprise[]> {
@@ -163,3 +235,21 @@ export function setMemberClaims(input: {
     input
   );
 }
+
+export async function updateEnterpriseSettings(
+  enterpriseId: string,
+  data: Partial<EnterpriseAddressInput> & {
+    name?: string;
+  }
+): Promise<void> {
+  const ref = doc(FIRESTORE, 'enterprises', enterpriseId);
+  const now = new Date().toISOString();
+  await updateDoc(
+    ref,
+    omitUndefined({
+      ...data,
+      updatedAt: now,
+    })
+  );
+}
+
