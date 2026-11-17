@@ -1,6 +1,6 @@
 import type { Sale } from 'src/api/firestore/sales';
 import type { Batch } from 'src/api/firestore/batches';
-import type { Product } from 'src/api/firestore/products';
+import type { Payable } from 'src/api/firestore/payables';
 import type { Customer } from 'src/api/firestore/customers';
 import type { CashSession } from 'src/api/firestore/cash-sessions';
 
@@ -30,10 +30,10 @@ import { fDateTime } from 'src/utils/format-time';
 import { fCurrency, fNumber } from 'src/utils/format-number';
 
 import { useTranslate } from 'src/locales';
-import { DashboardContent } from 'src/layouts/dashboard';
 import { listSales } from 'src/api/firestore/sales';
 import { listBatches } from 'src/api/firestore/batches';
-import { listProducts } from 'src/api/firestore/products';
+import { listPayables } from 'src/api/firestore/payables';
+import { DashboardContent } from 'src/layouts/dashboard';
 import { listCustomers } from 'src/api/firestore/customers';
 import { SeoIllustration } from 'src/assets/illustrations';
 import { listCashSessions } from 'src/api/firestore/cash-sessions';
@@ -41,8 +41,8 @@ import { listCashSessions } from 'src/api/firestore/cash-sessions';
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
-import { EmptyContent } from 'src/components/empty-content';
 import { svgColorClasses } from 'src/components/svg-color';
+import { EmptyContent } from 'src/components/empty-content';
 import { useDateRangePicker } from 'src/components/custom-date-range-picker';
 import {
   PeriodFilterBar,
@@ -51,6 +51,7 @@ import {
   type DateFilterPreset,
 } from 'src/components/period-filter';
 
+import { buildAccrualDre } from 'src/sections/cash/accrual-dre';
 import { calculateDreReport } from 'src/sections/cash/cash-calculator';
 
 import { useAuthContext } from 'src/auth/hooks';
@@ -73,7 +74,7 @@ export function OverviewAppView() {
   const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
 
   const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const [payables, setPayables] = useState<Payable[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [cashSessions, setCashSessions] = useState<CashSession[]>([]);
@@ -81,15 +82,15 @@ export function OverviewAppView() {
   const loadDashboardData = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      const [salesRows, prodRows, custRows, batchRows, cashRows] = await Promise.all([
+      const [salesRows, payableRows, custRows, batchRows, cashRows] = await Promise.all([
         listSales(enterpriseId),
-        listProducts(enterpriseId),
+        listPayables(enterpriseId),
         listCustomers(enterpriseId),
         listBatches(enterpriseId),
         listCashSessions(enterpriseId),
       ]);
       setSales(salesRows);
-      setProducts(prodRows);
+      setPayables(payableRows);
       setCustomers(custRows);
       setBatches(batchRows);
       setCashSessions(cashRows);
@@ -116,7 +117,56 @@ export function OverviewAppView() {
     [bounds, preset, sales]
   );
 
+  const accrual = useMemo(
+    () => buildAccrualDre({ sales, payables, bounds }),
+    [sales, payables, bounds]
+  );
+
   const dre = useMemo(() => calculateDreReport({ sales: filteredSales }), [filteredSales]);
+
+  const dailyCategories = useMemo(
+    () =>
+      accrual.dailySeries.length
+        ? accrual.dailySeries.map((d) => d.date.slice(5))
+        : ['—'],
+    [accrual.dailySeries]
+  );
+
+  const revenueSeries = useMemo(
+    () => (accrual.dailySeries.length ? accrual.dailySeries.map((d) => Math.round(d.revenue)) : [0]),
+    [accrual.dailySeries]
+  );
+
+  const expenseSeries = useMemo(
+    () =>
+      accrual.dailySeries.length
+        ? accrual.dailySeries.map((d) => Math.round(d.operatingExpenses))
+        : [0],
+    [accrual.dailySeries]
+  );
+
+  const netProfitSeries = useMemo(
+    () =>
+      accrual.dailySeries.length
+        ? accrual.dailySeries.map((d) => Math.round(d.netProfit))
+        : [0],
+    [accrual.dailySeries]
+  );
+
+  const expenseChartSeries = useMemo(() => {
+    const entries = accrual.expenseLines.map((line) => ({
+      label: t(`finance.categories.${line.category}`, { defaultValue: line.category }),
+      value: line.amount,
+    }));
+    return entries.length > 0
+      ? entries
+      : [{ label: t('dre.operatingExpenses', { defaultValue: 'Sem despesas' }), value: 1 }];
+  }, [accrual.expenseLines, t]);
+
+  const expensesPctOfRevenue =
+    accrual.netRevenue > 0
+      ? Math.round((accrual.operatingExpenses / accrual.netRevenue) * 1000) / 10
+      : 0;
 
   const totalCustomerDebt = useMemo(
     () =>
@@ -144,24 +194,6 @@ export function OverviewAppView() {
     () => cashSessions.find((s) => s.status === 'open') || null,
     [cashSessions]
   );
-
-  const recentSalesSeries = useMemo(() => {
-    const completed = filteredSales
-      .filter((s) => s.status === 'completed')
-      .slice(0, 8)
-      .reverse();
-    if (!completed.length) return [0, 0, 0, 0, 0, 0, 0, 0];
-    return completed.map((s) => Math.round(s.total));
-  }, [filteredSales]);
-
-  const recentProfitSeries = useMemo(() => {
-    const completed = filteredSales
-      .filter((s) => s.status === 'completed')
-      .slice(0, 8)
-      .reverse();
-    if (!completed.length) return [0, 0, 0, 0, 0, 0, 0, 0];
-    return completed.map((s) => Math.round(s.grossProfit));
-  }, [filteredSales]);
 
   const paymentChartSeries = useMemo(() => {
     const m = dre.byMethod;
@@ -259,59 +291,59 @@ export function OverviewAppView() {
             </Box>
           </Grid>
 
-          {/* Top 3 KPI Summary Cards */}
+          {/* Top 3 KPI Summary Cards — accrual */}
           <Grid xs={12} md={4}>
             <AppWidgetSummary
-              title="Receita Líquida no Período (R$)"
-              percent={dre.grossMarginPercent}
-              total={dre.netRevenue}
+              title={t('overviewKpi.kpiNetRevenue', {
+                defaultValue: 'Receita líquida no período',
+              })}
+              percent={accrual.grossMarginPercent}
+              total={accrual.netRevenue}
               chart={{
-                categories: ['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'],
-                series: recentSalesSeries,
+                categories: dailyCategories,
+                series: revenueSeries,
               }}
             />
           </Grid>
 
           <Grid xs={12} md={4}>
             <AppWidgetSummary
-              title="Lucro Bruto no Período (Receita - CMV)"
-              percent={dre.netMarginPercent}
-              total={dre.grossProfit}
-              chart={{
-                colors: [theme.vars.palette.info.main],
-                categories: ['V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'],
-                series: recentProfitSeries,
-              }}
-            />
-          </Grid>
-
-          <Grid xs={12} md={4}>
-            <AppWidgetSummary
-              title="Produtos Cadastrados (Insumos + Acabados)"
-              percent={products.filter((p) => p.active).length}
-              total={products.length}
+              title={t('overviewKpi.kpiExpenses', {
+                defaultValue: 'Despesas operacionais',
+              })}
+              percent={expensesPctOfRevenue}
+              total={accrual.operatingExpenses}
               chart={{
                 colors: [theme.vars.palette.warning.main],
-                categories: [
-                  'Insumos',
-                  'Acabados',
-                  'Ativos',
-                  'Lotes',
-                  'Clientes',
-                  'Vendas',
-                  'Caixas',
-                  'Total',
-                ],
-                series: [
-                  products.filter((p) => p.type === 'raw').length,
-                  products.filter((p) => p.type === 'finished').length,
-                  products.filter((p) => p.active).length,
-                  availableBatches.length,
-                  customers.length,
-                  filteredSales.length,
-                  cashSessions.length,
-                  products.length,
-                ],
+                categories: dailyCategories,
+                series: expenseSeries,
+              }}
+            />
+          </Grid>
+
+          <Grid xs={12} md={4}>
+            <AppWidgetSummary
+              title={t('overviewKpi.kpiNetProfit', { defaultValue: 'Lucro líquido' })}
+              percent={accrual.netMarginPercent}
+              total={accrual.netProfit}
+              chart={{
+                colors: [theme.vars.palette.info.main],
+                categories: dailyCategories,
+                series: netProfitSeries,
+              }}
+            />
+          </Grid>
+
+          <Grid xs={12} md={6} lg={4}>
+            <AppCurrentDownload
+              title={t('overviewKpi.chartExpensesByCategory', {
+                defaultValue: 'Despesas por categoria',
+              })}
+              subheader={t('dre.accrualSubtitle', {
+                defaultValue: 'Contas a pagar por competência',
+              })}
+              chart={{
+                series: expenseChartSeries,
               }}
             />
           </Grid>
@@ -332,7 +364,7 @@ export function OverviewAppView() {
             <Card sx={{ height: 1 }}>
               <CardHeader
                 title="Vendas Realizadas no Período (PDV)"
-                subheader={`${dre.salesCount} vendas concluídas • CMV do período: ${fCurrency(dre.cogs)}`}
+                subheader={`${accrual.salesCount} vendas concluídas • CMV: ${fCurrency(accrual.cogs)} • Lucro líq.: ${fCurrency(accrual.netProfit)}`}
                 action={
                   <Button
                     component={RouterLink}
