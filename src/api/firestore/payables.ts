@@ -13,6 +13,8 @@ import {
   buildInstallmentDueDates,
 } from 'src/sections/cash/installments';
 
+import type { DreClass } from 'src/sections/cash/accrual-dre';
+
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
 import type { CashSession } from './cash-sessions';
@@ -30,6 +32,15 @@ export type FinancialCategory =
 export type FinancialRecurrence = 'none' | 'weekly' | 'monthly';
 export type FinancialStatus = 'open' | 'paid' | 'cancelled';
 
+export type { DreClass };
+
+const DRE_CLASSES: DreClass[] = ['operating', 'cogs_inventory', 'other_income', 'ignore'];
+
+function parseDreClass(raw: unknown): DreClass | undefined {
+  if (typeof raw !== 'string') return undefined;
+  return DRE_CLASSES.includes(raw as DreClass) ? (raw as DreClass) : undefined;
+}
+
 export type Payable = {
   id: string;
   description: string;
@@ -37,9 +48,9 @@ export type Payable = {
   amount: number;
   startDate: string;
   dueDate: string;
-  /** YYYY-MM-DD; engine falls back to startDate when missing. */
-  competenceDate?: string;
-  dreClass?: 'operating' | 'cogs_inventory' | 'other_income' | 'ignore';
+  /** YYYY-MM-DD; falls back to startDate when missing on legacy docs. */
+  competenceDate: string;
+  dreClass?: DreClass;
   supplierId?: string;
   supplierName?: string;
   recurrence: FinancialRecurrence;
@@ -58,6 +69,8 @@ export type CreatePayableInput = {
   amount: number;
   startDate: string;
   dueDate: string;
+  competenceDate?: string;
+  dreClass?: DreClass;
   supplierId?: string;
   supplierName?: string;
   recurrence: FinancialRecurrence;
@@ -85,13 +98,16 @@ function optStr(val: unknown): string | undefined {
 
 function mapPayable(id: string, data: Record<string, unknown>): Payable {
   const installmentCount = Math.max(1, Number(data.installmentCount ?? 1));
+  const startDate = String(data.startDate ?? '');
   return {
     id,
     description: String(data.description ?? ''),
     category: (data.category as FinancialCategory) || 'other',
     amount: Number(data.amount ?? 0),
-    startDate: String(data.startDate ?? ''),
+    startDate,
     dueDate: String(data.dueDate ?? ''),
+    competenceDate: String(data.competenceDate ?? startDate),
+    dreClass: parseDreClass(data.dreClass),
     supplierId: optStr(data.supplierId),
     supplierName: optStr(data.supplierName),
     recurrence: (data.recurrence as FinancialRecurrence) || 'none',
@@ -169,6 +185,8 @@ export async function createPayableWithInstallments(
       amount: amounts[i],
       startDate: input.startDate,
       dueDate: dueDates[i],
+      competenceDate: input.competenceDate || input.startDate,
+      dreClass: input.dreClass,
       supplierId: input.supplierId,
       supplierName: input.supplierName,
       recurrence,

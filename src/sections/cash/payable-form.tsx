@@ -1,4 +1,10 @@
-import type { Payable, FinancialCategory, FinancialRecurrence, FinancialStatus } from 'src/api/firestore/payables';
+import type {
+  Payable,
+  DreClass,
+  FinancialStatus,
+  FinancialCategory,
+  FinancialRecurrence,
+} from 'src/api/firestore/payables';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -8,8 +14,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
-import MenuItem from '@mui/material/MenuItem';
 import Divider from '@mui/material/Divider';
+import MenuItem from '@mui/material/MenuItem';
 import CardHeader from '@mui/material/CardHeader';
 import LoadingButton from '@mui/lab/LoadingButton';
 
@@ -19,7 +25,7 @@ import { useRouter } from 'src/routes/hooks';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { createPayableWithInstallments, updatePayable } from 'src/api/firestore/payables';
+import { updatePayable, createPayableWithInstallments } from 'src/api/firestore/payables';
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
@@ -34,6 +40,11 @@ const Schema = zod.object({
   amount: zod.coerce.number().positive(),
   startDate: zod.string().min(1),
   dueDate: zod.string().min(1),
+  competenceDate: zod.string().min(1),
+  dreClass: zod
+    .enum(['operating', 'cogs_inventory', 'other_income', 'ignore'])
+    .optional()
+    .or(zod.literal('')),
   supplierName: zod.string().optional().or(zod.literal('')),
   recurrence: zod.enum(['none', 'weekly', 'monthly']),
   installmentCount: zod.coerce.number().int().min(1).max(24),
@@ -53,6 +64,8 @@ const CATEGORIES: FinancialCategory[] = [
   'other',
 ];
 
+const DRE_CLASSES: DreClass[] = ['operating', 'cogs_inventory', 'other_income', 'ignore'];
+
 export function PayableForm({ current }: Props) {
   const router = useRouter();
   const { t } = useTranslate('common');
@@ -67,6 +80,8 @@ export function PayableForm({ current }: Props) {
       amount: current?.amount || 0,
       startDate: current?.startDate || '',
       dueDate: current?.dueDate || '',
+      competenceDate: current?.competenceDate || current?.startDate || '',
+      dreClass: current?.dreClass || '',
       supplierName: current?.supplierName || '',
       recurrence: current?.recurrence || 'none',
       installmentCount: current?.installmentCount || 2,
@@ -97,6 +112,7 @@ export function PayableForm({ current }: Props) {
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
     try {
+      const dreClass = data.dreClass ? (data.dreClass as DreClass) : undefined;
       if (isEdit && current) {
         await updatePayable(enterpriseId, current.id, {
           description: data.description.trim(),
@@ -104,6 +120,8 @@ export function PayableForm({ current }: Props) {
           amount: Number(data.amount),
           startDate: data.startDate,
           dueDate: data.dueDate,
+          competenceDate: data.competenceDate,
+          dreClass,
           supplierName: data.supplierName?.trim() || undefined,
           recurrence: data.recurrence as FinancialRecurrence,
           status: data.status as FinancialStatus,
@@ -117,6 +135,8 @@ export function PayableForm({ current }: Props) {
           amount: Number(data.amount),
           startDate: data.startDate,
           dueDate: data.dueDate,
+          competenceDate: data.competenceDate,
+          dreClass,
           supplierName: data.supplierName?.trim() || undefined,
           recurrence: data.recurrence as FinancialRecurrence,
           installmentCount: data.recurrence === 'none' ? 1 : Number(data.installmentCount),
@@ -157,6 +177,23 @@ export function PayableForm({ current }: Props) {
             <Field.Text name="amount" label={t('finance.amount', { defaultValue: 'Valor' })} type="number" />
             <Field.DatePicker name="startDate" label={t('finance.dateStart', { defaultValue: 'Início' })} />
             <Field.DatePicker name="dueDate" label={t('finance.dueDate', { defaultValue: 'Vencimento' })} />
+            <Field.DatePicker
+              name="competenceDate"
+              label={t('dre.competenceDate', { defaultValue: 'Data de competência' })}
+            />
+            <Field.Select
+              name="dreClass"
+              label={t('dre.dreClass', { defaultValue: 'Classificação DRE' })}
+            >
+              <MenuItem value="">
+                {t('dre.dreClassAuto', { defaultValue: 'Automático (categoria)' })}
+              </MenuItem>
+              {DRE_CLASSES.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {t(`dre.dreClassOptions.${c}`, { defaultValue: c })}
+                </MenuItem>
+              ))}
+            </Field.Select>
             <Field.Text name="supplierName" label={t('finance.supplierName', { defaultValue: 'Fornecedor' })} />
             <Field.Select name="recurrence" label={t('finance.recurrence', { defaultValue: 'Recorrência' })}>
               <MenuItem value="none">{t('finance.recurrenceNone', { defaultValue: 'Nenhuma' })}</MenuItem>
