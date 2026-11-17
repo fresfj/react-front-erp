@@ -13,10 +13,10 @@ import {
   buildInstallmentDueDates,
 } from 'src/sections/cash/installments';
 
-import type { CashSession } from './cash-sessions';
-import { NoOpenCashSessionError } from './cash-sessions';
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
+import type { CashSession } from './cash-sessions';
+import { NoOpenCashSessionError } from './cash-sessions';
 
 // ----------------------------------------------------------------------
 
@@ -37,6 +37,9 @@ export type Payable = {
   amount: number;
   startDate: string;
   dueDate: string;
+  /** YYYY-MM-DD; engine falls back to startDate when missing. */
+  competenceDate?: string;
+  dreClass?: 'operating' | 'cogs_inventory' | 'other_income' | 'ignore';
   supplierId?: string;
   supplierName?: string;
   recurrence: FinancialRecurrence;
