@@ -7,7 +7,7 @@ import Card from '@mui/material/Card';
 import { useTheme } from '@mui/material/styles';
 import CardHeader from '@mui/material/CardHeader';
 
-import { fPercent, fCurrency } from 'src/utils/format-number';
+import { fCurrency } from 'src/utils/format-number';
 
 import { Chart, useChart, ChartSelect, ChartLegends } from 'src/components/chart';
 
@@ -33,9 +33,10 @@ type Props = CardProps & {
 export function BankingBalanceStatistics({ title, subheader, chart, ...other }: Props) {
   const theme = useTheme();
 
-  const [selectedSeries, setSelectedSeries] = useState('Yearly');
+  const [selectedSeries, setSelectedSeries] = useState(chart.series[0]?.name ?? '');
 
-  const currentSeries = chart.series.find((i) => i.name === selectedSeries);
+  const currentSeries =
+    chart.series.find((i) => i.name === selectedSeries) ?? chart.series[0];
 
   const chartColors = chart.colors ?? [
     theme.palette.primary.dark,
@@ -72,9 +73,10 @@ export function BankingBalanceStatistics({ title, subheader, chart, ...other }: 
 
       <ChartLegends
         colors={chartOptions?.colors}
-        labels={chart.series[0].data.map((item) => item.name)}
-        sublabels={[`+${fPercent(43)}`, `+${fPercent(3)}`, `+${fPercent(8)}`]}
-        values={[fCurrency(6789), fCurrency(1234), fCurrency(1012)]}
+        labels={currentSeries?.data.map((item) => item.name) ?? []}
+        values={(currentSeries?.data ?? []).map((item) =>
+          fCurrency(item.data.reduce((acc, n) => acc + n, 0))
+        )}
         sx={{ px: 3, gap: 3 }}
       />
 

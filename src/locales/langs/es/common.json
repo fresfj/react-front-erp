@@ -159,8 +159,10 @@
     "kpiNetRevenue": "Ingresos netos del período",
     "kpiExpenses": "Gastos operativos",
     "kpiNetProfit": "Beneficio neto",
-    "chartRevenueProfit": "Ingresos × Beneficio neto",
-    "chartExpensesByCategory": "Gastos por categoría"
+    "chartRevenueProfit": "Estadísticas de saldo",
+    "chartExpensesByCategory": "Gastos por categoría",
+    "totalBalance": "Saldo del período (beneficio neto)",
+    "balancePeriod": "Período"
   },
   "cashLedger": {
     "heading": "Extracto de caja",

@@ -53,6 +53,7 @@ import {
 
 import { buildAccrualDre } from 'src/sections/cash/accrual-dre';
 import { calculateDreReport } from 'src/sections/cash/cash-calculator';
+import { BankingBalanceStatistics } from 'src/sections/overview/banking/banking-balance-statistics';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -153,20 +154,50 @@ export function OverviewAppView() {
     [accrual.dailySeries]
   );
 
-  const expenseChartSeries = useMemo(() => {
-    const entries = accrual.expenseLines.map((line) => ({
-      label: t(`finance.categories.${line.category}`, { defaultValue: line.category }),
-      value: line.amount,
-    }));
-    return entries.length > 0
-      ? entries
-      : [{ label: t('dre.operatingExpenses', { defaultValue: 'Sem despesas' }), value: 1 }];
-  }, [accrual.expenseLines, t]);
+  const expenseChartSeries = useMemo(
+    () =>
+      accrual.expenseLines.map((line) => ({
+        label: t(`finance.categories.${line.category}`, { defaultValue: line.category }),
+        value: line.amount,
+      })),
+    [accrual.expenseLines, t]
+  );
 
   const expensesPctOfRevenue =
     accrual.netRevenue > 0
       ? Math.round((accrual.operatingExpenses / accrual.netRevenue) * 1000) / 10
       : 0;
+
+  const balanceStatisticsChart = useMemo(
+    () => ({
+      colors: [
+        theme.vars.palette.primary.dark,
+        theme.vars.palette.warning.main,
+        theme.vars.palette.info.main,
+      ],
+      series: [
+        {
+          name: t('overviewKpi.balancePeriod', { defaultValue: 'Período' }),
+          categories: dailyCategories,
+          data: [
+            {
+              name: t('overviewKpi.kpiNetRevenue', { defaultValue: 'Receita' }),
+              data: revenueSeries,
+            },
+            {
+              name: t('overviewKpi.kpiExpenses', { defaultValue: 'Despesas' }),
+              data: expenseSeries,
+            },
+            {
+              name: t('overviewKpi.kpiNetProfit', { defaultValue: 'Lucro' }),
+              data: netProfitSeries,
+            },
+          ],
+        },
+      ],
+    }),
+    [dailyCategories, expenseSeries, netProfitSeries, revenueSeries, t, theme.vars.palette]
+  );
 
   const totalCustomerDebt = useMemo(
     () =>
@@ -291,145 +322,205 @@ export function OverviewAppView() {
             </Box>
           </Grid>
 
-          {/* Top 3 KPI Summary Cards — accrual */}
-          <Grid xs={12} md={4}>
-            <AppWidgetSummary
-              title={t('overviewKpi.kpiNetRevenue', {
-                defaultValue: 'Receita líquida no período',
-              })}
-              percent={accrual.grossMarginPercent}
-              total={accrual.netRevenue}
-              chart={{
-                categories: dailyCategories,
-                series: revenueSeries,
-              }}
-            />
-          </Grid>
+          {/* Analytics: banking-style 8 + 4 columns */}
+          <Grid xs={12} md={7} lg={8}>
+            <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
+              <Grid container spacing={3}>
+                <Grid xs={12} sm={4}>
+                  <AppWidgetSummary
+                    title={t('overviewKpi.kpiNetRevenue', {
+                      defaultValue: 'Receita líquida no período',
+                    })}
+                    percent={accrual.grossMarginPercent}
+                    total={accrual.netRevenue}
+                    chart={{
+                      categories: dailyCategories,
+                      series: revenueSeries,
+                    }}
+                  />
+                </Grid>
+                <Grid xs={12} sm={4}>
+                  <AppWidgetSummary
+                    title={t('overviewKpi.kpiExpenses', {
+                      defaultValue: 'Despesas operacionais',
+                    })}
+                    percent={expensesPctOfRevenue}
+                    total={accrual.operatingExpenses}
+                    chart={{
+                      colors: [theme.vars.palette.warning.main],
+                      categories: dailyCategories,
+                      series: expenseSeries,
+                    }}
+                  />
+                </Grid>
+                <Grid xs={12} sm={4}>
+                  <AppWidgetSummary
+                    title={t('overviewKpi.kpiNetProfit', { defaultValue: 'Lucro líquido' })}
+                    percent={accrual.netMarginPercent}
+                    total={accrual.netProfit}
+                    chart={{
+                      colors: [theme.vars.palette.info.main],
+                      categories: dailyCategories,
+                      series: netProfitSeries,
+                    }}
+                  />
+                </Grid>
+              </Grid>
 
-          <Grid xs={12} md={4}>
-            <AppWidgetSummary
-              title={t('overviewKpi.kpiExpenses', {
-                defaultValue: 'Despesas operacionais',
-              })}
-              percent={expensesPctOfRevenue}
-              total={accrual.operatingExpenses}
-              chart={{
-                colors: [theme.vars.palette.warning.main],
-                categories: dailyCategories,
-                series: expenseSeries,
-              }}
-            />
-          </Grid>
-
-          <Grid xs={12} md={4}>
-            <AppWidgetSummary
-              title={t('overviewKpi.kpiNetProfit', { defaultValue: 'Lucro líquido' })}
-              percent={accrual.netMarginPercent}
-              total={accrual.netProfit}
-              chart={{
-                colors: [theme.vars.palette.info.main],
-                categories: dailyCategories,
-                series: netProfitSeries,
-              }}
-            />
-          </Grid>
-
-          <Grid xs={12} md={6} lg={4}>
-            <AppCurrentDownload
-              title={t('overviewKpi.chartExpensesByCategory', {
-                defaultValue: 'Despesas por categoria',
-              })}
-              subheader={t('dre.accrualSubtitle', {
-                defaultValue: 'Contas a pagar por competência',
-              })}
-              chart={{
-                series: expenseChartSeries,
-              }}
-            />
-          </Grid>
-
-          {/* Donut Chart: Sales by Payment Method */}
-          <Grid xs={12} md={6} lg={4}>
-            <AppCurrentDownload
-              title="Vendas por Forma de Pagamento"
-              subheader="Distribuição financeira no período selecionado"
-              chart={{
-                series: paymentChartSeries,
-              }}
-            />
-          </Grid>
-
-          {/* Recent Sales & Lot Traceability Table */}
-          <Grid xs={12} md={6} lg={8}>
-            <Card sx={{ height: 1 }}>
-              <CardHeader
-                title="Vendas Realizadas no Período (PDV)"
-                subheader={`${accrual.salesCount} vendas concluídas • CMV: ${fCurrency(accrual.cogs)} • Lucro líq.: ${fCurrency(accrual.netProfit)}`}
-                action={
-                  <Button
-                    component={RouterLink}
-                    href={paths.dashboard.pos.sales}
-                    size="small"
-                    color="inherit"
-                    endIcon={<Iconify icon="eva:arrow-ios-forward-fill" width={18} />}
-                  >
-                    Ver todas
-                  </Button>
-                }
-                sx={{ mb: 3 }}
+              <BankingBalanceStatistics
+                title={t('overviewKpi.chartRevenueProfit', {
+                  defaultValue: 'Estatísticas de saldo',
+                })}
+                subheader={t('dre.accrualSubtitle', {
+                  defaultValue: 'Receita × Despesas × Lucro no período',
+                })}
+                chart={balanceStatisticsChart}
               />
-              <Divider />
-              {!filteredSales.length ? (
-                <EmptyContent title="Nenhuma venda registrada no período selecionado" sx={{ py: 6 }} />
-              ) : (
-                <Scrollbar>
-                  <Table size="small" sx={{ minWidth: 640 }}>
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Código</TableCell>
-                        <TableCell>Cliente</TableCell>
-                        <TableCell>Lotes (FIFO)</TableCell>
-                        <TableCell align="right">Total</TableCell>
-                        <TableCell align="right">Lucro Bruto</TableCell>
-                        <TableCell>Data</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {filteredSales.slice(0, 6).map((sale) => (
-                        <TableRow key={sale.id} hover>
-                          <TableCell>
-                            <Button
-                              component={RouterLink}
-                              href={paths.dashboard.pos.saleDetails(sale.id)}
-                              size="small"
-                              color="primary"
-                            >
-                              {sale.code}
-                            </Button>
-                          </TableCell>
-                          <TableCell>{sale.customerName || 'Consumidor Final'}</TableCell>
-                          <TableCell sx={{ fontFamily: 'monospace', typography: 'caption' }}>
-                            {sale.items
-                              .map((i) => i.lotCode)
-                              .filter(Boolean)
-                              .join(', ') || '—'}
-                          </TableCell>
-                          <TableCell align="right" sx={{ fontWeight: 600 }}>
-                            {fCurrency(sale.total)}
-                          </TableCell>
-                          <TableCell align="right" sx={{ color: 'success.main' }}>
-                            {fCurrency(sale.grossProfit)}
-                          </TableCell>
-                          <TableCell sx={{ typography: 'caption', color: 'text.secondary' }}>
-                            {fDateTime(sale.createdAt)}
-                          </TableCell>
+
+              <Card>
+                <CardHeader
+                  title="Vendas Realizadas no Período (PDV)"
+                  subheader={`${accrual.salesCount} vendas • CMV: ${fCurrency(accrual.cogs)} • Lucro líq.: ${fCurrency(accrual.netProfit)}`}
+                  action={
+                    <Button
+                      component={RouterLink}
+                      href={paths.dashboard.pos.sales}
+                      size="small"
+                      color="inherit"
+                      endIcon={<Iconify icon="eva:arrow-ios-forward-fill" width={18} />}
+                    >
+                      Ver todas
+                    </Button>
+                  }
+                  sx={{ mb: 3 }}
+                />
+                <Divider />
+                {!filteredSales.length ? (
+                  <EmptyContent
+                    title="Nenhuma venda registrada no período selecionado"
+                    sx={{ py: 6 }}
+                  />
+                ) : (
+                  <Scrollbar>
+                    <Table size="small" sx={{ minWidth: 640 }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>Código</TableCell>
+                          <TableCell>Cliente</TableCell>
+                          <TableCell>Lotes (FIFO)</TableCell>
+                          <TableCell align="right">Total</TableCell>
+                          <TableCell align="right">Lucro Bruto</TableCell>
+                          <TableCell>Data</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Scrollbar>
+                      </TableHead>
+                      <TableBody>
+                        {filteredSales.slice(0, 6).map((sale) => (
+                          <TableRow key={sale.id} hover>
+                            <TableCell>
+                              <Button
+                                component={RouterLink}
+                                href={paths.dashboard.pos.saleDetails(sale.id)}
+                                size="small"
+                                color="primary"
+                              >
+                                {sale.code}
+                              </Button>
+                            </TableCell>
+                            <TableCell>{sale.customerName || 'Consumidor Final'}</TableCell>
+                            <TableCell sx={{ fontFamily: 'monospace', typography: 'caption' }}>
+                              {sale.items
+                                .map((i) => i.lotCode)
+                                .filter(Boolean)
+                                .join(', ') || '—'}
+                            </TableCell>
+                            <TableCell align="right" sx={{ fontWeight: 600 }}>
+                              {fCurrency(sale.total)}
+                            </TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>
+                              {fCurrency(sale.grossProfit)}
+                            </TableCell>
+                            <TableCell sx={{ typography: 'caption', color: 'text.secondary' }}>
+                              {fDateTime(sale.createdAt)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Scrollbar>
+                )}
+              </Card>
+            </Box>
+          </Grid>
+
+          <Grid xs={12} md={5} lg={4}>
+            <Box sx={{ gap: 3, display: 'flex', flexDirection: 'column' }}>
+              <Card sx={{ p: 3 }}>
+                <Stack spacing={1}>
+                  <Stack direction="row" alignItems="center" spacing={0.5}>
+                    <Box sx={{ typography: 'subtitle2', color: 'text.secondary' }}>
+                      {t('overviewKpi.totalBalance', { defaultValue: 'Saldo do período' })}
+                    </Box>
+                    <Iconify
+                      width={16}
+                      icon="eva:info-outline"
+                      sx={{ color: 'text.disabled' }}
+                    />
+                  </Stack>
+                  <Box
+                    sx={{
+                      typography: 'h3',
+                      color: accrual.netProfit >= 0 ? 'success.main' : 'error.main',
+                    }}
+                  >
+                    {fCurrency(accrual.netProfit)}
+                  </Box>
+                  <Stack direction="row" spacing={2} sx={{ typography: 'body2', color: 'text.secondary' }}>
+                    <Box>
+                      {t('overviewKpi.kpiNetRevenue', { defaultValue: 'Receita' })}:{' '}
+                      <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                        {fCurrency(accrual.netRevenue)}
+                      </Box>
+                    </Box>
+                    <Box>
+                      {t('overviewKpi.kpiExpenses', { defaultValue: 'Despesas' })}:{' '}
+                      <Box component="span" sx={{ color: 'text.primary', fontWeight: 600 }}>
+                        {fCurrency(accrual.operatingExpenses)}
+                      </Box>
+                    </Box>
+                  </Stack>
+                </Stack>
+              </Card>
+
+              <AppCurrentDownload
+                title="Vendas por Forma de Pagamento"
+                subheader="Distribuição financeira no período"
+                chart={{ series: paymentChartSeries }}
+              />
+
+              {expenseChartSeries.length > 0 ? (
+                <AppCurrentDownload
+                  title={t('overviewKpi.chartExpensesByCategory', {
+                    defaultValue: 'Despesas por categoria',
+                  })}
+                  subheader={t('dre.accrualSubtitle', {
+                    defaultValue: 'Contas a pagar por competência',
+                  })}
+                  chart={{ series: expenseChartSeries }}
+                />
+              ) : (
+                <Card>
+                  <CardHeader
+                    title={t('overviewKpi.chartExpensesByCategory', {
+                      defaultValue: 'Despesas por categoria',
+                    })}
+                    subheader={t('dre.operatingExpenses', {
+                      defaultValue: 'Nenhuma despesa operacional no período',
+                    })}
+                  />
+                  <EmptyContent title="Sem despesas no período" sx={{ py: 6 }} />
+                </Card>
               )}
-            </Card>
+            </Box>
           </Grid>
 
           {/* Bottom Left: Customers with Open Debt */}

@@ -159,8 +159,10 @@
     "kpiNetRevenue": "Receita líquida no período",
     "kpiExpenses": "Despesas operacionais",
     "kpiNetProfit": "Lucro líquido",
-    "chartRevenueProfit": "Receita × Lucro líquido",
-    "chartExpensesByCategory": "Despesas por categoria"
+    "chartRevenueProfit": "Estatísticas de saldo",
+    "chartExpensesByCategory": "Despesas por categoria",
+    "totalBalance": "Saldo do período (lucro líquido)",
+    "balancePeriod": "Período"
   },
   "cashLedger": {
     "heading": "Extrato de caixa",

@@ -159,8 +159,10 @@
     "kpiNetRevenue": "Net revenue in period",
     "kpiExpenses": "Operating expenses",
     "kpiNetProfit": "Net profit",
-    "chartRevenueProfit": "Revenue × Net profit",
-    "chartExpensesByCategory": "Expenses by category"
+    "chartRevenueProfit": "Balance statistics",
+    "chartExpensesByCategory": "Expenses by category",
+    "totalBalance": "Period balance (net profit)",
+    "balancePeriod": "Period"
   },
   "cashLedger": {
     "heading": "Cash ledger",
