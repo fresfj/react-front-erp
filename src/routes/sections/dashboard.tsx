@@ -35,6 +35,7 @@ const SaleListPage = lazy(() => import('src/pages/pos/list'));
 const SaleDetailsPage = lazy(() => import('src/pages/pos/details'));
 const CashSessionPage = lazy(() => import('src/pages/cash'));
 const DrePage = lazy(() => import('src/pages/cash/dre'));
+const CashLedgerPage = lazy(() => import('src/pages/cash/ledger'));
 const SellerRankingPage = lazy(() => import('src/pages/cash/ranking'));
 const PayableListPage = lazy(() => import('src/pages/cash/payables-list'));
 const PayableCreatePage = lazy(() => import('src/pages/cash/payables-create'));
@@ -178,6 +179,14 @@ export const dashboardRoutes = [
             element: (
               <PermissionGuard permission="dre">
                 <DrePage />
+              </PermissionGuard>
+            ),
+          },
+          {
+            path: 'ledger',
+            element: (
+              <PermissionGuard permission="dre">
+                <CashLedgerPage />
               </PermissionGuard>
             ),
           },

@@ -28,6 +28,7 @@
     "pos": "PDV y Ventas",
     "posCheckout": "Caja (PDV)",
     "salesHistory": "Historial de ventas",
+    "cashLedger": "Extracto de caja",
     "account": "Cuenta",
     "enterprises": "Empresas",
     "audit": "Auditoría",
@@ -115,6 +116,30 @@
       "rent": "Alquiler",
       "supplier": "Proveedor",
       "other": "Otros"
+    }
+  },
+  "cashLedger": {
+    "heading": "Extracto de caja",
+    "inflow": "Entradas",
+    "outflow": "Salidas",
+    "net": "Saldo del período",
+    "date": "Fecha",
+    "amount": "Importe",
+    "balance": "Saldo",
+    "reason": "Motivo",
+    "session": "Sesión",
+    "ref": "Ref.",
+    "typeFilter": "Tipo",
+    "openingReason": "Apertura de caja",
+    "periodNote": "Saldo corrido relativo al período filtrado (inicia en cero).",
+    "empty": "Ningún movimiento en el período",
+    "loadError": "No se pudo cargar el extracto",
+    "type": {
+      "OPENING": "Apertura",
+      "SUPPLY": "Suplido",
+      "WITHDRAWAL": "Sangría",
+      "RECEIPT": "Cobro",
+      "PAYMENT": "Pago"
     }
   },
   "suppliers": {

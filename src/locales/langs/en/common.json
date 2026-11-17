@@ -28,6 +28,7 @@
     "pos": "POS & Sales",
     "posCheckout": "POS Checkout",
     "salesHistory": "Sales history",
+    "cashLedger": "Cash ledger",
     "account": "Account",
     "enterprises": "Enterprises",
     "audit": "Audit",
@@ -115,6 +116,30 @@
       "rent": "Rent",
       "supplier": "Supplier",
       "other": "Other"
+    }
+  },
+  "cashLedger": {
+    "heading": "Cash ledger",
+    "inflow": "Inflows",
+    "outflow": "Outflows",
+    "net": "Period balance",
+    "date": "Date",
+    "amount": "Amount",
+    "balance": "Balance",
+    "reason": "Reason",
+    "session": "Session",
+    "ref": "Ref.",
+    "typeFilter": "Type",
+    "openingReason": "Cash opening",
+    "periodNote": "Running balance is relative to the filtered period (starts at zero).",
+    "empty": "No entries in this period",
+    "loadError": "Could not load the cash ledger",
+    "type": {
+      "OPENING": "Opening",
+      "SUPPLY": "Supply",
+      "WITHDRAWAL": "Withdrawal",
+      "RECEIPT": "Receipt",
+      "PAYMENT": "Payment"
     }
   },
   "suppliers": {

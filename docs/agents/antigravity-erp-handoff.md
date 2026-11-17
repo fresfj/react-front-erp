@@ -54,7 +54,7 @@ Zod → src/api/firestore/* → DataGrid lista + CardHeader form
 | ERP beneficiamento | `/dashboard/processing` |
 | ERP lotes e estoque | `/dashboard/batches` (`/list`, `/create`, `/movements`) |
 | ERP PDV e vendas | `/dashboard/pos` (`/`, `/sales`, `/sales/:id`) |
-| ERP caixa e DRE | `/dashboard/cash` (`/`, `/dre`) |
+| ERP caixa e DRE | `/dashboard/cash` (`/`, `/dre`, `/ledger`) |
 | Platform empresas | `/dashboard/enterprises` |
 | Account | `/dashboard/account` |
 
@@ -85,12 +85,13 @@ Menu: **sem** seções “Visão geral / Minimals / ERP legado”, **sem** heade
 - **WIP commitado:** customers pages/dialogs, beneficiamento/lotes, PDV/sales/cash-sessions, catalog product/supplier enrichments, team page
 - **Slice E (parcelas + caixa + debt):** `splitInstallments` / due dates; AP/AR geram N docs; criar AR sobe `currentDebt`; marcar pago exige caixa aberto (`RECEIPT`/`PAYMENT`); cancelar AR aberto reverte debt
 - **Slice F (Firestore rules × MemberPermissionKey):** `hasPerm` + defaults de operador; mapa 1:1 com PermissionGuard; ORs §8.1 (PDV FIFO / debt / settlement). Spec/plan em `docs/superpowers/{specs,plans}/2026-11-16-firestore-permission-rules*`
+- **Slice G (Extrato de caixa):** `buildCashLedger` (OPENING + movimentos, saldo corrido); `/dashboard/cash/ledger` com PeriodFilterBar + cards + DataGrid; guard `dre`. Spec/plan `docs/superpowers/{specs,plans}/2026-11-16-cash-ledger-extract*`
 
 ## Pendente (próximo)
 
 1. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
 2. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
-3. Extrato bancário / ledger (Slice G)
+3. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
 4. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
 5. Revisar `package-lock.json` local (não commitado)
 

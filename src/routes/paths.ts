@@ -108,6 +108,7 @@ export const paths = {
     cash: {
       root: `${ROOTS.DASHBOARD}/cash`,
       dre: `${ROOTS.DASHBOARD}/cash/dre`,
+      ledger: `${ROOTS.DASHBOARD}/cash/ledger`,
       ranking: `${ROOTS.DASHBOARD}/cash/ranking`,
       payables: `${ROOTS.DASHBOARD}/cash/payables`,
       payableNew: `${ROOTS.DASHBOARD}/cash/payables/new`,

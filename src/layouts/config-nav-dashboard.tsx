@@ -106,6 +106,10 @@ export function useNavData(): NavSectionProps['data'] {
                             path: paths.dashboard.cash.dre,
                           },
                           {
+                            title: t('nav.cashLedger', { defaultValue: 'Extrato de caixa' }),
+                            path: paths.dashboard.cash.ledger,
+                          },
+                          {
                             title: t('nav.sellerRanking', {
                               defaultValue: 'Ranking de vendedores',
                             }),
