@@ -151,7 +151,7 @@ export function saveBillingSettings(input: {
 }
 
 export function upsertPlan(
-  input: Omit<Plan, 'createdAt' | 'updatedAt'> & { id?: string }
+  input: Omit<Plan, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }
 ) {
   return call<typeof input, Plan>('upsertPlan', input);
 }
