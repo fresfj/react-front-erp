@@ -231,6 +231,26 @@ export function useNavData(): NavSectionProps['data'] {
                 },
               ],
             },
+            {
+              title: t('nav.plans', { defaultValue: 'Planos' }),
+              path: paths.dashboard.plans.root,
+              icon: ICONS.invoice,
+              children: [
+                {
+                  title: t('nav.plansList', { defaultValue: 'Lista' }),
+                  path: paths.dashboard.plans.list,
+                },
+                {
+                  title: t('nav.plansCreate', { defaultValue: 'Novo plano' }),
+                  path: paths.dashboard.plans.create,
+                },
+              ],
+            },
+            {
+              title: t('nav.billingSettings', { defaultValue: 'Cobrança Asaas' }),
+              path: paths.dashboard.billingSettings,
+              icon: ICONS.banking,
+            },
           ]
         : []),
       ...(isAdminOrGestor
@@ -261,6 +281,22 @@ export function useNavData(): NavSectionProps['data'] {
             title: t('nav.accountPassword', { defaultValue: 'Alterar senha' }),
             path: paths.dashboard.account.changePassword,
           },
+          ...(user?.enterpriseId
+            ? [
+                {
+                  title: 'Empresa & Fiscal',
+                  path: paths.dashboard.account.company,
+                },
+              ]
+            : []),
+          ...(user?.role === 'admin'
+            ? [
+                {
+                  title: t('nav.accountBilling', { defaultValue: 'Assinatura' }),
+                  path: paths.dashboard.account.billing,
+                },
+              ]
+            : []),
         ],
       },
     ];
@@ -274,5 +310,5 @@ export function useNavData(): NavSectionProps['data'] {
       },
       { subheader: t('nav.administration'), items: adminItems },
     ].filter((section) => section.items.length > 0);
-  }, [isAdminOrGestor, perms, platformAdmin, t]);
+  }, [isAdminOrGestor, perms, platformAdmin, t, user?.enterpriseId]);
 }

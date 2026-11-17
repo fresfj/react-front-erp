@@ -15,19 +15,21 @@ import { varAlpha, stylesMode } from 'src/theme/styles';
 import { bulletColor } from 'src/components/nav-section';
 import { useSettingsContext } from 'src/components/settings';
 
+import { useAuthContext } from 'src/auth/hooks';
+
 import { Main } from './main';
 import { NavMobile } from './nav-mobile';
 import { layoutClasses } from '../classes';
 import { NavVertical } from './nav-vertical';
 import { NavHorizontal } from './nav-horizontal';
+import { paths } from 'src/routes/paths';
+
 import { _account } from '../config-nav-account';
 import { HeaderBase } from '../core/header-base';
+import { useNavData } from '../config-nav-dashboard';
 import { _workspaces } from '../config-nav-workspace';
 import { LayoutSection } from '../core/layout-section';
-import { useNavData } from '../config-nav-dashboard';
 import { OfflineBanner } from '../components/offline-banner';
-
-import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
@@ -85,7 +87,10 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
             data={{
               nav: navData,
               langs: allLangs,
-              account: _account,
+              account: _account.filter(
+                (item) =>
+                  item.href !== paths.dashboard.account.billing || user?.role === 'admin'
+              ),
               workspaces: _workspaces,
             }}
             slotsDisplay={{

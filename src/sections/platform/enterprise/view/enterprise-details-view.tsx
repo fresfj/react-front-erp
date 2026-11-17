@@ -470,6 +470,40 @@ export function EnterpriseDetailsView({ enterpriseId }: Props) {
           </Stack>
         </Card>
 
+        <Card sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1.5 }}>
+            {t('billing.title')}
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip
+              size="small"
+              label={`${t('billing.currentPlan')}: ${enterprise?.subscription?.planCode || '—'}`}
+            />
+            <Chip
+              size="small"
+              color="info"
+              label={`${t('billing.status')}: ${enterprise?.subscription?.status || '—'}`}
+            />
+            {enterprise?.subscription?.currentPeriodEnd && (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`${t('billing.periodEnd')}: ${enterprise.subscription.currentPeriodEnd}`}
+              />
+            )}
+            {enterprise?.subscription?.cancelAtPeriodEnd && (
+              <Chip size="small" color="warning" label={t('billing.cancelAtPeriodEnd')} />
+            )}
+            {enterprise?.subscription?.pastDueSince && (
+              <Chip
+                size="small"
+                color="error"
+                label={`pastDueSince: ${enterprise.subscription.pastDueSince}`}
+              />
+            )}
+          </Stack>
+        </Card>
+
         {/* Card Formulário de Convite de Membro (Colapsável) */}
         <Card>
           <CardHeader

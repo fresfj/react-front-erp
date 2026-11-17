@@ -88,14 +88,24 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 - **Slice G (Extrato de caixa):** `buildCashLedger` (OPENING + movimentos, saldo corrido); `/dashboard/cash/ledger` com PeriodFilterBar + cards + DataGrid; guard `dre`. Spec/plan `docs/superpowers/{specs,plans}/2026-11-16-cash-ledger-extract*`
 - **Accrual DRE + Dashboard:** `buildAccrualDre` (receita PDV + CMV vendas + AP por `competenceDate`/`dreClass`); DRE sem sangria; Overview KPIs Receita/Despesas/Lucro + donut despesas; form AP com competência. Spec/plan `docs/superpowers/{specs,plans}/2026-11-16-accrual-dre-dashboard*`
 
+## Billing-A (SaaS Free/Pro/Ultra + Asaas) — código no repo
+
+- Spec/plan: `docs/superpowers/{specs,plans}/2026-11-17-saas-billing-asaas*`
+- CF: Free seed em `createEnterprise`; `saveBillingSettings`, `upsertPlan`, `deactivatePlan`, `startSubscription`, `cancelSubscriptionAtPeriodEnd`, `getPublicBillingConfig`, `asaasWebhook`, `enforceSubscriptionGrace`
+- Secrets Admin-only `platformSecrets/asaas`; flags em `platformSettings/billing`
+- UI: `/dashboard/plans`, `/dashboard/billing-settings`, avatar Configuração/Assinatura, Account tab Assinatura
+- **Deploy pendente:** `firebase deploy --only functions,firestore:rules` + configurar webhook Asaas → URL HTTP `asaasWebhook` com token
+- **Deferred:** Entitlements-B (limites Free), Storefront-C (catálogo público)
+
 ## Pendente (próximo)
 
-1. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
-2. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
-3. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
-4. Smoke accrual: AP aluguel no período → Despesas; AP supplier → fora OpEx; DRE/Overview mesmos totais
-5. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
-6. Revisar `package-lock.json` local (não commitado)
+1. Smoke Billing-A sandbox (Free → upgrade → webhook → grace/cancel)
+2. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
+3. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
+4. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
+5. Smoke accrual: AP aluguel no período → Despesas; AP supplier → fora OpEx; DRE/Overview mesmos totais
+6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+7. Revisar `package-lock.json` local (não commitado)
 
 ## Validar
 

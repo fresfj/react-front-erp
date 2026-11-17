@@ -49,6 +49,10 @@ const EnterpriseListPage = lazy(() => import('src/pages/platform/enterprise/list
 const EnterpriseCreatePage = lazy(() => import('src/pages/platform/enterprise/create'));
 const EnterpriseEditPage = lazy(() => import('src/pages/platform/enterprise/edit'));
 const EnterpriseDetailsPage = lazy(() => import('src/pages/platform/enterprise/details'));
+const PlanListPage = lazy(() => import('src/pages/platform/plan/list'));
+const PlanCreatePage = lazy(() => import('src/pages/platform/plan/create'));
+const PlanEditPage = lazy(() => import('src/pages/platform/plan/edit'));
+const BillingSettingsPage = lazy(() => import('src/pages/platform/billing-settings'));
 
 // ----------------------------------------------------------------------
 
@@ -244,6 +248,15 @@ export const dashboardRoutes = [
           { element: <Navigate to={paths.dashboard.account.general} replace />, index: true },
           { path: 'general', element: <AccountPage /> },
           { path: 'change-password', element: <AccountPage /> },
+          { path: 'company', element: <AccountPage /> },
+          {
+            path: 'billing',
+            element: (
+              <PermissionGuard roles={['admin']}>
+                <AccountPage />
+              </PermissionGuard>
+            ),
+          },
         ],
       },
       {
@@ -260,6 +273,28 @@ export const dashboardRoutes = [
           { path: ':id/edit', element: <EnterpriseEditPage /> },
           { path: ':id', element: <EnterpriseDetailsPage /> },
         ],
+      },
+      {
+        path: 'plans',
+        element: (
+          <PermissionGuard requirePlatformAdmin>
+            <Outlet />
+          </PermissionGuard>
+        ),
+        children: [
+          { element: <Navigate to={paths.dashboard.plans.list} replace />, index: true },
+          { path: 'list', element: <PlanListPage /> },
+          { path: 'create', element: <PlanCreatePage /> },
+          { path: ':id/edit', element: <PlanEditPage /> },
+        ],
+      },
+      {
+        path: 'billing-settings',
+        element: (
+          <PermissionGuard requirePlatformAdmin>
+            <BillingSettingsPage />
+          </PermissionGuard>
+        ),
       },
 
       // Catch-all: demos / legado → home ERP

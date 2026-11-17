@@ -1,6 +1,6 @@
 {
   "demo": {
-    "lang": "Português (Brasil)",
+    "lang": "Português",
     "description": "Ponto de partida do ERP. Fácil de customizar para o seu negócio."
   },
   "app": {
@@ -50,6 +50,11 @@
     "account": "Conta",
     "accountGeneral": "Geral",
     "accountPassword": "Alterar senha",
+    "accountBilling": "Assinatura",
+    "plans": "Planos",
+    "plansList": "Lista",
+    "plansCreate": "Novo plano",
+    "billingSettings": "Cobrança Asaas",
     "enterprises": "Empresas",
     "enterprisesList": "Lista",
     "enterprisesCreate": "Nova empresa",
@@ -225,6 +230,49 @@
     },
     "empty": "Nenhum fornecedor encontrado"
   },
+  "billing": {
+    "title": "Assinatura",
+    "settingsTitle": "Cobrança Asaas",
+    "plansTitle": "Planos",
+    "plansListHeading": "Planos SaaS",
+    "plansCreateHeading": "Novo plano",
+    "plansEditHeading": "Editar plano",
+    "upgrade": "Fazer upgrade",
+    "cancelAtPeriodEnd": "Cancelar no fim do ciclo",
+    "cancelConfirm": "Cancelar a assinatura no fim do ciclo atual?",
+    "pastDueBanner": "Pagamento em atraso. Grace restante: {{days}} dia(s).",
+    "paymentMethod": "Forma de pagamento",
+    "invoices": "Faturas",
+    "currentPlan": "Plano atual",
+    "status": "Status",
+    "periodEnd": "Fim do ciclo",
+    "paymentUrl": "Abrir cobrança",
+    "loadError": "Não foi possível carregar a assinatura",
+    "saveSuccess": "Salvo com sucesso",
+    "saveError": "Não foi possível salvar",
+    "upgradeSuccess": "Assinatura iniciada",
+    "upgradeError": "Não foi possível iniciar a assinatura",
+    "cancelSuccess": "Cancelamento agendado para o fim do ciclo",
+    "cancelError": "Não foi possível cancelar",
+    "deactivate": "Desativar",
+    "fields": {
+      "code": "Código",
+      "name": "Nome",
+      "description": "Descrição",
+      "priceMonthly": "Preço mensal (R$)",
+      "features": "Recursos (um por linha)",
+      "sortOrder": "Ordem",
+      "active": "Ativo",
+      "graceDays": "Dias de grace",
+      "asaasEnv": "Ambiente Asaas",
+      "asaasApiKey": "API Key Asaas",
+      "asaasWebhookToken": "Token webhook Asaas",
+      "creditCardToken": "Token cartão Asaas",
+      "pix": "PIX",
+      "boleto": "Boleto",
+      "credit_card": "Cartão de crédito"
+    }
+  },
   "account": {
     "title": "Conta",
     "saveSubmit": "Salvar alterações",
@@ -234,7 +282,8 @@
     "errorMissingEnterprise": "Empresa não configurada na sessão",
     "tabs": {
       "general": "Geral",
-      "security": "Segurança"
+      "security": "Segurança",
+      "billing": "Assinatura"
     },
     "avatarHint": "Permitido *.jpeg, *.jpg, *.png, *.gif. Máximo {{size}}",
     "addressSection": "Endereço",
