@@ -14,6 +14,9 @@ service cloud.firestore {
     function isPlatformAdmin() {
       return request.auth.token.platformAdmin == true;
     }
+    function isTenantAdmin() {
+      return request.auth.token.role == 'admin';
+    }
 
     function memberDoc(enterpriseId) {
       return get(/databases/$(database)/documents/enterprises/$(enterpriseId)/members/$(request.auth.uid));
@@ -55,8 +58,37 @@ service cloud.firestore {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
       );
-      allow create, update, delete: if signedIn() && isPlatformAdmin();
-      allow write: if signedIn() && sameEnterprise(enterpriseId) && isAdminOrGestor();
+      allow create, delete: if signedIn() && isPlatformAdmin();
+      // platformAdmin may update; tenant admin/gestor may update but never subscription (CF-only)
+      allow update: if signedIn() && (
+        isPlatformAdmin()
+        || (
+          sameEnterprise(enterpriseId)
+          && isAdminOrGestor()
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['subscription'])
+        )
+      );
+    }
+
+    match /enterprises/{enterpriseId}/subscriptionInvoices/{invoiceId} {
+      allow read: if signedIn() && (
+        isPlatformAdmin() || (sameEnterprise(enterpriseId) && isTenantAdmin())
+      );
+      allow write: if false;
+    }
+
+    match /plans/{planId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    match /platformSettings/{docId} {
+      allow read: if signedIn() && isPlatformAdmin();
+      allow write: if false;
+    }
+
+    match /platformSecrets/{docId} {
+      allow read, write: if false;
     }
 
     match /enterprises/{enterpriseId}/products/{id} {
