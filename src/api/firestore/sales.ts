@@ -10,15 +10,27 @@ import {
 
 import { FIRESTORE } from 'src/lib/firebase';
 
+import {
+  splitInstallments,
+  buildInstallmentDueDates,
+} from 'src/sections/cash/installments';
+
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
+
+export type { PaymentMethod };
 
 // ----------------------------------------------------------------------
 
 export type SalePayment = {
   method: PaymentMethod;
   amount: number;
+  installments?: number;
+  feeRate?: number;
+  feeAmount?: number;
 };
+
+export type DeliveryType = 'pickup' | 'delivery';
 
 export type SaleItem = {
   productId: string;
@@ -57,7 +69,16 @@ export type Sale = {
   payments: SalePayment[];
   paidAmount: number;
   changeAmount: number;
+  deliveryType?: DeliveryType;
+  deliveryAddress?: string;
+  deliveryFee?: number;
+  paymentFeeAmount?: number;
+  feesPassedToCustomer?: boolean;
+  surchargeAmount?: number;
   notes?: string;
+  channel?: 'pos' | 'online';
+  onlineOrderId?: string;
+  cashSessionId?: string;
   nfceStatus?: 'pending' | 'authorized' | 'cancelled';
   nfceNumber?: string;
   nfceKey?: string;
@@ -102,6 +123,9 @@ function mapSalePayment(raw: Record<string, unknown>): SalePayment {
   return {
     method: (raw.method as PaymentMethod) || 'cash',
     amount: Number(raw.amount ?? 0),
+    installments: raw.installments != null ? Number(raw.installments) : undefined,
+    feeRate: raw.feeRate != null ? Number(raw.feeRate) : undefined,
+    feeAmount: raw.feeAmount != null ? Number(raw.feeAmount) : undefined,
   };
 }
 
@@ -131,7 +155,16 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     payments: rawPayments.map((p) => mapSalePayment(p as Record<string, unknown>)),
     paidAmount: Number(data.paidAmount ?? 0),
     changeAmount: Number(data.changeAmount ?? 0),
+    deliveryType: data.deliveryType === 'delivery' ? 'delivery' : 'pickup',
+    deliveryAddress: optStr(data.deliveryAddress),
+    deliveryFee: data.deliveryFee != null ? Number(data.deliveryFee) : 0,
+    paymentFeeAmount: data.paymentFeeAmount != null ? Number(data.paymentFeeAmount) : 0,
+    feesPassedToCustomer: Boolean(data.feesPassedToCustomer),
+    surchargeAmount: data.surchargeAmount != null ? Number(data.surchargeAmount) : 0,
     notes: optStr(data.notes),
+    channel: data.channel === 'online' ? 'online' : 'pos',
+    onlineOrderId: optStr(data.onlineOrderId),
+    cashSessionId: optStr(data.cashSessionId),
     nfceStatus:
       data.nfceStatus === 'authorized' || data.nfceStatus === 'cancelled'
         ? data.nfceStatus
@@ -185,7 +218,16 @@ export type CreateSaleInput = {
   payments: SalePayment[];
   paidAmount: number;
   changeAmount: number;
+  deliveryType?: DeliveryType;
+  deliveryAddress?: string;
+  deliveryFee?: number;
+  paymentFeeAmount?: number;
+  feesPassedToCustomer?: boolean;
+  surchargeAmount?: number;
   notes?: string;
+  channel?: 'pos' | 'online';
+  onlineOrderId?: string;
+  cashSessionId?: string;
 };
 
 /**
@@ -235,9 +277,10 @@ export async function createSale(enterpriseId: string, input: CreateSaleInput): 
       });
     }
 
-    const { batchCurrentRemaining: _unused, ...cleanItem } = item;
-    void _unused;
-    return omitUndefined(cleanItem) as Omit<SaleItem, 'batchCurrentRemaining'>;
+    return omitUndefined({
+      ...item,
+      batchCurrentRemaining: undefined,
+    }) as Omit<SaleItem, 'batchCurrentRemaining'>;
   });
 
   if (input.customerId && input.creditTabAmount && input.creditTabAmount > 0) {
@@ -249,32 +292,90 @@ export async function createSale(enterpriseId: string, input: CreateSaleInput): 
     });
 
     const receivablesCol = enterpriseCollection(enterpriseId, 'receivables');
-    const recRef = doc(receivablesCol);
-    const due = new Date();
-    due.setDate(due.getDate() + 30);
-    const dueDate = due.toISOString().slice(0, 10);
+    const creditTabPayment = input.payments.find((p) => p.method === 'credit_tab');
+    const tabCount =
+      creditTabPayment?.installments && creditTabPayment.installments > 1
+        ? creditTabPayment.installments
+        : 1;
 
-    wb.set(
-      recRef,
-      omitUndefined({
-        description: `Venda #${input.code} - Crediário / Fiado`,
-        category: 'other',
-        amount: input.creditTabAmount,
-        startDate: timestamp.slice(0, 10),
-        dueDate,
-        customerId: input.customerId,
-        customerName: input.customerName || 'Cliente balcão',
-        recurrence: 'none',
-        installmentIndex: 1,
-        installmentCount: 1,
-        status: 'open',
-        active: true,
-        refType: 'sale',
-        refId: newSaleRef.id,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      })
-    );
+    const amounts = splitInstallments(input.creditTabAmount, tabCount);
+    const startYmd = timestamp.slice(0, 10);
+    const dueDates = buildInstallmentDueDates(startYmd, 'monthly', tabCount);
+
+    for (let i = 0; i < tabCount; i += 1) {
+      const recRef = doc(receivablesCol);
+      const singleDue = new Date();
+      singleDue.setDate(singleDue.getDate() + 30);
+      const dueDate = tabCount === 1 ? singleDue.toISOString().slice(0, 10) : dueDates[i];
+
+      wb.set(
+        recRef,
+        omitUndefined({
+          description:
+            tabCount > 1
+              ? `Venda #${input.code} - Crediário / Fiado (${i + 1}/${tabCount})`
+              : `Venda #${input.code} - Crediário / Fiado`,
+          category: 'other',
+          amount: amounts[i],
+          startDate: startYmd,
+          dueDate,
+          customerId: input.customerId,
+          customerName: input.customerName || 'Cliente balcão',
+          recurrence: 'none',
+          installmentIndex: i + 1,
+          installmentCount: tabCount,
+          status: 'open',
+          active: true,
+          refType: 'sale',
+          refId: newSaleRef.id,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+      );
+    }
+  }
+
+  // Se houver pagamento via Cartão de Crédito, gerar promessas de recebimento (repasses futuros D+30, D+60...)
+  const ccPayment = input.payments.find((p) => p.method === 'credit_card');
+  if (ccPayment && ccPayment.amount > 0) {
+    const receivablesCol = enterpriseCollection(enterpriseId, 'receivables');
+    const ccCount =
+      ccPayment.installments && ccPayment.installments > 1 ? ccPayment.installments : 1;
+    const ccAmounts = splitInstallments(ccPayment.amount, ccCount);
+    const startYmd = timestamp.slice(0, 10);
+    const dueDates = buildInstallmentDueDates(startYmd, 'monthly', ccCount);
+
+    for (let i = 0; i < ccCount; i += 1) {
+      const recRef = doc(receivablesCol);
+      const singleDue = new Date();
+      singleDue.setDate(singleDue.getDate() + 30);
+      const dueDate = ccCount === 1 ? singleDue.toISOString().slice(0, 10) : dueDates[i];
+
+      wb.set(
+        recRef,
+        omitUndefined({
+          description:
+            ccCount > 1
+              ? `Repasse Cartão de Crédito - Venda #${input.code} (${i + 1}/${ccCount})`
+              : `Repasse Cartão de Crédito - Venda #${input.code}`,
+          category: 'other',
+          amount: ccAmounts[i],
+          startDate: startYmd,
+          dueDate,
+          customerId: input.customerId,
+          customerName: input.customerName || 'Cliente balcão',
+          recurrence: 'none',
+          installmentIndex: i + 1,
+          installmentCount: ccCount,
+          status: 'open',
+          active: true,
+          refType: 'credit_card',
+          refId: newSaleRef.id,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        })
+      );
+    }
   }
 
   wb.set(
@@ -296,10 +397,27 @@ export async function createSale(enterpriseId: string, input: CreateSaleInput): 
       total: input.total,
       totalCost: input.totalCost,
       grossProfit: input.grossProfit,
-      payments: input.payments,
+      payments: input.payments.map((p) =>
+        omitUndefined({
+          method: p.method,
+          amount: p.amount,
+          installments: p.installments,
+          feeRate: p.feeRate,
+          feeAmount: p.feeAmount,
+        })
+      ),
       paidAmount: input.paidAmount,
       changeAmount: input.changeAmount,
+      deliveryType: input.deliveryType || 'pickup',
+      deliveryAddress: input.deliveryAddress,
+      deliveryFee: input.deliveryFee || 0,
+      paymentFeeAmount: input.paymentFeeAmount || 0,
+      feesPassedToCustomer: Boolean(input.feesPassedToCustomer),
+      surchargeAmount: input.surchargeAmount || 0,
       notes: input.notes,
+      channel: input.channel || 'pos',
+      onlineOrderId: input.onlineOrderId,
+      cashSessionId: input.cashSessionId,
       status: 'completed',
       createdAt: timestamp,
       updatedAt: timestamp,

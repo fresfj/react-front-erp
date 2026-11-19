@@ -14,6 +14,7 @@ export type Plan = {
   priceMonthly: number;
   currency: 'BRL';
   features: string[];
+  entitlements: string[];
   sortOrder: number;
   active: boolean;
   createdAt?: string;
@@ -34,6 +35,9 @@ function mapPlan(id: string, data: Record<string, unknown>): Plan {
     currency: 'BRL',
     features: Array.isArray(data.features)
       ? data.features.map((f) => String(f))
+      : [],
+    entitlements: Array.isArray(data.entitlements)
+      ? data.entitlements.map((e) => String(e))
       : [],
     sortOrder: Number(data.sortOrder ?? 0),
     active: data.active !== false,

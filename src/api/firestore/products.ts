@@ -32,6 +32,7 @@ export type Product = {
   tags?: string[];
   taxPercent?: number;
   imageUrl?: string;
+  showOnline?: boolean;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -67,6 +68,7 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
     tags: Array.isArray(data.tags) ? data.tags.map((t) => String(t)) : undefined,
     taxPercent: typeof data.taxPercent === 'number' ? data.taxPercent : undefined,
     imageUrl: optStr(data.imageUrl),
+    showOnline: data.showOnline === true,
     active: data.active !== false,
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),

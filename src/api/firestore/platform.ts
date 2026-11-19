@@ -1,5 +1,4 @@
 import type { TenantRole } from 'src/auth/firebase-claims';
-import type { EnterpriseSubscription } from './billing';
 
 import { httpsCallable } from 'firebase/functions';
 import {
@@ -15,13 +14,36 @@ import {
 import { FIRESTORE, FUNCTIONS } from 'src/lib/firebase';
 
 import { omitUndefined } from './omit-undefined';
-import { mapEnterpriseSubscription } from './billing';
+import { mapEnterpriseBillingCards, mapEnterpriseSubscription } from './billing';
+
+import type { PersistedBillingCard, EnterpriseSubscription } from './billing';
 
 // ----------------------------------------------------------------------
 
 export type ReceiptModelType = '58mm' | '80mm' | 'a5';
 
 export type { EnterpriseSubscription };
+
+export type OnlineStoreDayHours = {
+  day: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  open: string;
+  close: string;
+  closed?: boolean;
+};
+
+export type OnlinePayOnDeliveryMethod = 'cash' | 'pix' | 'debit_card' | 'credit_card';
+
+export type OnlineStoreConfig = {
+  enabled: boolean;
+  slug: string;
+  openingHours: OnlineStoreDayHours[];
+  estimatedMinutes: number;
+  acceptDelivery: boolean;
+  acceptPickup: boolean;
+  defaultDeliveryFee: number;
+  paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
+  whatsapp?: string;
+};
 
 export type Enterprise = {
   id: string;
@@ -56,7 +78,10 @@ export type Enterprise = {
   pixFeeRate?: number;
   pixFeeFixed?: number;
   creditTabFeeRate?: number;
+  minInstallmentAmount?: number;
+  onlineStore?: OnlineStoreConfig;
   subscription?: EnterpriseSubscription;
+  billingCards?: PersistedBillingCard[];
   createdAt?: string;
   updatedAt?: string;
 };
@@ -74,6 +99,40 @@ export type EnterpriseMember = {
   invitedAt?: string;
   updatedAt?: string;
 };
+
+function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const data = raw as Record<string, unknown>;
+  const hoursRaw = Array.isArray(data.openingHours) ? data.openingHours : [];
+  const methodsRaw = Array.isArray(data.paymentMethodsOnDelivery)
+    ? data.paymentMethodsOnDelivery
+    : [];
+  return {
+    enabled: data.enabled === true,
+    slug: String(data.slug ?? ''),
+    openingHours: hoursRaw.map((h) => {
+      const row = (h || {}) as Record<string, unknown>;
+      const dayNum = Number(row.day ?? 0);
+      const day = (dayNum >= 0 && dayNum <= 6 ? dayNum : 0) as OnlineStoreDayHours['day'];
+      return {
+        day,
+        open: String(row.open ?? '09:00'),
+        close: String(row.close ?? '18:00'),
+        closed: row.closed === true,
+      };
+    }),
+    estimatedMinutes: Number(data.estimatedMinutes ?? 40),
+    acceptDelivery: data.acceptDelivery !== false,
+    acceptPickup: data.acceptPickup !== false,
+    defaultDeliveryFee: Number(data.defaultDeliveryFee ?? 0),
+    paymentMethodsOnDelivery: methodsRaw
+      .map((m) => String(m))
+      .filter((m): m is OnlinePayOnDeliveryMethod =>
+        m === 'cash' || m === 'pix' || m === 'debit_card' || m === 'credit_card'
+      ),
+    whatsapp: optStr(data.whatsapp),
+  };
+}
 
 function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
   return {
@@ -121,7 +180,11 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     pixFeeFixed: data.pixFeeFixed != null ? Number(data.pixFeeFixed) : 0,
     creditTabFeeRate:
       data.creditTabFeeRate != null ? Number(data.creditTabFeeRate) : 0,
+    minInstallmentAmount:
+      data.minInstallmentAmount != null ? Number(data.minInstallmentAmount) : 15,
+    onlineStore: mapOnlineStore(data.onlineStore),
     subscription: mapEnterpriseSubscription(data.subscription),
+    billingCards: mapEnterpriseBillingCards(data.billingCards),
     createdAt: data.createdAt != null ? String(data.createdAt) : undefined,
     updatedAt: data.updatedAt != null ? String(data.updatedAt) : undefined,
   };
@@ -153,6 +216,7 @@ export type EnterpriseAddressInput = {
   pixFeeRate?: number;
   pixFeeFixed?: number;
   creditTabFeeRate?: number;
+  minInstallmentAmount?: number;
 };
 
 export async function listEnterprisesClient(): Promise<Enterprise[]> {

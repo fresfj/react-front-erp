@@ -1,0 +1,212 @@
+import type { Unsubscribe } from 'firebase/firestore';
+
+import { httpsCallable } from 'firebase/functions';
+import {
+  query,
+  getDocs,
+  orderBy,
+  onSnapshot,
+} from 'firebase/firestore';
+
+import { FUNCTIONS } from 'src/lib/firebase';
+
+import { enterpriseCollection } from './paths';
+
+import type {
+  OnlineStoreConfig,
+  OnlinePayOnDeliveryMethod,
+} from './platform';
+
+// ----------------------------------------------------------------------
+
+export type { OnlineStoreConfig, OnlinePayOnDeliveryMethod };
+
+export type OnlineOrderStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
+
+export type OnlineOrderItem = {
+  productId: string;
+  productName: string;
+  productSku: string;
+  unit: string;
+  qty: number;
+  unitPrice: number;
+  lineTotal: number;
+  notes?: string;
+};
+
+export type OnlineOrder = {
+  id: string;
+  code: string;
+  status: OnlineOrderStatus;
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string;
+  deliveryType: 'pickup' | 'delivery';
+  deliveryFee: number;
+  paymentMethod: OnlinePayOnDeliveryMethod;
+  items: OnlineOrderItem[];
+  subtotal: number;
+  total: number;
+  notes?: string;
+  cashSessionId?: string;
+  saleId?: string;
+  acceptedByUid?: string;
+  rejectedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PublicStorefrontProduct = {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  salePrice: number;
+  imageUrl?: string;
+};
+
+export type PublicStorefront = {
+  storeName: string;
+  isOpen: boolean;
+  closedReason?: 'plan' | 'disabled' | 'outside_hours' | 'no_open_cash';
+  estimatedMinutes: number;
+  deliveryFee: number;
+  acceptDelivery: boolean;
+  acceptPickup: boolean;
+  paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
+  whatsapp?: string;
+  products: PublicStorefrontProduct[];
+};
+
+export type PlaceOnlineOrderInput = {
+  slug: string;
+  items: Array<{
+    productId: string;
+    qty: number;
+    unitPrice: number;
+    notes?: string;
+  }>;
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string;
+  deliveryType: 'pickup' | 'delivery';
+  paymentMethod: OnlinePayOnDeliveryMethod;
+  notes?: string;
+};
+
+function optStr(val: unknown): string | undefined {
+  if (val == null || val === '') return undefined;
+  return String(val);
+}
+
+function mapOnlineOrderItem(raw: Record<string, unknown>): OnlineOrderItem {
+  return {
+    productId: String(raw.productId ?? ''),
+    productName: String(raw.productName ?? ''),
+    productSku: String(raw.productSku ?? ''),
+    unit: String(raw.unit ?? 'un'),
+    qty: Number(raw.qty ?? 0),
+    unitPrice: Number(raw.unitPrice ?? 0),
+    lineTotal: Number(raw.lineTotal ?? 0),
+    notes: optStr(raw.notes),
+  };
+}
+
+function mapStatus(raw: unknown): OnlineOrderStatus {
+  if (raw === 'accepted' || raw === 'rejected' || raw === 'cancelled') return raw;
+  return 'pending';
+}
+
+function mapPaymentMethod(raw: unknown): OnlinePayOnDeliveryMethod {
+  if (raw === 'pix' || raw === 'debit_card' || raw === 'credit_card') return raw;
+  return 'cash';
+}
+
+export function mapOnlineOrder(id: string, data: Record<string, unknown>): OnlineOrder {
+  const rawItems = Array.isArray(data.items) ? data.items : [];
+  return {
+    id,
+    code: String(data.code ?? ''),
+    status: mapStatus(data.status),
+    customerName: String(data.customerName ?? ''),
+    customerPhone: String(data.customerPhone ?? ''),
+    customerAddress: optStr(data.customerAddress),
+    deliveryType: data.deliveryType === 'delivery' ? 'delivery' : 'pickup',
+    deliveryFee: Number(data.deliveryFee ?? 0),
+    paymentMethod: mapPaymentMethod(data.paymentMethod),
+    items: rawItems.map((i) => mapOnlineOrderItem(i as Record<string, unknown>)),
+    subtotal: Number(data.subtotal ?? 0),
+    total: Number(data.total ?? 0),
+    notes: optStr(data.notes),
+    cashSessionId: optStr(data.cashSessionId),
+    saleId: optStr(data.saleId),
+    acceptedByUid: optStr(data.acceptedByUid),
+    rejectedReason: optStr(data.rejectedReason),
+    createdAt: String(data.createdAt ?? ''),
+    updatedAt: String(data.updatedAt ?? ''),
+  };
+}
+
+export async function listOnlineOrders(enterpriseId: string): Promise<OnlineOrder[]> {
+  const col = enterpriseCollection(enterpriseId, 'onlineOrders');
+  const snap = await getDocs(query(col, orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => mapOnlineOrder(d.id, d.data() as Record<string, unknown>));
+}
+
+export function subscribeOnlineOrders(
+  enterpriseId: string,
+  cb: (rows: OnlineOrder[]) => void
+): Unsubscribe {
+  const col = enterpriseCollection(enterpriseId, 'onlineOrders');
+  const q = query(col, orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (snap) => {
+    cb(snap.docs.map((d) => mapOnlineOrder(d.id, d.data() as Record<string, unknown>)));
+  });
+}
+
+async function call<TReq extends object, TRes>(name: string, data: TReq): Promise<TRes> {
+  const fn = httpsCallable<TReq, TRes>(FUNCTIONS, name);
+  const result = await fn(data);
+  return result.data;
+}
+
+export function getPublicStorefrontCf(slug: string): Promise<PublicStorefront> {
+  return call<{ slug: string }, PublicStorefront>('getPublicStorefront', { slug });
+}
+
+export function placeOnlineOrderCf(
+  input: PlaceOnlineOrderInput
+): Promise<{ orderId: string; code: string }> {
+  return call<PlaceOnlineOrderInput, { orderId: string; code: string }>('placeOnlineOrder', input);
+}
+
+export function acceptOnlineOrderCf(
+  enterpriseId: string,
+  orderId: string
+): Promise<{ saleId: string }> {
+  return call<{ enterpriseId: string; orderId: string }, { saleId: string }>('acceptOnlineOrder', {
+    enterpriseId,
+    orderId,
+  });
+}
+
+export function rejectOnlineOrderCf(
+  enterpriseId: string,
+  orderId: string,
+  reason?: string
+): Promise<void> {
+  return call<{ enterpriseId: string; orderId: string; reason?: string }, void>(
+    'rejectOnlineOrder',
+    { enterpriseId, orderId, reason }
+  );
+}
+
+export function upsertOnlineStoreConfigCf(
+  enterpriseId: string,
+  config: OnlineStoreConfig
+): Promise<void> {
+  return call<{ enterpriseId: string; onlineStore: OnlineStoreConfig }, void>(
+    'upsertOnlineStoreConfig',
+    { enterpriseId, onlineStore: config }
+  );
+}
