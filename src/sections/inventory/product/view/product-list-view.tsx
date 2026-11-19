@@ -1,17 +1,19 @@
 import type { Product } from 'src/api/firestore/products';
-import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
-import type {
-  GridColDef,
-  GridRowSelectionModel,
-  GridColumnVisibilityModel,
-} from '@mui/x-data-grid';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
+import Table from '@mui/material/Table';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
-import { GridActionsCellItem } from '@mui/x-data-grid';
+import Tooltip from '@mui/material/Tooltip';
+import Divider from '@mui/material/Divider';
+import TableBody from '@mui/material/TableBody';
+import { useTheme } from '@mui/material/styles';
+import IconButton from '@mui/material/IconButton';
+import TableContainer from '@mui/material/TableContainer';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
@@ -22,6 +24,7 @@ import { useBoolean } from 'src/hooks/use-boolean';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
+import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { listProducts, deactivateProduct } from 'src/api/firestore/products';
@@ -29,56 +32,79 @@ import { listProducts, deactivateProduct } from 'src/api/firestore/products';
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
-import { ErpDataGrid } from 'src/components/erp-data-grid';
+import { Scrollbar } from 'src/components/scrollbar';
 import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { ErpTableToolbar, ErpTableAnalytic } from 'src/components/erp-table';
+import {
+  useTable,
+  emptyRows,
+  TableNoData,
+  getComparator,
+  TableSkeleton,
+  TableEmptyRows,
+  TableHeadCustom,
+  TableSelectedAction,
+  TablePaginationCustom,
+} from 'src/components/table';
 
 import { useAuthContext } from 'src/auth/hooks';
 
-import {
-  RenderCellStock,
-  RenderCellPrice,
-  RenderCellPublish,
-  RenderCellProduct,
-  RenderCellCreatedAt,
-} from '../product-table-row';
+import { ProductTableRow } from '../product-table-row';
 
 // ----------------------------------------------------------------------
 
-const TYPE_OPTIONS = [
+const TABLE_HEAD = [
+  { id: 'name', label: 'Produto / SKU', hideable: false },
+  { id: 'type', label: 'Tipo' },
+  { id: 'salePrice', label: 'Preço Venda / Custo' },
+  { id: 'minStock', label: 'Estoque Mínimo' },
+  { id: 'active', label: 'Status' },
+  { id: 'createdAt', label: 'Cadastrado em' },
+  { id: 'actions', label: '', width: 88, hideable: false },
+];
+
+const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
+  name: true,
+  type: true,
+  salePrice: true,
+  minStock: true,
+  active: true,
+  createdAt: true,
+  actions: true,
+};
+
+const PRODUCT_TYPE_OPTIONS = [
   { value: 'raw', label: 'Matéria-prima' },
   { value: 'finished', label: 'Produto Acabado' },
 ];
-
-const STATUS_OPTIONS = [
-  { value: 'active', label: 'Ativo' },
-  { value: 'inactive', label: 'Inativo' },
-];
-
-const HIDE_COLUMNS: GridColumnVisibilityModel = { ean: false };
 
 // ----------------------------------------------------------------------
 
 export function ProductListView() {
   const { t } = useTranslate('common');
+  const theme = useTheme();
   const router = useRouter();
   const { user } = useAuthContext();
+  const table = useTable({ defaultOrderBy: 'createdAt', defaultOrder: 'desc' });
 
   const confirmSingle = useBoolean();
   const confirmMultiple = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Product[]>([]);
-  const [selectedRowIds, setSelectedRowIds] = useState<GridRowSelectionModel>([]);
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'raw' | 'finished' | 'active' | 'inactive'
+  >('all');
+  const [typeFilters, setTypeFilters] = useState<string[]>([]);
+  const [unitFilters, setUnitFilters] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibleColumns, setVisibleColumns] =
+    useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
-  const [columnVisibilityModel, setColumnVisibilityModel] =
-    useState<GridColumnVisibilityModel>(HIDE_COLUMNS);
 
   const loadProducts = useCallback(async () => {
     if (!enterpriseId) {
@@ -103,168 +129,180 @@ export function ProductListView() {
     loadProducts();
   }, [loadProducts]);
 
-  const dataFiltered = useMemo(() => {
-    let rows = tableData;
-    if (typeFilter.length) rows = rows.filter((row) => typeFilter.includes(row.type));
-    if (statusFilter.length) {
-      rows = rows.filter((row) => statusFilter.includes(row.active ? 'active' : 'inactive'));
-    }
-    return rows;
-  }, [statusFilter, tableData, typeFilter]);
+  const handleAskDeactivate = (id: string) => {
+    setDeactivateId(id);
+    confirmSingle.onTrue();
+  };
 
-  const handleEditRow = useCallback(
-    (id: string) => router.push(paths.dashboard.products.edit(id)),
-    [router]
-  );
-
-  const handleAskDeactivate = useCallback(
-    (id: string) => {
-      setDeactivateId(id);
-      confirmSingle.onTrue();
-    },
-    [confirmSingle]
-  );
-
-  const handleConfirmDeactivateSingle = useCallback(async () => {
+  const handleConfirmDeactivateSingle = async () => {
     if (!enterpriseId || !deactivateId) return;
     try {
       await deactivateProduct(enterpriseId, deactivateId);
       toast.success(
         t('products.deactivateSuccess', { defaultValue: 'Produto desativado com sucesso!' })
       );
-      setDeactivateId(null);
-      confirmSingle.onFalse();
       await loadProducts();
     } catch (error) {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, t('products.deactivateError')));
+    } finally {
+      confirmSingle.onFalse();
+      setDeactivateId(null);
     }
-  }, [confirmSingle, deactivateId, enterpriseId, loadProducts, t]);
+  };
 
-  const handleConfirmDeactivateMultiple = useCallback(async () => {
-    if (!enterpriseId || !selectedRowIds.length) return;
+  const handleConfirmDeactivateMultiple = async () => {
+    if (!enterpriseId || !table.selected.length) return;
     try {
-      await Promise.all(selectedRowIds.map((id) => deactivateProduct(enterpriseId, String(id))));
-      toast.success(`${selectedRowIds.length} produtos desativados com sucesso!`);
-      setSelectedRowIds([]);
-      confirmMultiple.onFalse();
+      await Promise.all(table.selected.map((id) => deactivateProduct(enterpriseId, id)));
+      toast.success(`${table.selected.length} produtos desativados com sucesso!`);
+      table.onSelectAllRows(false, []);
       await loadProducts();
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Erro ao desativar produtos selecionados'));
+      toast.error(getFirebaseErrorMessage(error, t('products.deactivateError')));
+    } finally {
+      confirmMultiple.onFalse();
     }
-  }, [confirmMultiple, enterpriseId, loadProducts, selectedRowIds]);
+  };
 
-  const selectFilters: ErpGridSelectFilter[] = [
-    {
-      id: 'type',
-      label: t('products.fields.type', { defaultValue: 'Tipo' }),
-      options: TYPE_OPTIONS,
-      value: typeFilter,
-      onChange: setTypeFilter,
-    },
-    {
-      id: 'status',
-      label: t('products.fields.active', { defaultValue: 'Status' }),
-      options: STATUS_OPTIONS,
-      value: statusFilter,
-      onChange: setStatusFilter,
-    },
-  ];
+  const unitOptions = useMemo(() => {
+    const units = Array.from(new Set(tableData.map((p) => p.unit).filter(Boolean))) as string[];
+    const base = units.length > 0 ? units : ['un', 'kg', 'L', 'cx'];
+    return base.map((u) => ({ value: u, label: u.toUpperCase() }));
+  }, [tableData]);
 
-  const columns = useMemo<GridColDef<Product>[]>(
-    () => [
-      {
-        field: 'name',
-        headerName: t('products.fields.name', { defaultValue: 'Produto' }),
-        flex: 1,
-        minWidth: 280,
-        hideable: false,
-        renderCell: (params) => (
-          <RenderCellProduct params={params} onViewRow={() => handleEditRow(params.row.id)} />
-        ),
-      },
-      {
-        field: 'type',
-        headerName: t('products.fields.type', { defaultValue: 'Tipo' }),
-        width: 150,
-        renderCell: (params) => (
-          <Label variant="soft" color={params.row.type === 'finished' ? 'primary' : 'warning'}>
-            {params.row.type === 'finished' ? 'Produto Acabado' : 'Matéria-prima'}
-          </Label>
-        ),
-      },
-      {
-        field: 'ean',
-        headerName: 'EAN-13',
-        width: 140,
-        valueGetter: (_v, row) => row.ean || '—',
-      },
-      {
-        field: 'category',
-        headerName: 'Categoria',
-        width: 150,
-        valueGetter: (_v, row) => row.category || '—',
-      },
-      {
-        field: 'stock',
-        headerName: 'Estoque Mín.',
-        width: 140,
-        renderCell: (params) => <RenderCellStock params={params} />,
-      },
-      {
-        field: 'price',
-        headerName: t('products.fields.salePrice', { defaultValue: 'Preço Venda' }),
-        width: 140,
-        renderCell: (params) => <RenderCellPrice params={params} />,
-      },
-      {
-        field: 'active',
-        headerName: t('products.fields.active', { defaultValue: 'Status' }),
-        width: 110,
-        renderCell: (params) => <RenderCellPublish params={params} />,
-      },
-      {
-        field: 'createdAt',
-        headerName: t('products.fields.createdAt', { defaultValue: 'Criado em' }),
-        width: 150,
-        renderCell: (params) => <RenderCellCreatedAt params={params} />,
-      },
-      {
-        type: 'actions',
-        field: 'actions',
-        headerName: ' ',
-        align: 'right',
-        headerAlign: 'right',
-        width: 80,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        getActions: (params) => [
-          <GridActionsCellItem
-            key="edit"
-            showInMenu
-            icon={<Iconify icon="solar:pen-bold" />}
-            label="Editar"
-            onClick={() => handleEditRow(params.row.id)}
-          />,
-          <GridActionsCellItem
-            key="delete"
-            showInMenu
-            icon={<Iconify icon="solar:trash-bin-trash-bold" />}
-            label="Excluir"
-            onClick={() => handleAskDeactivate(params.row.id)}
-            sx={{ color: 'error.main' }}
-          />,
-        ],
-      },
-    ],
-    [handleAskDeactivate, handleEditRow, t]
+  // Metrics for Analytics strip (4 items)
+  const metrics = useMemo(() => {
+    let rawCount = 0;
+    let finishedCount = 0;
+    let activeCount = 0;
+    let inactiveCount = 0;
+
+    tableData.forEach((p) => {
+      if (p.type === 'raw') rawCount += 1;
+      if (p.type === 'finished') finishedCount += 1;
+      if (p.active) activeCount += 1;
+      else inactiveCount += 1;
+    });
+
+    return {
+      total: tableData.length,
+      rawCount,
+      finishedCount,
+      activeCount,
+      inactiveCount,
+    };
+  }, [tableData]);
+
+  const TABS = [
+    { value: 'all', label: 'Todos', color: 'default', count: tableData.length },
+    { value: 'raw', label: 'Matéria-prima', color: 'warning', count: metrics.rawCount },
+    { value: 'finished', label: 'Produto Acabado', color: 'info', count: metrics.finishedCount },
+    { value: 'active', label: 'Ativos', color: 'success', count: metrics.activeCount },
+    { value: 'inactive', label: 'Inativos', color: 'default', count: metrics.inactiveCount },
+  ] as const;
+
+  const dataFiltered = useMemo(() => {
+    let rows = [...tableData];
+
+    const comparator = getComparator(table.order, table.orderBy) as (a: any, b: any) => number;
+    const stabilizedThis = rows.map((el, index) => [el, index] as const);
+    stabilizedThis.sort((a, b) => {
+      const order = comparator(a[0], b[0]);
+      if (order !== 0) return order;
+      return a[1] - b[1];
+    });
+    rows = stabilizedThis.map((el) => el[0]);
+
+    if (statusFilter === 'raw') {
+      rows = rows.filter((r) => r.type === 'raw');
+    } else if (statusFilter === 'finished') {
+      rows = rows.filter((r) => r.type === 'finished');
+    } else if (statusFilter === 'active') {
+      rows = rows.filter((r) => r.active);
+    } else if (statusFilter === 'inactive') {
+      rows = rows.filter((r) => !r.active);
+    }
+
+    if (typeFilters.length > 0) {
+      rows = rows.filter((r) => typeFilters.includes(r.type));
+    }
+
+    if (unitFilters.length > 0) {
+      rows = rows.filter((r) => unitFilters.includes(r.unit || ''));
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      rows = rows.filter(
+        (r) =>
+          r.name?.toLowerCase().includes(q) ||
+          r.sku?.toLowerCase().includes(q) ||
+          r.ean?.toLowerCase().includes(q) ||
+          r.category?.toLowerCase().includes(q)
+      );
+    }
+
+    return rows;
+  }, [
+    searchQuery,
+    statusFilter,
+    typeFilters,
+    unitFilters,
+    table.order,
+    table.orderBy,
+    tableData,
+  ]);
+
+  const visibleHeadLabel = useMemo(
+    () => TABLE_HEAD.filter((col) => visibleColumns[col.id] !== false),
+    [visibleColumns]
   );
+
+  const handleToggleColumn = useCallback((colId: string) => {
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [colId]: prev[colId] === false,
+    }));
+  }, []);
+
+  const handleResetColumns = useCallback(() => {
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    const headers = ['Produto', 'SKU', 'Tipo', 'Unidade', 'Preço Venda', 'Preço Custo', 'Status'];
+    const csvRows = [
+      headers.join(';'),
+      ...dataFiltered.map((r) =>
+        [
+          `"${r.name || ''}"`,
+          `"${r.sku || ''}"`,
+          r.type === 'raw' ? 'Matéria-prima' : 'Produto Acabado',
+          `"${r.unit || ''}"`,
+          (r.salePrice || 0).toFixed(2),
+          (r.costPrice || 0).toFixed(2),
+          r.active ? 'Ativo' : 'Inativo',
+        ].join(';')
+      ),
+    ];
+    const blob = new Blob([`\uFEFF${csvRows.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `produtos-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [dataFiltered]);
+
+  const notFound =
+    !dataFiltered.length &&
+    (!!searchQuery || statusFilter !== 'all' || typeFilters.length > 0 || unitFilters.length > 0);
 
   return (
     <>
-      <DashboardContent sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <DashboardContent>
         <CustomBreadcrumbs
           heading={t('products.listHeading', { defaultValue: 'Lista de Produtos' })}
           links={[
@@ -301,7 +339,7 @@ export function ProductListView() {
               </Button>
             </Stack>
           }
-          sx={{ mb: { xs: 3, md: 5 } }}
+          sx={{ mb: { xs: 3, md: 4 } }}
         />
 
         {!enterpriseId && (
@@ -313,34 +351,201 @@ export function ProductListView() {
         )}
 
         {enterpriseId && (
-          <Card
-            sx={{
-              flexGrow: { md: 1 },
-              display: { md: 'flex' },
-              height: { xs: 800, md: 2 },
-              flexDirection: { md: 'column' },
-            }}
-          >
-            <ErpDataGrid<Product>
-              checkboxSelection
-              rows={dataFiltered}
-              columns={columns}
-              loading={loading}
-              getRowId={(row) => row.id}
-              getRowHeight={() => 'auto'}
-              rowSelectionModel={selectedRowIds}
-              onRowSelectionModelChange={setSelectedRowIds}
-              columnVisibilityModel={columnVisibilityModel}
-              onColumnVisibilityModelChange={setColumnVisibilityModel}
-              nonTogglableFields={['name', 'actions']}
-              emptyTitle={t('products.empty', { defaultValue: 'Nenhum produto encontrado' })}
-              toolbar={{
-                selectFilters,
-                searchPlaceholder: 'Pesquisar produto, SKU ou EAN…',
-                filteredResults: dataFiltered.length,
-                selectedCount: selectedRowIds.length,
-                onDeleteSelected: confirmMultiple.onTrue,
+          <Card>
+            {/* 4 Indicadores Rápidos integrados no topo do Card da tabela */}
+            <Scrollbar sx={{ minHeight: 108 }}>
+              <Stack
+                direction="row"
+                divider={<Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />}
+                sx={{ py: 2.5 }}
+              >
+                <ErpTableAnalytic
+                  title="Catálogo de Produtos"
+                  primaryValue={`${metrics.total} itens`}
+                  secondaryValue={`${metrics.activeCount} ativos para venda`}
+                  percent={100}
+                  icon="solar:box-minimalistic-bold-duotone"
+                  color={theme.vars.palette.primary.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Matéria-prima (Insumos)"
+                  primaryValue={`${metrics.rawCount} produtos`}
+                  secondaryValue="Uso no Beneficiamento"
+                  percent={metrics.total ? Math.round((metrics.rawCount / metrics.total) * 100) : 0}
+                  icon="solar:layers-bold-duotone"
+                  color={theme.vars.palette.warning.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Produtos Acabados"
+                  primaryValue={`${metrics.finishedCount} produtos`}
+                  secondaryValue="Disponíveis no PDV"
+                  percent={
+                    metrics.total ? Math.round((metrics.finishedCount / metrics.total) * 100) : 0
+                  }
+                  icon="solar:cart-4-bold-duotone"
+                  color={theme.vars.palette.info.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Status Ativo"
+                  primaryValue={`${metrics.activeCount} itens`}
+                  secondaryValue={`${metrics.inactiveCount} desativados`}
+                  percent={
+                    metrics.total ? Math.round((metrics.activeCount / metrics.total) * 100) : 0
+                  }
+                  icon="solar:check-circle-bold-duotone"
+                  color={theme.vars.palette.success.main}
+                />
+              </Stack>
+            </Scrollbar>
+
+            <Divider />
+
+            <Tabs
+              value={statusFilter}
+              onChange={(_, val) => {
+                table.onResetPage();
+                setStatusFilter(val);
               }}
+              sx={{
+                px: 2.5,
+                boxShadow: `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
+              }}
+            >
+              {TABS.map((tab) => (
+                <Tab
+                  key={tab.value}
+                  value={tab.value}
+                  label={tab.label}
+                  iconPosition="end"
+                  icon={
+                    <Label
+                      variant={
+                        ((tab.value === 'all' || tab.value === statusFilter) && 'filled') || 'soft'
+                      }
+                      color={tab.color}
+                    >
+                      {tab.count}
+                    </Label>
+                  }
+                />
+              ))}
+            </Tabs>
+
+            <ErpTableToolbar
+              searchQuery={searchQuery}
+              onSearchChange={(e) => setSearchQuery(e.target.value)}
+              searchPlaceholder="Pesquisar por produto, SKU, código de barras..."
+              onResetPage={table.onResetPage}
+              selectFilters={[
+                {
+                  id: 'productType',
+                  label: 'Tipo',
+                  options: PRODUCT_TYPE_OPTIONS,
+                  value: typeFilters,
+                  onChange: setTypeFilters,
+                },
+                {
+                  id: 'unit',
+                  label: 'Unidade',
+                  options: unitOptions,
+                  value: unitFilters,
+                  onChange: setUnitFilters,
+                },
+              ]}
+              columns={TABLE_HEAD}
+              visibleColumns={visibleColumns}
+              onToggleColumn={handleToggleColumn}
+              onResetColumns={handleResetColumns}
+              onExportCsv={handleExportCsv}
+              filteredResults={dataFiltered.length}
+            />
+
+            <TableContainer sx={{ position: 'relative', overflow: 'unset' }}>
+              <TableSelectedAction
+                dense={table.dense}
+                numSelected={table.selected.length}
+                rowCount={dataFiltered.length}
+                onSelectAllRows={(checked) =>
+                  table.onSelectAllRows(
+                    checked,
+                    dataFiltered.map((row) => row.id)
+                  )
+                }
+                action={
+                  <Tooltip title="Desativar selecionados">
+                    <IconButton color="error" onClick={confirmMultiple.onTrue}>
+                      <Iconify icon="solar:trash-bin-trash-bold" />
+                    </IconButton>
+                  </Tooltip>
+                }
+              />
+
+              <Scrollbar>
+                <Table size={table.dense ? 'small' : 'medium'} sx={{ minWidth: 800 }}>
+                  <TableHeadCustom
+                    order={table.order}
+                    orderBy={table.orderBy}
+                    headLabel={visibleHeadLabel}
+                    rowCount={dataFiltered.length}
+                    numSelected={table.selected.length}
+                    onSort={table.onSort}
+                    onSelectAllRows={(checked) =>
+                      table.onSelectAllRows(
+                        checked,
+                        dataFiltered.map((row) => row.id)
+                      )
+                    }
+                  />
+
+                  <TableBody>
+                    {loading ? (
+                      [...Array(table.rowsPerPage)].map((_, index) => (
+                        <TableSkeleton key={index} sx={{ height: table.dense ? 56 : 76 }} />
+                      ))
+                    ) : (
+                      <>
+                        {dataFiltered
+                          .slice(
+                            table.page * table.rowsPerPage,
+                            table.page * table.rowsPerPage + table.rowsPerPage
+                          )
+                          .map((row) => (
+                            <ProductTableRow
+                              key={row.id}
+                              row={row}
+                              selected={table.selected.includes(row.id)}
+                              onSelectRow={() => table.onSelectRow(row.id)}
+                              onViewRow={() => router.push(paths.dashboard.products.edit(row.id))}
+                              onEditRow={() => router.push(paths.dashboard.products.edit(row.id))}
+                              onDeleteRow={() => handleAskDeactivate(row.id)}
+                              visibleColumns={visibleColumns}
+                            />
+                          ))}
+
+                        <TableEmptyRows
+                          height={table.dense ? 56 : 76}
+                          emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
+                        />
+
+                        <TableNoData notFound={notFound} />
+                      </>
+                    )}
+                  </TableBody>
+                </Table>
+              </Scrollbar>
+            </TableContainer>
+
+            <TablePaginationCustom
+              page={table.page}
+              dense={table.dense}
+              count={dataFiltered.length}
+              rowsPerPage={table.rowsPerPage}
+              onPageChange={table.onChangePage}
+              onChangeDense={table.onChangeDense}
+              onRowsPerPageChange={table.onChangeRowsPerPage}
             />
           </Card>
         )}
@@ -365,7 +570,7 @@ export function ProductListView() {
         open={confirmMultiple.value}
         onClose={confirmMultiple.onFalse}
         title="Desativar Produtos Selecionados"
-        content={`Tem certeza de que deseja desativar ${selectedRowIds.length} produtos selecionados?`}
+        content={`Tem certeza de que deseja desativar ${table.selected.length} produtos selecionados?`}
         action={
           <Button variant="contained" color="error" onClick={handleConfirmDeactivateMultiple}>
             Desativar Todos

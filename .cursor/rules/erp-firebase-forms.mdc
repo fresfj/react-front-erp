@@ -54,3 +54,11 @@ Doc: `docs/reference/erp-crud-ui.md`.
 ## Referência visual Minimals
 
 Ver `docs/reference/minimals-demo-screens.md` e `docs/reference/erp-crud-ui.md`.
+
+## Regra de Ouro — ESLint & TypeScript (Zero Warnings)
+
+- Os imports seguem `perfectionist/sort-imports` e `perfectionist/sort-named-imports` (`order: 'asc', type: 'line-length'`).
+- Sempre executar antes de finalizar qualquer edição em `.ts`/`.tsx`:
+  1. `./node_modules/.bin/eslint --fix <arquivos_alterados>`
+  2. `./node_modules/.bin/eslint --max-warnings=0 <arquivos_alterados>`
+  3. `./node_modules/.bin/tsc --noEmit`

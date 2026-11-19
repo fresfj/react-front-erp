@@ -1,6 +1,6 @@
 import type { Sale } from 'src/api/firestore/sales';
 
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import {
   calculateDreReport,

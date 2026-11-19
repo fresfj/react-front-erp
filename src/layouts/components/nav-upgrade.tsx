@@ -1,6 +1,7 @@
 import type { StackProps } from '@mui/material/Stack';
 
 import { m } from 'framer-motion';
+import { useState, useEffect } from 'react';
 
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
@@ -10,9 +11,11 @@ import Typography from '@mui/material/Typography';
 import { alpha as hexAlpha } from '@mui/material/styles';
 
 import { paths } from 'src/routes/paths';
+import { RouterLink } from 'src/routes/components';
 
 import { CONFIG } from 'src/config-global';
 import { varAlpha, bgGradient } from 'src/theme/styles';
+import { getEnterprise } from 'src/api/firestore/platform';
 
 import { Label } from 'src/components/label';
 
@@ -20,8 +23,45 @@ import { useAuthContext } from 'src/auth/hooks';
 
 // ----------------------------------------------------------------------
 
+function planLabel(code?: string | null) {
+  if (code === 'pro') return 'Pro';
+  if (code === 'ultra') return 'Ultra';
+  return 'Free Starter';
+}
+
+function planLabelColor(code?: string | null): 'success' | 'info' | 'warning' {
+  if (code === 'pro') return 'info';
+  if (code === 'ultra') return 'warning';
+  return 'success';
+}
+
+// ----------------------------------------------------------------------
+
 export function NavUpgrade({ sx, ...other }: StackProps) {
   const { user } = useAuthContext();
+  const enterpriseId = user?.enterpriseId as string | undefined;
+  const [planCode, setPlanCode] = useState<string>('free');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!enterpriseId) {
+      setPlanCode('free');
+      return undefined;
+    }
+    getEnterprise(enterpriseId)
+      .then((ent) => {
+        if (!cancelled) setPlanCode(ent?.subscription?.planCode || 'free');
+      })
+      .catch(() => {
+        if (!cancelled) setPlanCode('free');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [enterpriseId]);
+
+  const isFree = planCode === 'free';
+  const billingHref = paths.dashboard.account.billing;
 
   return (
     <Stack sx={{ px: 2, py: 5, textAlign: 'center', ...sx }} {...other}>
@@ -32,7 +72,7 @@ export function NavUpgrade({ sx, ...other }: StackProps) {
           </Avatar>
 
           <Label
-            color="success"
+            color={planLabelColor(planCode)}
             variant="filled"
             sx={{
               top: -6,
@@ -43,7 +83,7 @@ export function NavUpgrade({ sx, ...other }: StackProps) {
               borderBottomLeftRadius: 2,
             }}
           >
-            Free
+            {planLabel(planCode)}
           </Label>
         </Box>
 
@@ -65,8 +105,13 @@ export function NavUpgrade({ sx, ...other }: StackProps) {
           </Typography>
         </Stack>
 
-        <Button variant="contained" href={paths.minimalStore} target="_blank" rel="noopener">
-          Upgrade to Pro
+        <Button
+          component={RouterLink}
+          href={billingHref}
+          variant="contained"
+          disabled={user?.role !== 'admin'}
+        >
+          {isFree ? 'Upgrade to Pro' : 'Gerenciar plano'}
         </Button>
       </Stack>
     </Stack>
@@ -76,6 +121,25 @@ export function NavUpgrade({ sx, ...other }: StackProps) {
 // ----------------------------------------------------------------------
 
 export function UpgradeBlock({ sx, ...other }: StackProps) {
+  const { user } = useAuthContext();
+  const enterpriseId = user?.enterpriseId as string | undefined;
+  const [planCode, setPlanCode] = useState<string>('free');
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!enterpriseId) return undefined;
+    getEnterprise(enterpriseId)
+      .then((ent) => {
+        if (!cancelled) setPlanCode(ent?.subscription?.planCode || 'free');
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [enterpriseId]);
+
+  const isFree = planCode === 'free';
+
   return (
     <Stack
       sx={{
@@ -119,18 +183,25 @@ export function UpgradeBlock({ sx, ...other }: StackProps) {
 
       <Stack alignItems="flex-start" sx={{ position: 'relative' }}>
         <Box component="span" sx={{ typography: 'h5', color: 'common.white' }}>
-          35% OFF
+          {planLabel(planCode)}
         </Box>
 
         <Box
           component="span"
           sx={{ mb: 2, mt: 0.5, color: 'common.white', typography: 'subtitle2' }}
         >
-          Power up Productivity!
+          {isFree ? 'Faça upgrade e libere mais recursos' : 'Gerencie sua assinatura'}
         </Box>
 
-        <Button variant="contained" size="small" color="warning">
-          Upgrade to Pro
+        <Button
+          component={RouterLink}
+          href={paths.dashboard.account.billing}
+          variant="contained"
+          size="small"
+          color="warning"
+          disabled={user?.role !== 'admin'}
+        >
+          {isFree ? 'Upgrade to Pro' : 'Assinatura'}
         </Button>
       </Stack>
     </Stack>

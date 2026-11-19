@@ -1026,4 +1026,4 @@ No TBD/TODO left in tasks. Asaas credit-card production tokenization called out 
 
 - `EnterpriseSubscription` / `Plan` / statuses match spec §7 and Task 1 helpers.
 - CF names match client wrappers in Task 2: `saveBillingSettings`, `upsertPlan`, `deactivatePlan`, `startSubscription`, `cancelSubscriptionAtPeriodEnd`, plus `getPublicBillingConfig` (T10).
-`}
+

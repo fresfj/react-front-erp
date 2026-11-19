@@ -1,4 +1,4 @@
-import type { Enterprise } from 'src/api/firestore/platform';
+import type { Enterprise, ReceiptModelType } from 'src/api/firestore/platform';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -9,10 +9,13 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
+import MenuItem from '@mui/material/MenuItem';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
+import Typography from '@mui/material/Typography';
 import CardHeader from '@mui/material/CardHeader';
 import LoadingButton from '@mui/lab/LoadingButton';
+import InputAdornment from '@mui/material/InputAdornment';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
@@ -24,13 +27,22 @@ import { useCnpjLookup } from 'src/hooks/use-cnpj-lookup';
 import { formatCep, digitsOnly, formatCnpj } from 'src/utils/br-docs';
 
 import { useTranslate } from 'src/locales';
-import { createEnterprise, updateEnterprise } from 'src/api/firestore/platform';
+import {
+  createEnterprise,
+  updateEnterprise,
+  updateEnterpriseSettings,
+} from 'src/api/firestore/platform';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 
 // ----------------------------------------------------------------------
+
+const numberOrZero = zod.preprocess(
+  (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
+  zod.number().min(0).default(0)
+);
 
 export const EnterpriseSchema = zod.object({
   id: zod
@@ -43,6 +55,7 @@ export const EnterpriseSchema = zod.object({
     .string()
     .min(1, { message: 'Required' })
     .refine((v) => digitsOnly(v).length === 14, { message: 'CNPJ inválido' }),
+  stateRegistration: zod.string().optional().or(zod.literal('')),
   adminEmail: zod.union([zod.literal(''), zod.string().email()]).optional(),
   phone: zod.string().optional().or(zod.literal('')),
   zipCode: zod.string().optional().or(zod.literal('')),
@@ -52,6 +65,23 @@ export const EnterpriseSchema = zod.object({
   neighborhood: zod.string().optional().or(zod.literal('')),
   city: zod.string().optional().or(zod.literal('')),
   state: zod.string().optional().or(zod.literal('')),
+  // Fiscal / NFC-e / Cupom settings
+  nfceSeries: zod.string().optional().or(zod.literal('')),
+  nfceEnvironment: zod.enum(['homologation', 'production']).optional(),
+  receiptDefaultModel: zod.enum(['58mm', '80mm', 'a5']).optional(),
+  receiptFooterMessage: zod.string().optional().or(zod.literal('')),
+  receiptBold: zod.boolean().optional(),
+  receiptShowLogo: zod.boolean().optional(),
+  // Taxas e Custos de Pagamento e Entrega (DRE)
+  defaultDeliveryFee: numberOrZero,
+  passPaymentFeesToCustomer: zod.boolean().default(false),
+  creditCardFeeRate: numberOrZero,
+  creditCardInstallmentFeeRate: numberOrZero,
+  debitCardFeeRate: numberOrZero,
+  pixFeeRate: numberOrZero,
+  pixFeeFixed: numberOrZero,
+  creditTabFeeRate: numberOrZero,
+  minInstallmentAmount: numberOrZero,
   active: zod.boolean(),
 });
 
@@ -68,6 +98,8 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
   const { t } = useTranslate('common');
   const openDetails = useBoolean(true);
   const openAddress = useBoolean(true);
+  const openFiscal = useBoolean(true);
+  const openFees = useBoolean(true);
   const isEdit = Boolean(currentEnterprise);
 
   const defaultValues = useMemo<EnterpriseSchemaType>(
@@ -76,6 +108,7 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
       name: currentEnterprise?.name || '',
       tradeName: currentEnterprise?.tradeName || '',
       document: formatCnpj(currentEnterprise?.document || ''),
+      stateRegistration: currentEnterprise?.stateRegistration || '',
       adminEmail: currentEnterprise?.adminEmail || '',
       phone: currentEnterprise?.phone || '',
       zipCode: formatCep(currentEnterprise?.zipCode || ''),
@@ -85,6 +118,22 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
       neighborhood: currentEnterprise?.neighborhood || '',
       city: currentEnterprise?.city || '',
       state: currentEnterprise?.state || '',
+      nfceSeries: currentEnterprise?.nfceSeries || '1',
+      nfceEnvironment: currentEnterprise?.nfceEnvironment || 'homologation',
+      receiptDefaultModel: currentEnterprise?.receiptDefaultModel || '58mm',
+      receiptFooterMessage:
+        currentEnterprise?.receiptFooterMessage || 'OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE',
+      receiptBold: currentEnterprise?.receiptBold ?? true,
+      receiptShowLogo: currentEnterprise?.receiptShowLogo ?? true,
+      defaultDeliveryFee: currentEnterprise?.defaultDeliveryFee ?? 0,
+      passPaymentFeesToCustomer: currentEnterprise?.passPaymentFeesToCustomer ?? false,
+      creditCardFeeRate: currentEnterprise?.creditCardFeeRate ?? 2.15,
+      creditCardInstallmentFeeRate: currentEnterprise?.creditCardInstallmentFeeRate ?? 1.5,
+      debitCardFeeRate: currentEnterprise?.debitCardFeeRate ?? 1.29,
+      pixFeeRate: currentEnterprise?.pixFeeRate ?? 0,
+      pixFeeFixed: currentEnterprise?.pixFeeFixed ?? 0,
+      creditTabFeeRate: currentEnterprise?.creditTabFeeRate ?? 0,
+      minInstallmentAmount: currentEnterprise?.minInstallmentAmount ?? 15,
       active: currentEnterprise?.active ?? true,
     }),
     [currentEnterprise]
@@ -107,8 +156,9 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
   const zipCodeWatch = watch('zipCode') || '';
   const documentWatch = watch('document') || '';
 
-  useCepLookup({
+  const { handleBlur: handleCepBlur } = useCepLookup({
     cep: zipCodeWatch,
+    initialValue: currentEnterprise?.zipCode,
     onSuccess: (fields) => {
       setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
       if (fields.address) setValue('address', fields.address, { shouldDirty: true });
@@ -128,8 +178,9 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
     },
   });
 
-  useCnpjLookup({
+  const { handleBlur: handleCnpjBlur } = useCnpjLookup({
     document: documentWatch,
+    initialValue: currentEnterprise?.document,
     onSuccess: (fields) => {
       setValue('document', formatCnpj(fields.document), { shouldDirty: true });
       if (fields.name) setValue('name', fields.name, { shouldDirty: true });
@@ -176,6 +227,18 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
         state: data.state?.trim() || undefined,
       };
 
+      const feesPayload = {
+        defaultDeliveryFee: Number(data.defaultDeliveryFee ?? 0),
+        passPaymentFeesToCustomer: Boolean(data.passPaymentFeesToCustomer),
+        creditCardFeeRate: Number(data.creditCardFeeRate ?? 0),
+        creditCardInstallmentFeeRate: Number(data.creditCardInstallmentFeeRate ?? 0),
+        debitCardFeeRate: Number(data.debitCardFeeRate ?? 0),
+        pixFeeRate: Number(data.pixFeeRate ?? 0),
+        pixFeeFixed: Number(data.pixFeeFixed ?? 0),
+        creditTabFeeRate: Number(data.creditTabFeeRate ?? 0),
+        minInstallmentAmount: Number(data.minInstallmentAmount ?? 15),
+      };
+
       if (isEdit && currentEnterprise) {
         await updateEnterprise({
           id: currentEnterprise.id,
@@ -183,6 +246,16 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
           active: data.active,
           adminEmail: data.adminEmail?.trim() || '',
           ...addressPayload,
+        });
+        await updateEnterpriseSettings(currentEnterprise.id, {
+          stateRegistration: data.stateRegistration?.trim() || undefined,
+          nfceSeries: data.nfceSeries?.trim() || undefined,
+          nfceEnvironment: data.nfceEnvironment,
+          receiptDefaultModel: data.receiptDefaultModel as ReceiptModelType,
+          receiptFooterMessage: data.receiptFooterMessage?.trim() || undefined,
+          receiptBold: data.receiptBold,
+          receiptShowLogo: data.receiptShowLogo,
+          ...feesPayload,
         });
         toast.success(t('enterprises.updateSuccess'));
         router.push(paths.dashboard.enterprises.details(currentEnterprise.id));
@@ -192,6 +265,16 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
           name: data.name.trim(),
           adminEmail: data.adminEmail?.trim() || undefined,
           ...addressPayload,
+        });
+        await updateEnterpriseSettings(created.id, {
+          stateRegistration: data.stateRegistration?.trim() || undefined,
+          nfceSeries: data.nfceSeries?.trim() || undefined,
+          nfceEnvironment: data.nfceEnvironment,
+          receiptDefaultModel: data.receiptDefaultModel as ReceiptModelType,
+          receiptFooterMessage: data.receiptFooterMessage?.trim() || undefined,
+          receiptBold: data.receiptBold,
+          receiptShowLogo: data.receiptShowLogo,
+          ...feesPayload,
         });
         toast.success(t('enterprises.createSuccess'));
         router.push(paths.dashboard.enterprises.details(created.id));
@@ -241,6 +324,7 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
                   onChange={(event) => {
                     setValue('document', formatCnpj(event.target.value), { shouldDirty: true });
                   }}
+                  onBlur={handleCnpjBlur}
                 />
                 <Field.Text name="name" label={t('enterprises.fields.name')} />
                 <Field.Text
@@ -284,6 +368,7 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
                   onChange={(event) => {
                     setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
                   }}
+                  onBlur={handleCepBlur}
                 />
                 <Field.Text
                   name="address"
@@ -316,6 +401,235 @@ export function EnterpriseForm({ currentEnterprise }: Props) {
                   name="state"
                   label={t('enterprises.fields.state', { defaultValue: 'UF' })}
                 />
+              </Box>
+            </Stack>
+          </Collapse>
+        </Card>
+
+        <Card>
+          <CardHeader
+            title="Configuração Fiscal e Cupom (NFC-e / Recibo)"
+            subheader="Definições da impressora padrão, ambiente fiscal SEFAZ e mensagem do rodapé"
+            action={renderCollapseAction(openFiscal.value, openFiscal.onToggle)}
+            sx={{ mb: 3 }}
+          />
+          <Collapse in={openFiscal.value}>
+            <Divider />
+            <Stack spacing={3} sx={{ p: 3 }}>
+              <Box
+                columnGap={2}
+                rowGap={3}
+                display="grid"
+                gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(3, 1fr)' }}
+              >
+                <Field.Text
+                  name="stateRegistration"
+                  label="Inscrição Estadual (IE)"
+                  placeholder="Ex: 123456789 ou ISENTO"
+                />
+
+                <Field.Select
+                  name="receiptDefaultModel"
+                  label="Modelo de Impressão Padrão"
+                >
+                  <MenuItem value="58mm">🧾 Cupom Térmico (58mm)</MenuItem>
+                  <MenuItem value="80mm">🧾 Cupom Térmico (80mm)</MenuItem>
+                  <MenuItem value="a5">📄 Recibo A5 (Meia A4)</MenuItem>
+                </Field.Select>
+
+                <Field.Text
+                  name="nfceSeries"
+                  label="Série da NFC-e"
+                  placeholder="Ex: 1"
+                  helperText="Série autorizada para emissão de NFC-e"
+                />
+
+                <Field.Select
+                  name="nfceEnvironment"
+                  label="Ambiente SEFAZ"
+                >
+                  <MenuItem value="homologation">Homologação (Testes)</MenuItem>
+                  <MenuItem value="production">Produção (Com valor fiscal)</MenuItem>
+                </Field.Select>
+              </Box>
+
+              <Field.Text
+                name="receiptFooterMessage"
+                label="Mensagem de Rodapé do Cupom"
+                multiline
+                rows={2}
+                placeholder="Ex: OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE"
+                helperText="Texto que será impresso no final de todos os cupons e recibos"
+              />
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
+                <Field.Switch
+                  name="receiptBold"
+                  label="Imprimir em Negrito Forte por padrão"
+                />
+                <Field.Switch
+                  name="receiptShowLogo"
+                  label="Exibir Logotipo no Cupom"
+                />
+              </Stack>
+            </Stack>
+          </Collapse>
+        </Card>
+
+        {/* Card 4: Taxas de Pagamento (Maquininha) & Custos de Entrega (DRE) */}
+        <Card>
+          <CardHeader
+            title="Taxas de Pagamento (Maquininha) & Custos de Entrega"
+            subheader="Configure as taxas cobradas por operadoras de cartão/PIX para apuração automática de despesas no DRE"
+            action={renderCollapseAction(openFees.value, openFees.onToggle)}
+            sx={{ mb: 3 }}
+          />
+          <Collapse in={openFees.value}>
+            <Divider />
+            <Stack spacing={3} sx={{ p: 3 }}>
+              {/* Repassar ou Absorver no DRE */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1.5,
+                  bgcolor: 'background.neutral',
+                  border: (theme) => `1px dashed ${theme.vars.palette.divider}`,
+                }}
+              >
+                <Field.Switch
+                  name="passPaymentFeesToCustomer"
+                  label="Repassar taxa de pagamento ao cliente (acrescentar no total)"
+                  helperText="Desmarcado: a taxa é uma despesa da loja e aparece deduzida no DRE. Marcado: a taxa é acrescentada no valor final pago pelo cliente no PDV."
+                />
+              </Box>
+
+              <Box
+                columnGap={2}
+                rowGap={3}
+                display="grid"
+                gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+              >
+                <Field.Text
+                  type="number"
+                  name="defaultDeliveryFee"
+                  label="Taxa de Entrega Padrão (R$)"
+                  placeholder="0.00"
+                  helperText="Valor fixo padrão para entregas"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="creditCardFeeRate"
+                  label="Taxa Crédito à vista (%)"
+                  placeholder="2.15"
+                  helperText="Ex: 2.15% por transação"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="creditCardInstallmentFeeRate"
+                  label="Taxa Crédito Parcelado (+%/mês)"
+                  placeholder="1.50"
+                  helperText="Adicional por parcela"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="debitCardFeeRate"
+                  label="Taxa Débito (%)"
+                  placeholder="1.29"
+                  helperText="Ex: 1.29% por transação"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="pixFeeRate"
+                  label="Taxa PIX (%)"
+                  placeholder="0.00"
+                  helperText="Percentual sobre o PIX"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="pixFeeFixed"
+                  label="Taxa Fixa PIX (R$)"
+                  placeholder="0.00"
+                  helperText="Tarifa fixa por PIX recebido"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="creditTabFeeRate"
+                  label="Taxa Crediário / Fiado (%)"
+                  placeholder="0.00"
+                  helperText="Custo de cobrança / risco"
+                  inputProps={{ min: 0, step: 'any' }}
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                />
+
+                <Field.Text
+                  type="number"
+                  name="minInstallmentAmount"
+                  label="Parcela Mínima (R$)"
+                  placeholder="15.00"
+                  helperText="Valor mínimo permitido"
+                  inputProps={{ min: 1, step: 'any' }}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                  }}
+                />
+              </Box>
+
+              {/* Box Informativo explicativo */}
+              <Box
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  bgcolor: 'info.lighter',
+                  color: 'info.darker',
+                  typography: 'body2',
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="flex-start">
+                  <Iconify icon="solar:info-circle-bold" width={20} sx={{ mt: 0.25, flexShrink: 0 }} />
+                  <Box>
+                    <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'inherit' }}>
+                      Como as taxas influenciam o PDV e o DRE da Empresa:
+                    </Typography>
+                    <div>
+                      • <strong>Desmarcado (Padrão):</strong> O cliente paga o valor nominal da compra. As taxas de cartão/PIX são absorvidas pela loja e deduzidas automaticamente como despesa operacional de maquininha no DRE.
+                    </div>
+                    <div>
+                      • <strong>Marcado (Repassar taxa):</strong> O acréscimo das taxas é calculado e somado no total a pagar pelo cliente no PDV.
+                    </div>
+                  </Box>
+                </Stack>
               </Box>
             </Stack>
           </Collapse>

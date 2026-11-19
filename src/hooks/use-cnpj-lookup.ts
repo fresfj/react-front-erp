@@ -1,26 +1,42 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
-
-import { fetchCnpj, mapCnpjToCompany } from 'src/api/brasilapi/cnpj';
 import type { CnpjCompanyFields } from 'src/api/brasilapi/cnpj';
 
+import { useRef, useState, useEffect, useCallback } from 'react';
+
 import { digitsOnly, isCompleteCnpj } from 'src/utils/br-docs';
+
+import { fetchCnpj, mapCnpjToCompany } from 'src/api/brasilapi/cnpj';
 
 // ----------------------------------------------------------------------
 
 type Options = {
-  document: string;
+  document?: string;
+  initialValue?: string;
   enabled?: boolean;
   onSuccess: (fields: CnpjCompanyFields) => void;
   onError?: (code: string) => void;
 };
 
-export function useCnpjLookup({ document, enabled = true, onSuccess, onError }: Options) {
+export function useCnpjLookup({
+  document = '',
+  initialValue = '',
+  enabled = true,
+  onSuccess,
+  onError,
+}: Options) {
   const [loading, setLoading] = useState(false);
-  const lastFetched = useRef<string>('');
+  const initialDigits = digitsOnly(initialValue);
+  const lastFetched = useRef<string>(initialDigits);
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
   onSuccessRef.current = onSuccess;
   onErrorRef.current = onError;
+
+  // Atualiza a referência inicial se for carregada depois (ex.: getEnterprise / getCustomer)
+  useEffect(() => {
+    if (initialValue) {
+      lastFetched.current = digitsOnly(initialValue);
+    }
+  }, [initialValue]);
 
   const lookup = useCallback(async (value: string) => {
     const digits = digitsOnly(value);
@@ -40,11 +56,26 @@ export function useCnpjLookup({ document, enabled = true, onSuccess, onError }: 
     }
   }, []);
 
-  useEffect(() => {
-    if (!enabled) return;
-    if (!isCompleteCnpj(document)) return;
-    void lookup(document);
-  }, [document, enabled, lookup]);
+  const handleBlur = useCallback(
+    (event?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (!enabled) return;
+      const targetVal = event?.target?.value ?? document;
+      const digits = digitsOnly(targetVal);
 
-  return { loading, lookup };
+      // Não busca se incompleto
+      if (!isCompleteCnpj(digits)) return;
+
+      // Não busca se for idêntico ao já cadastrado inicialmente
+      const currentInitial = digitsOnly(initialValue);
+      if (currentInitial && digits === currentInitial) return;
+
+      // Não busca se já consultou este mesmo valor recentemente
+      if (digits === lastFetched.current) return;
+
+      lookup(digits).catch(() => undefined);
+    },
+    [document, enabled, initialValue, lookup]
+  );
+
+  return { loading, lookup, handleBlur, onBlur: handleBlur };
 }

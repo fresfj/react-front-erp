@@ -24,9 +24,16 @@ export type NotificationItemProps = {
   isUnRead: boolean;
   avatarUrl: string | null;
   createdAt: string | number | null;
+  href?: string;
 };
 
-export function NotificationItem({ notification }: { notification: NotificationItemProps }) {
+export function NotificationItem({
+  notification,
+  onClick,
+}: {
+  notification: NotificationItemProps;
+  onClick?: () => void;
+}) {
   const renderAvatar = (
     <ListItemAvatar>
       {notification.avatarUrl ? (
@@ -50,6 +57,7 @@ export function NotificationItem({ notification }: { notification: NotificationI
   const renderText = (
     <ListItemText
       disableTypography
+      sx={{ pr: 2 }}
       primary={reader(notification.title)}
       secondary={
         <Stack
@@ -200,6 +208,7 @@ export function NotificationItem({ notification }: { notification: NotificationI
   return (
     <ListItemButton
       disableRipple
+      onClick={onClick}
       sx={{
         p: 2.5,
         alignItems: 'flex-start',

@@ -1,9 +1,9 @@
 import type { Sale } from 'src/api/firestore/sales';
+import type { PeriodBounds } from 'src/components/period-filter';
 import type { FinancialCategory } from 'src/api/firestore/payables';
 
 import dayjs from 'dayjs';
 
-import type { PeriodBounds } from 'src/components/period-filter';
 import { isIsoInPeriodBounds } from 'src/components/period-filter';
 
 // ----------------------------------------------------------------------
@@ -44,6 +44,7 @@ export type AccrualDreReport = {
   grossProfit: number;
   grossMarginPercent: number;
   operatingExpenses: number;
+  salesFees: number;
   expenseLines: AccrualDreExpenseLine[];
   netProfit: number;
   netMarginPercent: number;
@@ -125,6 +126,24 @@ export function buildAccrualDre(params: {
 
   const expenseByCategory = new Map<FinancialCategory, number>();
   let operatingExpenses = 0;
+  let salesFees = 0;
+
+  // Taxas de maquininha/intermediação não repassadas ao cliente são despesas da loja no DRE
+  completed.forEach((s) => {
+    if (!s.feesPassedToCustomer && s.paymentFeeAmount && s.paymentFeeAmount > 0) {
+      salesFees += s.paymentFeeAmount;
+      if (s.createdAt) {
+        const day = ensureDay(saleDayKey(s.createdAt));
+        day.operatingExpenses = round2(day.operatingExpenses + s.paymentFeeAmount);
+      }
+    }
+  });
+
+  salesFees = round2(salesFees);
+  if (salesFees > 0) {
+    operatingExpenses += salesFees;
+    expenseByCategory.set('tax', (expenseByCategory.get('tax') || 0) + salesFees);
+  }
 
   params.payables.forEach((p) => {
     if (p.active === false) return;
@@ -179,6 +198,7 @@ export function buildAccrualDre(params: {
     grossProfit,
     grossMarginPercent,
     operatingExpenses,
+    salesFees,
     expenseLines,
     netProfit,
     netMarginPercent,

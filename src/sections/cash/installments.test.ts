@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
-import { buildInstallmentDueDates, splitInstallments } from './installments';
+import { splitInstallments, buildInstallmentDueDates } from './installments';
 
 describe('splitInstallments', () => {
   it('splits 100 into 3 with remainder on last', () => {

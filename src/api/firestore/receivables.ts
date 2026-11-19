@@ -15,12 +15,13 @@ import {
 
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
-import type { CashSession } from './cash-sessions';
 import { NoOpenCashSessionError } from './cash-sessions';
+
+import type { CashSession } from './cash-sessions';
 import type {
+  FinancialStatus,
   FinancialCategory,
   FinancialRecurrence,
-  FinancialStatus,
 } from './payables';
 
 // ----------------------------------------------------------------------

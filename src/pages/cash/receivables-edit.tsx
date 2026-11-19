@@ -1,20 +1,21 @@
+import type { Receivable } from 'src/api/firestore/receivables';
+
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-
-import { CONFIG } from 'src/config-global';
-import { DashboardContent } from 'src/layouts/dashboard';
-import { getReceivable } from 'src/api/firestore/receivables';
-import type { Receivable } from 'src/api/firestore/receivables';
 
 import { paths } from 'src/routes/paths';
 import { useParams } from 'src/routes/hooks';
 
+import { CONFIG } from 'src/config-global';
+import { DashboardContent } from 'src/layouts/dashboard';
+import { getReceivable } from 'src/api/firestore/receivables';
+
 import { LoadingScreen } from 'src/components/loading-screen';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
-import { useAuthContext } from 'src/auth/hooks';
-
 import { ReceivableForm } from 'src/sections/cash/receivable-form';
+
+import { useAuthContext } from 'src/auth/hooks';
 
 const metadata = { title: `Editar conta a receber - ${CONFIG.site.name}` };
 

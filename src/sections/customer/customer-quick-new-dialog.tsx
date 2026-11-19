@@ -12,8 +12,14 @@ import LoadingButton from '@mui/lab/LoadingButton';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
+import InputAdornment from '@mui/material/InputAdornment';
+import CircularProgress from '@mui/material/CircularProgress';
+
+import { useCepLookup } from 'src/hooks/use-cep-lookup';
+import { useCnpjLookup } from 'src/hooks/use-cnpj-lookup';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { formatCep, digitsOnly, formatCpfCnpj } from 'src/utils/br-docs';
 
 import { useTranslate } from 'src/locales';
 import { createCustomer } from 'src/api/firestore/customers';
@@ -30,10 +36,13 @@ export const QuickCustomerSchema = zod.object({
   document: zod.string().optional().or(zod.literal('')),
   phone: zod.string().optional().or(zod.literal('')),
   email: zod.union([zod.literal(''), zod.string().email()]).optional(),
+  zipCode: zod.string().optional().or(zod.literal('')),
   address: zod.string().optional().or(zod.literal('')),
+  addressNumber: zod.string().optional().or(zod.literal('')),
+  neighborhood: zod.string().optional().or(zod.literal('')),
+  complement: zod.string().optional().or(zod.literal('')),
   city: zod.string().optional().or(zod.literal('')),
   state: zod.string().optional().or(zod.literal('')),
-  zipCode: zod.string().optional().or(zod.literal('')),
 });
 
 export type QuickCustomerSchemaType = zod.infer<typeof QuickCustomerSchema>;
@@ -57,18 +66,80 @@ export function CustomerQuickNewDialog({ open, onClose, onCreated }: Props) {
       document: '',
       phone: '',
       email: '',
+      zipCode: '',
       address: '',
+      addressNumber: '',
+      neighborhood: '',
+      complement: '',
       city: '',
       state: '',
-      zipCode: '',
     },
   });
 
   const {
     reset,
+    watch,
+    setValue,
     handleSubmit,
     formState: { isSubmitting },
   } = methods;
+
+  const zipCodeWatch = watch('zipCode') || '';
+  const documentWatch = watch('document') || '';
+
+  const {
+    loading: cepLoading,
+    lookup: lookupCep,
+    handleBlur: handleCepBlur,
+  } = useCepLookup({
+    cep: zipCodeWatch,
+    onSuccess: (fields) => {
+      setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
+      if (fields.address) setValue('address', fields.address, { shouldDirty: true });
+      if (fields.neighborhood) {
+        setValue('neighborhood', fields.neighborhood, { shouldDirty: true });
+      }
+      if (fields.city) setValue('city', fields.city, { shouldDirty: true });
+      if (fields.state) setValue('state', fields.state, { shouldDirty: true });
+      toast.success(t('brasilapi.cepSuccess', { defaultValue: 'Endereço preenchido pelo CEP' }));
+    },
+    onError: (code) => {
+      toast.error(
+        code === 'CEP_NOT_FOUND'
+          ? t('brasilapi.cepNotFound', { defaultValue: 'CEP não encontrado' })
+          : t('brasilapi.cepError', { defaultValue: 'Falha ao consultar CEP' })
+      );
+    },
+  });
+
+  const { handleBlur: handleCnpjBlur } = useCnpjLookup({
+    document: documentWatch,
+    enabled: digitsOnly(documentWatch).length === 14,
+    onSuccess: (fields) => {
+      setValue('document', formatCpfCnpj(fields.document), { shouldDirty: true });
+      if (fields.name) setValue('name', fields.name, { shouldDirty: true });
+      if (fields.zipCode) setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
+      if (fields.address) setValue('address', fields.address, { shouldDirty: true });
+      if (fields.addressNumber) {
+        setValue('addressNumber', fields.addressNumber, { shouldDirty: true });
+      }
+      if (fields.complement) setValue('complement', fields.complement, { shouldDirty: true });
+      if (fields.neighborhood) {
+        setValue('neighborhood', fields.neighborhood, { shouldDirty: true });
+      }
+      if (fields.city) setValue('city', fields.city, { shouldDirty: true });
+      if (fields.state) setValue('state', fields.state, { shouldDirty: true });
+      if (fields.phone) setValue('phone', fields.phone, { shouldDirty: true });
+      toast.success(t('brasilapi.cnpjSuccess', { defaultValue: 'Dados preenchidos pelo CNPJ' }));
+    },
+    onError: (code) => {
+      toast.error(
+        code === 'CNPJ_NOT_FOUND'
+          ? t('brasilapi.cnpjNotFound', { defaultValue: 'CNPJ não encontrado' })
+          : t('brasilapi.cnpjError', { defaultValue: 'Falha ao consultar CNPJ' })
+      );
+    },
+  });
 
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
@@ -76,18 +147,23 @@ export function CustomerQuickNewDialog({ open, onClose, onCreated }: Props) {
     try {
       const created = await createCustomer(enterpriseId, {
         name: data.name.trim(),
-        document: data.document?.trim() || undefined,
-        phone: data.phone?.trim() || undefined,
+        document: digitsOnly(data.document) || undefined,
+        phone: digitsOnly(data.phone) || data.phone?.trim() || undefined,
         email: data.email?.trim() || undefined,
+        zipCode: digitsOnly(data.zipCode) || undefined,
         address: data.address?.trim() || undefined,
+        addressNumber: data.addressNumber?.trim() || undefined,
+        neighborhood: data.neighborhood?.trim() || undefined,
+        complement: data.complement?.trim() || undefined,
         city: data.city?.trim() || undefined,
         state: data.state?.trim() || undefined,
-        zipCode: data.zipCode?.trim() || undefined,
         currentDebt: 0,
         active: true,
       });
 
-      toast.success(t('customers.createSuccess', { defaultValue: 'Cliente cadastrado com sucesso' }));
+      toast.success(
+        t('customers.createSuccess', { defaultValue: 'Cliente cadastrado com sucesso' })
+      );
       reset();
       onCreated(created);
       onClose();
@@ -124,6 +200,11 @@ export function CustomerQuickNewDialog({ open, onClose, onCreated }: Props) {
               <Field.Text
                 name="document"
                 label={t('customers.fields.document', { defaultValue: 'CPF / CNPJ (opcional)' })}
+                value={formatCpfCnpj(documentWatch)}
+                onChange={(event) => {
+                  setValue('document', formatCpfCnpj(event.target.value), { shouldDirty: true });
+                }}
+                onBlur={handleCnpjBlur}
               />
               <Field.Phone
                 name="phone"
@@ -136,17 +217,57 @@ export function CustomerQuickNewDialog({ open, onClose, onCreated }: Props) {
               />
             </Box>
 
-            <Field.Text
-              name="address"
-              label={t('customers.fields.address', { defaultValue: 'Endereço completo' })}
-            />
+            <Box
+              rowGap={3}
+              columnGap={2}
+              display="grid"
+              gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: '1fr 2fr 1fr' }}
+            >
+              <Field.Text
+                name="zipCode"
+                label={t('customers.fields.zipCode', { defaultValue: 'CEP' })}
+                placeholder="00000-000"
+                value={formatCep(zipCodeWatch)}
+                onChange={(event) => {
+                  const formatted = formatCep(event.target.value);
+                  setValue('zipCode', formatted, { shouldDirty: true });
+                  if (digitsOnly(formatted).length === 8) {
+                    lookupCep(formatted).catch(() => undefined);
+                  }
+                }}
+                onBlur={handleCepBlur}
+                InputProps={{
+                  endAdornment: cepLoading ? (
+                    <InputAdornment position="end">
+                      <CircularProgress size={18} />
+                    </InputAdornment>
+                  ) : undefined,
+                }}
+              />
+              <Field.Text
+                name="address"
+                label={t('customers.fields.address', { defaultValue: 'Logradouro / Rua' })}
+              />
+              <Field.Text
+                name="addressNumber"
+                label={t('customers.fields.addressNumber', { defaultValue: 'Número' })}
+              />
+            </Box>
 
             <Box
               rowGap={3}
               columnGap={2}
               display="grid"
-              gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(3, 1fr)' }}
+              gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: '1.5fr 1fr 1.5fr 0.8fr' }}
             >
+              <Field.Text
+                name="neighborhood"
+                label={t('customers.fields.neighborhood', { defaultValue: 'Bairro' })}
+              />
+              <Field.Text
+                name="complement"
+                label={t('customers.fields.complement', { defaultValue: 'Complemento' })}
+              />
               <Field.Text
                 name="city"
                 label={t('customers.fields.city', { defaultValue: 'Cidade' })}
@@ -154,10 +275,6 @@ export function CustomerQuickNewDialog({ open, onClose, onCreated }: Props) {
               <Field.Text
                 name="state"
                 label={t('customers.fields.state', { defaultValue: 'UF' })}
-              />
-              <Field.Text
-                name="zipCode"
-                label={t('customers.fields.zipCode', { defaultValue: 'CEP' })}
               />
             </Box>
           </Stack>

@@ -5,9 +5,8 @@ import { m } from 'framer-motion';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 
-import { ForbiddenIllustration } from 'src/assets/illustrations';
-
 import { useTranslate } from 'src/locales';
+import { ForbiddenIllustration } from 'src/assets/illustrations';
 
 import { varBounce, MotionContainer } from 'src/components/animate';
 

@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-
 import type { Sale } from 'src/api/firestore/sales';
+
+import { it, expect, describe } from 'vitest';
 
 import { aggregateSellerRanking } from './seller-ranking';
 

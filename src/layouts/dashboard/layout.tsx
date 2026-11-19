@@ -7,7 +7,10 @@ import { useMemo } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { iconButtonClasses } from '@mui/material/IconButton';
 
+import { paths } from 'src/routes/paths';
+
 import { useBoolean } from 'src/hooks/use-boolean';
+import { useOnlineOrdersMonitor } from 'src/hooks/use-online-orders-monitor';
 
 import { allLangs } from 'src/locales';
 import { varAlpha, stylesMode } from 'src/theme/styles';
@@ -22,8 +25,6 @@ import { NavMobile } from './nav-mobile';
 import { layoutClasses } from '../classes';
 import { NavVertical } from './nav-vertical';
 import { NavHorizontal } from './nav-horizontal';
-import { paths } from 'src/routes/paths';
-
 import { _account } from '../config-nav-account';
 import { HeaderBase } from '../core/header-base';
 import { useNavData } from '../config-nav-dashboard';
@@ -52,7 +53,9 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
 
   const layoutQuery: Breakpoint = 'lg';
 
-  const dashboardNavData = useNavData();
+  const { activeCount, notifications } = useOnlineOrdersMonitor();
+
+  const dashboardNavData = useNavData({ onlineOrdersCount: activeCount });
   const navData = data?.nav ?? dashboardNavData;
 
   const { user } = useAuthContext();
@@ -92,13 +95,14 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
                   item.href !== paths.dashboard.account.billing || user?.role === 'admin'
               ),
               workspaces: _workspaces,
+              notifications,
             }}
             slotsDisplay={{
               signIn: false,
-              purchase: false,
+              purchase: user?.role === 'admin',
               helpLink: false,
               contacts: false,
-              notifications: false,
+              notifications: true,
             }}
             slots={{
               topArea: <OfflineBanner />,

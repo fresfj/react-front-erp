@@ -24,35 +24,41 @@ import type { PaymentMethod } from './pos-calculator';
 
 export const PAYMENT_METHOD_META: Record<
   PaymentMethod,
-  { icon: string; defaultLabel: string; description: string }
+  { icon: string; color: string; defaultLabel: string; description: string }
 > = {
   pix: {
-    icon: 'solar:qr-code-bold',
+    icon: 'ic:baseline-pix',
+    color: '#00BFA5',
     defaultLabel: 'PIX',
     description: 'Transferência instantânea via QR Code ou Chave',
   },
   cash: {
-    icon: 'solar:wad-of-money-bold',
+    icon: 'solar:wad-of-money-bold-duotone',
+    color: 'success.main',
     defaultLabel: 'Dinheiro',
     description: 'Pagamento em espécie na gaveta (calcula troco)',
   },
   credit_card: {
-    icon: 'solar:card-bold',
+    icon: 'solar:card-bold-duotone',
+    color: 'primary.main',
     defaultLabel: 'Cartão de Crédito',
     description: 'Maquininha / TEF Crédito à vista ou parcelado',
   },
   debit_card: {
-    icon: 'solar:card-transfer-bold',
+    icon: 'solar:card-transfer-bold-duotone',
+    color: 'info.main',
     defaultLabel: 'Cartão de Débito',
     description: 'Maquininha / TEF Débito imediato',
   },
   store_credit: {
-    icon: 'solar:ticket-sale-bold',
+    icon: 'solar:ticket-sale-bold-duotone',
+    color: 'warning.main',
     defaultLabel: 'Vale-Troca',
     description: 'Crédito de devolução ou troca da loja',
   },
   credit_tab: {
-    icon: 'solar:wallet-money-bold',
+    icon: 'solar:wallet-money-bold-duotone',
+    color: 'error.main',
     defaultLabel: 'Crediário / Fiado (A Prazo)',
     description: 'Lança no saldo devedor do cliente vinculado',
   },
@@ -77,6 +83,7 @@ export function PaymentMethodListDialog({ open, onClose, selected, onSelect }: P
       label,
       description: meta.description,
       icon: meta.icon,
+      color: meta.color,
     };
   });
 
@@ -177,7 +184,7 @@ export function PaymentMethodListDialog({ open, onClose, selected, onSelect }: P
                           <Iconify
                             icon={option.icon}
                             width={22}
-                            sx={{ color: 'text.secondary' }}
+                            sx={{ color: option.color }}
                           />
                         </Stack>
                       </Stack>

@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
+
 import {
   isTenantRole,
-  parseFirebaseSessionClaims,
   parseFirebaseTenantClaims,
+  parseFirebaseSessionClaims,
 } from './firebase-claims';
 
 describe('isTenantRole', () => {

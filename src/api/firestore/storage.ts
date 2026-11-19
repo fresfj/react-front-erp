@@ -28,3 +28,25 @@ export async function uploadProductImage(
   await uploadBytes(storageRef, file, { contentType: file.type || 'image/jpeg' });
   return getDownloadURL(storageRef);
 }
+
+export async function uploadStoreLogo(
+  enterpriseId: string,
+  file: File
+): Promise<string> {
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+  const path = `enterprises/${enterpriseId}/store/logo-${Date.now()}.${ext}`;
+  const storageRef = ref(STORAGE, path);
+  await uploadBytes(storageRef, file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(storageRef);
+}
+
+export async function uploadStoreBanner(
+  enterpriseId: string,
+  file: File
+): Promise<string> {
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+  const path = `enterprises/${enterpriseId}/store/banner-${Date.now()}.${ext}`;
+  const storageRef = ref(STORAGE, path);
+  await uploadBytes(storageRef, file, { contentType: file.type || 'image/jpeg' });
+  return getDownloadURL(storageRef);
+}

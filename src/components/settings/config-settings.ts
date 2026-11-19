@@ -15,4 +15,5 @@ export const defaultSettings: SettingsState = {
   navColor: 'integrate',
   compactLayout: true,
   fontFamily: defaultFont,
+  fontSize: 16,
 } as const;

@@ -1,24 +1,33 @@
-import type { GridColDef } from '@mui/x-data-grid';
 import type { Sale } from 'src/api/firestore/sales';
-import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 import type { CashSession, CashMovementType } from 'src/api/firestore/cash-sessions';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
+import Table from '@mui/material/Table';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
+import Tooltip from '@mui/material/Tooltip';
+import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
+import TableRow from '@mui/material/TableRow';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
 import TextField from '@mui/material/TextField';
+import { useTheme } from '@mui/material/styles';
 import CardHeader from '@mui/material/CardHeader';
+import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import InputAdornment from '@mui/material/InputAdornment';
+import TableContainer from '@mui/material/TableContainer';
 
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
@@ -30,6 +39,7 @@ import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
+import { varAlpha } from 'src/theme/styles';
 import { listSales } from 'src/api/firestore/sales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import {
@@ -42,8 +52,21 @@ import {
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
-import { ErpDataGrid } from 'src/components/erp-data-grid';
+import { Scrollbar } from 'src/components/scrollbar';
+import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { ErpTableToolbar, ErpTableAnalytic } from 'src/components/erp-table';
+import {
+  useTable,
+  emptyRows,
+  TableNoData,
+  getComparator,
+  TableSkeleton,
+  TableEmptyRows,
+  TableHeadCustom,
+  TableSelectedAction,
+  TablePaginationCustom,
+} from 'src/components/table';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -55,21 +78,51 @@ import {
 
 // ----------------------------------------------------------------------
 
-const STATUS_OPTIONS = [
-  { value: 'open', label: 'Aberto' },
-  { value: 'closed', label: 'Fechado' },
+const TABLE_HEAD = [
+  { id: 'code', label: 'Código', width: 160, hideable: false },
+  { id: 'operatorEmail', label: 'Operador', minWidth: 180 },
+  { id: 'openingBalance', label: 'Fundo Inicial', width: 130, align: 'right' },
+  { id: 'expectedDrawerCash', label: 'Esperado (Gaveta)', width: 150, align: 'right' },
+  { id: 'countedDrawerCash', label: 'Informado (Cego)', width: 150, align: 'right' },
+  { id: 'differenceAmount', label: 'Sobra / Quebra', width: 140, align: 'right' },
+  { id: 'status', label: 'Status', width: 120 },
+  { id: 'openedAt', label: 'Abertura', width: 160 },
+];
+
+const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
+  code: true,
+  operatorEmail: true,
+  openingBalance: true,
+  expectedDrawerCash: true,
+  countedDrawerCash: true,
+  differenceAmount: true,
+  status: true,
+  openedAt: true,
+};
+
+const AUDIT_DIFF_OPTIONS = [
+  { value: 'exact', label: 'Exato (Sem Divergência)' },
+  { value: 'surplus', label: 'Com Sobra (> 0)' },
+  { value: 'shortage', label: 'Com Quebra (< 0)' },
 ];
 
 export function CashSessionView() {
   const { t } = useTranslate('common');
+  const theme = useTheme();
+  const table = useTable({ defaultOrderBy: 'openedAt', defaultOrder: 'desc' });
   const { user } = useAuthContext();
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const openModal = useBoolean();
   const movementModal = useBoolean();
   const blindCloseModal = useBoolean();
+  const confirmExportSelected = useBoolean();
 
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [currentTab, setCurrentTab] = useState<'all' | 'open' | 'closed'>('all');
+  const [auditFilters, setAuditFilters] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [visibleColumns, setVisibleColumns] =
+    useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState<CashSession[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -130,6 +183,39 @@ export function CashSessionView() {
       sales: sessionSales,
     });
   }, [activeSession, sessionSales]);
+
+  // Metrics for 4 Analytics
+  const metrics = useMemo(() => {
+    const openSessions = sessions.filter((s) => s.status === 'open');
+    const closedSessions = sessions.filter((s) => s.status === 'closed');
+    const exactSessions = closedSessions.filter((s) => (s.differenceAmount || 0) === 0);
+    const divergentSessions = closedSessions.filter((s) => (s.differenceAmount || 0) !== 0);
+    const totalDiff = closedSessions.reduce((acc, s) => acc + (s.differenceAmount || 0), 0);
+
+    return {
+      total: sessions.length,
+      openCount: openSessions.length,
+      closedCount: closedSessions.length,
+      exactCount: exactSessions.length,
+      divergentCount: divergentSessions.length,
+      totalDiff,
+      percentClosed: sessions.length
+        ? Math.round((closedSessions.length / sessions.length) * 100)
+        : 0,
+      percentExact: closedSessions.length
+        ? Math.round((exactSessions.length / closedSessions.length) * 100)
+        : 0,
+      percentDivergent: closedSessions.length
+        ? Math.round((divergentSessions.length / closedSessions.length) * 100)
+        : 0,
+    };
+  }, [sessions]);
+
+  const TABS = [
+    { value: 'all', label: 'Todas', color: 'default', count: sessions.length },
+    { value: 'open', label: 'Abertos', color: 'warning', count: metrics.openCount },
+    { value: 'closed', label: 'Fechados', color: 'success', count: metrics.closedCount },
+  ] as const;
 
   const handleOpenSession = async () => {
     if (!enterpriseId) return;
@@ -214,90 +300,98 @@ export function CashSessionView() {
   };
 
   const dataFiltered = useMemo(() => {
-    if (!statusFilter.length) return sessions;
-    return sessions.filter((s) => statusFilter.includes(s.status));
-  }, [sessions, statusFilter]);
+    let rows = [...sessions];
 
-  const selectFilters: ErpGridSelectFilter[] = [
-    {
-      id: 'status',
-      label: 'Status do Caixa',
-      options: STATUS_OPTIONS,
-      value: statusFilter,
-      onChange: setStatusFilter,
-    },
-  ];
+    const comparator = getComparator(table.order, table.orderBy) as (a: any, b: any) => number;
+    const stabilizedThis = rows.map((el, index) => [el, index] as const);
+    stabilizedThis.sort((a, b) => {
+      const order = comparator(a[0], b[0]);
+      if (order !== 0) return order;
+      return a[1] - b[1];
+    });
+    rows = stabilizedThis.map((el) => el[0]);
 
-  const columns = useMemo<GridColDef<CashSession>[]>(
-    () => [
-      { field: 'code', headerName: 'Código', width: 160, hideable: false },
-      {
-        field: 'operatorEmail',
-        headerName: 'Operador',
-        flex: 1,
-        minWidth: 180,
-        valueGetter: (_v, row) => row.operatorEmail || '—',
-      },
-      {
-        field: 'openingBalance',
-        headerName: 'Fundo inicial',
-        width: 130,
-        renderCell: (params) => fCurrency(params.row.openingBalance),
-      },
-      {
-        field: 'expectedDrawerCash',
-        headerName: 'Esperado (Gaveta)',
-        width: 150,
-        renderCell: (params) =>
-          typeof params.row.expectedDrawerCash === 'number'
-            ? fCurrency(params.row.expectedDrawerCash)
-            : '—',
-      },
-      {
-        field: 'countedDrawerCash',
-        headerName: 'Informado (Cego)',
-        width: 150,
-        renderCell: (params) =>
-          typeof params.row.countedDrawerCash === 'number'
-            ? fCurrency(params.row.countedDrawerCash)
-            : '—',
-      },
-      {
-        field: 'differenceAmount',
-        headerName: 'Sobra / Quebra',
-        width: 140,
-        renderCell: (params) => {
-          const diff = params.row.differenceAmount;
-          if (typeof diff !== 'number') return '—';
-          return (
-            <Label
-              color={diff === 0 ? 'success' : diff > 0 ? 'info' : 'error'}
-              variant="soft"
-            >
-              {diff > 0 ? `+${fCurrency(diff)}` : fCurrency(diff)}
-            </Label>
-          );
-        },
-      },
-      {
-        field: 'status',
-        headerName: 'Status',
-        width: 110,
-        renderCell: (params) => (
-          <Label color={params.row.status === 'open' ? 'warning' : 'success'} variant="soft">
-            {params.row.status === 'open' ? 'Aberto' : 'Fechado'}
-          </Label>
-        ),
-      },
-      {
-        field: 'openedAt',
-        headerName: 'Abertura',
-        width: 160,
-        renderCell: (params) => fDateTime(params.row.openedAt) || '—',
-      },
-    ],
-    []
+    if (currentTab !== 'all') {
+      rows = rows.filter((s) => s.status === currentTab);
+    }
+
+    if (auditFilters.length > 0) {
+      rows = rows.filter((s) => {
+        const diff = s.differenceAmount;
+        if (typeof diff !== 'number') return false;
+        return (
+          (auditFilters.includes('exact') && diff === 0) ||
+          (auditFilters.includes('surplus') && diff > 0) ||
+          (auditFilters.includes('shortage') && diff < 0)
+        );
+      });
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      rows = rows.filter(
+        (s) =>
+          s.code?.toLowerCase().includes(q) ||
+          s.operatorEmail?.toLowerCase().includes(q)
+      );
+    }
+
+    return rows;
+  }, [auditFilters, currentTab, searchQuery, sessions, table.order, table.orderBy]);
+
+  const visibleHeadLabel = useMemo(
+    () => TABLE_HEAD.filter((col) => visibleColumns[col.id] !== false),
+    [visibleColumns]
   );
+
+  const handleToggleColumn = useCallback((colId: string) => {
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [colId]: prev[colId] === false,
+    }));
+  }, []);
+
+  const handleResetColumns = useCallback(() => {
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+  }, []);
+
+  const exportRowsToCsv = useCallback((rowsToExport: CashSession[]) => {
+    const headers = [
+      'Código',
+      'Operador',
+      'Fundo Inicial',
+      'Esperado (Gaveta)',
+      'Informado (Cego)',
+      'Sobra / Quebra',
+      'Status',
+      'Abertura',
+    ];
+    const csvRows = [
+      headers.join(';'),
+      ...rowsToExport.map((r) =>
+        [
+          `"${r.code || ''}"`,
+          `"${r.operatorEmail || ''}"`,
+          r.openingBalance.toFixed(2),
+          typeof r.expectedDrawerCash === 'number' ? r.expectedDrawerCash.toFixed(2) : '',
+          typeof r.countedDrawerCash === 'number' ? r.countedDrawerCash.toFixed(2) : '',
+          typeof r.differenceAmount === 'number' ? r.differenceAmount.toFixed(2) : '',
+          r.status === 'open' ? 'Aberto' : 'Fechado',
+          `"${r.openedAt ? fDateTime(r.openedAt) : ''}"`,
+        ].join(';')
+      ),
+    ];
+    const blob = new Blob([`\uFEFF${csvRows.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sessoes-caixa-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const isVisible = (colId: string) => visibleColumns[colId] !== false;
+  const notFound = !dataFiltered.length && !loading;
 
   return (
     <>
@@ -412,21 +506,296 @@ export function CashSessionView() {
           </Card>
         )}
 
-        <Card sx={{ height: 640 }}>
-          <ErpDataGrid<CashSession>
-            rows={dataFiltered}
-            columns={columns}
-            loading={loading}
-            getRowId={(row) => row.id}
-            emptyTitle="Nenhuma sessão de caixa registrada"
-            toolbar={{
-              selectFilters,
-              searchPlaceholder: 'Pesquisar caixa por código, operador…',
-              filteredResults: dataFiltered.length,
+        <Card>
+          {/* 4 Indicadores Rápidos integrados no topo do Card da tabela */}
+          <Scrollbar sx={{ minHeight: 108 }}>
+            <Stack
+              direction="row"
+              divider={<Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />}
+              sx={{ py: 2.5 }}
+            >
+              <ErpTableAnalytic
+                title="Total de Sessões"
+                primaryValue={`${metrics.total} sessões`}
+                secondaryValue={`${metrics.openCount} aberta(s) • ${metrics.closedCount} fechada(s)`}
+                percent={100}
+                icon="solar:wallet-money-bold-duotone"
+                color={theme.vars.palette.primary.main}
+              />
+
+              <ErpTableAnalytic
+                title="Caixas Fechados"
+                primaryValue={`${metrics.closedCount} sessões`}
+                secondaryValue={`${metrics.percentClosed}% do histórico`}
+                percent={metrics.percentClosed}
+                icon="solar:lock-keyhole-minimalistic-bold-duotone"
+                color={theme.vars.palette.success.main}
+              />
+
+              <ErpTableAnalytic
+                title="Fechamentos Exatos"
+                primaryValue={`${metrics.exactCount} sessões`}
+                secondaryValue="Gaveta sem divergência"
+                percent={metrics.percentExact}
+                icon="solar:check-circle-bold-duotone"
+                color={theme.vars.palette.info.main}
+              />
+
+              <ErpTableAnalytic
+                title="Sobra / Quebra"
+                primaryValue={
+                  metrics.totalDiff > 0
+                    ? `+${fCurrency(metrics.totalDiff)}`
+                    : fCurrency(metrics.totalDiff)
+                }
+                secondaryValue={`${metrics.divergentCount} sessão(ões) com diferença`}
+                percent={metrics.percentDivergent}
+                icon="solar:danger-triangle-bold-duotone"
+                color={
+                  metrics.totalDiff < 0
+                    ? theme.vars.palette.error.main
+                    : theme.vars.palette.warning.main
+                }
+              />
+            </Stack>
+          </Scrollbar>
+
+          <Divider />
+
+          <Tabs
+            value={currentTab}
+            onChange={(_e, val) => {
+              table.onResetPage();
+              setCurrentTab(val);
             }}
+            sx={{
+              px: 2.5,
+              boxShadow: (th) =>
+                `inset 0 -2px 0 0 ${varAlpha(th.vars.palette.grey['500Channel'], 0.08)}`,
+            }}
+          >
+            {TABS.map((tab) => (
+              <Tab
+                key={tab.value}
+                value={tab.value}
+                label={tab.label}
+                iconPosition="end"
+                icon={
+                  <Label
+                    variant={
+                      ((tab.value === 'all' || tab.value === currentTab) && 'filled') || 'soft'
+                    }
+                    color={tab.color}
+                  >
+                    {tab.count}
+                  </Label>
+                }
+              />
+            ))}
+          </Tabs>
+
+          <ErpTableToolbar
+            searchQuery={searchQuery}
+            onSearchChange={(e) => setSearchQuery(e.target.value)}
+            searchPlaceholder="Pesquisar caixa por código ou operador…"
+            onResetPage={table.onResetPage}
+            selectFilters={[
+              {
+                id: 'auditDiff',
+                label: 'Conferência',
+                options: AUDIT_DIFF_OPTIONS,
+                value: auditFilters,
+                onChange: setAuditFilters,
+              },
+            ]}
+            columns={TABLE_HEAD}
+            visibleColumns={visibleColumns}
+            onToggleColumn={handleToggleColumn}
+            onResetColumns={handleResetColumns}
+            onExportCsv={() => exportRowsToCsv(dataFiltered)}
+            filteredResults={dataFiltered.length}
+          />
+
+          <TableContainer sx={{ position: 'relative', overflow: 'unset' }}>
+            <TableSelectedAction
+              dense={table.dense}
+              numSelected={table.selected.length}
+              rowCount={dataFiltered.length}
+              onSelectAllRows={(checked) =>
+                table.onSelectAllRows(
+                  checked,
+                  dataFiltered.map((row) => row.id)
+                )
+              }
+              action={
+                <Tooltip title="Exportar sessões selecionadas">
+                  <IconButton color="primary" onClick={confirmExportSelected.onTrue}>
+                    <Iconify icon="solar:file-download-bold" />
+                  </IconButton>
+                </Tooltip>
+              }
+            />
+
+            <Scrollbar>
+              <Table size={table.dense ? 'small' : 'medium'} sx={{ minWidth: 960 }}>
+                <TableHeadCustom
+                  order={table.order}
+                  orderBy={table.orderBy}
+                  headLabel={visibleHeadLabel}
+                  rowCount={dataFiltered.length}
+                  numSelected={table.selected.length}
+                  onSort={table.onSort}
+                  onSelectAllRows={(checked) =>
+                    table.onSelectAllRows(
+                      checked,
+                      dataFiltered.map((row) => row.id)
+                    )
+                  }
+                />
+
+                <TableBody>
+                  {loading ? (
+                    [...Array(table.rowsPerPage)].map((_, index) => (
+                      <TableSkeleton key={index} sx={{ height: table.dense ? 56 : 76 }} />
+                    ))
+                  ) : (
+                    <>
+                      {dataFiltered
+                        .slice(
+                          table.page * table.rowsPerPage,
+                          table.page * table.rowsPerPage + table.rowsPerPage
+                        )
+                        .map((row) => {
+                          const isSelected = table.selected.includes(row.id);
+                          const diff = row.differenceAmount;
+                          return (
+                            <TableRow
+                              key={row.id}
+                              hover
+                              selected={isSelected}
+                              aria-checked={isSelected}
+                              tabIndex={-1}
+                            >
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onClick={() => table.onSelectRow(row.id)}
+                                />
+                              </TableCell>
+
+                              {isVisible('code') && (
+                                <TableCell sx={{ typography: 'subtitle2' }}>{row.code}</TableCell>
+                              )}
+
+                              {isVisible('operatorEmail') && (
+                                <TableCell sx={{ typography: 'body2' }}>
+                                  {row.operatorEmail || '—'}
+                                </TableCell>
+                              )}
+
+                              {isVisible('openingBalance') && (
+                                <TableCell align="right" sx={{ typography: 'body2' }}>
+                                  {fCurrency(row.openingBalance)}
+                                </TableCell>
+                              )}
+
+                              {isVisible('expectedDrawerCash') && (
+                                <TableCell align="right" sx={{ typography: 'body2' }}>
+                                  {typeof row.expectedDrawerCash === 'number'
+                                    ? fCurrency(row.expectedDrawerCash)
+                                    : '—'}
+                                </TableCell>
+                              )}
+
+                              {isVisible('countedDrawerCash') && (
+                                <TableCell align="right" sx={{ typography: 'subtitle2' }}>
+                                  {typeof row.countedDrawerCash === 'number'
+                                    ? fCurrency(row.countedDrawerCash)
+                                    : '—'}
+                                </TableCell>
+                              )}
+
+                              {isVisible('differenceAmount') && (
+                                <TableCell align="right">
+                                  {typeof diff === 'number' ? (
+                                    <Label
+                                      color={diff === 0 ? 'success' : diff > 0 ? 'info' : 'error'}
+                                      variant="soft"
+                                    >
+                                      {diff > 0 ? `+${fCurrency(diff)}` : fCurrency(diff)}
+                                    </Label>
+                                  ) : (
+                                    '—'
+                                  )}
+                                </TableCell>
+                              )}
+
+                              {isVisible('status') && (
+                                <TableCell>
+                                  <Label
+                                    color={row.status === 'open' ? 'warning' : 'success'}
+                                    variant="soft"
+                                  >
+                                    {row.status === 'open' ? 'Aberto' : 'Fechado'}
+                                  </Label>
+                                </TableCell>
+                              )}
+
+                              {isVisible('openedAt') && (
+                                <TableCell sx={{ typography: 'body2', color: 'text.secondary' }}>
+                                  {fDateTime(row.openedAt) || '—'}
+                                </TableCell>
+                              )}
+                            </TableRow>
+                          );
+                        })}
+
+                      <TableEmptyRows
+                        height={table.dense ? 56 : 76}
+                        emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
+                      />
+
+                      <TableNoData notFound={notFound} />
+                    </>
+                  )}
+                </TableBody>
+              </Table>
+            </Scrollbar>
+          </TableContainer>
+
+          <TablePaginationCustom
+            count={dataFiltered.length}
+            page={table.page}
+            rowsPerPage={table.rowsPerPage}
+            onPageChange={table.onChangePage}
+            onRowsPerPageChange={table.onChangeRowsPerPage}
+            dense={table.dense}
+            onChangeDense={table.onChangeDense}
           />
         </Card>
       </DashboardContent>
+
+      {/* Modal: Confirmar Exportação de Selecionados */}
+      <ConfirmDialog
+        open={confirmExportSelected.value}
+        onClose={confirmExportSelected.onFalse}
+        title="Exportar Sessões Selecionadas"
+        content={`Deseja exportar as ${table.selected.length} sessões de caixa selecionadas para CSV?`}
+        action={
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              const selectedRows = dataFiltered.filter((r) => table.selected.includes(r.id));
+              exportRowsToCsv(selectedRows);
+              table.onSelectAllRows(false, []);
+              confirmExportSelected.onFalse();
+            }}
+          >
+            Exportar Selecionadas
+          </Button>
+        }
+      />
 
       {/* Modal: Abrir Caixa */}
       <Dialog open={openModal.value} onClose={openModal.onFalse} fullWidth maxWidth="xs">

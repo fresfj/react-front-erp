@@ -1,8 +1,8 @@
 import type { FirebaseApp } from 'firebase/app';
 import type { Auth as AuthType } from 'firebase/auth';
+import type { FirebaseStorage } from 'firebase/storage';
 import type { Database as DatabaseType } from 'firebase/database';
 import type { Firestore as FirestoreType } from 'firebase/firestore';
-import type { FirebaseStorage } from 'firebase/storage';
 import type { Functions as FunctionsType } from 'firebase/functions';
 
 import { getAuth } from 'firebase/auth';

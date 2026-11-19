@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import {
-  digitsOnly,
   formatCep,
-  formatCnpj,
   formatCpf,
+  digitsOnly,
+  formatCnpj,
   formatCpfCnpj,
   isCompleteCep,
   isCompleteCnpj,

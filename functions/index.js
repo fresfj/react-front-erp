@@ -1277,4 +1277,8 @@ exports.placeOnlineOrder = onlineOrders.placeOnlineOrder;
 exports.acceptOnlineOrder = onlineOrders.acceptOnlineOrder;
 exports.rejectOnlineOrder = onlineOrders.rejectOnlineOrder;
 exports.upsertOnlineStoreConfig = onlineOrders.upsertOnlineStoreConfig;
+exports.lookupPublicCustomerByPhone = onlineOrders.lookupPublicCustomerByPhone;
+exports.listPublicOrdersByPhone = onlineOrders.listPublicOrdersByPhone;
+exports.getPublicOrderStatus = onlineOrders.getPublicOrderStatus;
+exports.updateOnlineOrderStatus = onlineOrders.updateOnlineOrderStatus;
 

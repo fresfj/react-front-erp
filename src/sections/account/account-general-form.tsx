@@ -2,26 +2,27 @@ import type { MemberProfile } from 'src/api/firestore/members';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
-import { useMemo, useEffect, useCallback } from 'react';
-import { zodResolver } from '@hookform/resolvers/zod';
 import { updateProfile } from 'firebase/auth';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMemo, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
+import Grid from '@mui/material/Unstable_Grid2';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
-import Grid from '@mui/material/Unstable_Grid2';
+
+import { useCepLookup } from 'src/hooks/use-cep-lookup';
 
 import { fData } from 'src/utils/format-number';
-import { digitsOnly, formatCep } from 'src/utils/br-docs';
+import { formatCep, digitsOnly } from 'src/utils/br-docs';
 
-import { useTranslate } from 'src/locales';
 import { AUTH } from 'src/lib/firebase';
-import { useCepLookup } from 'src/hooks/use-cep-lookup';
-import { getMember, setMember } from 'src/api/firestore/members';
+import { useTranslate } from 'src/locales';
 import { uploadMemberAvatar } from 'src/api/firestore/storage';
+import { getMember, setMember } from 'src/api/firestore/members';
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
@@ -90,8 +91,9 @@ export function AccountGeneralForm() {
 
   const zipCodeWatch = watch('zipCode') || '';
 
-  useCepLookup({
+  const { handleBlur: handleCepBlur } = useCepLookup({
     cep: zipCodeWatch,
+    initialValue: methods.getValues('zipCode'),
     onSuccess: (fields) => {
       setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
       if (fields.address) setValue('address', fields.address, { shouldDirty: true });
@@ -281,6 +283,7 @@ export function AccountGeneralForm() {
                 onChange={(event) => {
                   setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
                 }}
+                onBlur={handleCepBlur}
               />
               <Field.Text
                 name="address"

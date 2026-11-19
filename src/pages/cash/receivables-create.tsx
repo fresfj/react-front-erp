@@ -1,11 +1,11 @@
 import { Helmet } from 'react-helmet-async';
 
+import { paths } from 'src/routes/paths';
+
 import { CONFIG } from 'src/config-global';
 import { DashboardContent } from 'src/layouts/dashboard';
 
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
-
-import { paths } from 'src/routes/paths';
 
 import { ReceivableForm } from 'src/sections/cash/receivable-form';
 

@@ -1,32 +1,21 @@
-# CRUD ERP — padrão visual Minimals
+# CRUD ERP — padrão visual Minimals (Referência Oficial: `/dashboard/pos/sales`)
 
-Novos CRUDs Firestore (produtos, fornecedores, empresas, etc.) seguem o kit Minimals.
+Todas as listagens do ERP (`/dashboard/pos/sales`, `/dashboard/customers/list`, `/dashboard/products/list`, `/dashboard/suppliers/list`, `/dashboard/processing/list`, `/dashboard/batches/list`, `/dashboard/batches/movements`, `/dashboard/cash/ledger`, `/dashboard/cash/ranking`, `/dashboard/cash/payables`, `/dashboard/cash/receivables`, `/dashboard/enterprises/list`) seguem estritamente a estrutura de `/dashboard/pos/sales` (`src/sections/pos/view/sale-list-view.tsx`).
 
-## Lista
+## Lista (Card Único Integrado)
 
-- `<ErpDataGrid<Entity>>` (`src/components/erp-data-grid`) dentro de `Card` (`height: 720` ou flex)
-- Toolbar integrada (`ErpGridToolbar`):
-  - Filtros multi-select padrão Minimals (`selectFilters`: `FormControl` com `InputLabel` + `Select multiple` + `Checkbox`)
-  - Busca rápida em largura total (`GridToolbarQuickFilter`)
-  - Ações de Colunas, Filtros (ancorado sem quebrar layout) e Exportar
-  - Barra de chips ativos com botão de limpar
-- Ações por linha: coluna `type: 'actions'` com `GridActionsCellItem showInMenu` (menu suspenso de 3 pontinhos `eva:more-vertical-fill`)
-- CTA “Novo …” → rota `create` em `paths.dashboard.*`
-- Dados via `src/api/firestore/*` (não demos shop)
-
-## Formulário
-
-- `Card` + `CardHeader` (title + subheader) + botão collapse (`Iconify` up/down)
-- `Collapse` + `Divider` + `Stack` de campos
-- Sem layout side-label antigo (`Grid` 4/8 com tipografia lateral)
-- `FormTable` / `useFormTable` só para telas **legado**
-
-## Account
-
-- 2 colunas: avatar (`Field.UploadAvatar` → Storage) + dados
-- Telefone: `Field.Phone` com `country="BR"` (+55)
-
-## Rotas
-
-- ERP: `/dashboard/products`, `/dashboard/suppliers`, `/dashboard/enterprises`
-- Demo Minimals shop: `/dashboard/product` (não misturar dados)
+Dentro de um único `<Card>`:
+1. **Faixa Analítica Rápida (Exatamente 4 Indicadores):**
+   - Envolvida por `<Scrollbar sx={{ minHeight: 108 }}>` + `<Stack direction="row" divider={<Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />} sx={{ py: 2.5 }}>` + `<Divider />`.
+   - Usa `<ErpTableAnalytic>` (`src/components/erp-table`) com largura uniforme (`width: 1, minWidth: 200`).
+2. **Abas de Status (`<Tabs>`):**
+   - Contador `<Label>` alternando dinamicamente entre `filled` (aba selecionada ou `'all'`) e `soft`.
+3. **Toolbar Padronizada (`<ErpTableToolbar>` de `src/components/erp-table`):**
+   - **Esquerda:** Filtros multi-select com `Checkbox` + campo de busca rápida.
+   - **Direita:** Botões traduzidos (`i18n` `pt/en/es`) **Colunas** (ocultar/exibir colunas + restaurar padrão), **Filtros** (painel rápido com badge de filtro ativo) e **Exportar** (Exportar CSV e Imprimir).
+   - **Abaixo:** Barra de chips ativos (`FiltersResult`) com botão de limpar filtros.
+4. **Tabela (`@mui/material/Table` + `useTable`):**
+   - `<TableSelectedAction>` + `<TableHeadCustom>` com checkbox "Selecionar todos".
+   - Linhas com `<Checkbox>` individual e suporte a `visibleColumns`.
+   - Modal `<ConfirmDialog>` obrigatório para confirmar ações em lote ou exclusão/cancelamento.
+   - `<TablePaginationCustom>` no rodapé com controle `Dense`.

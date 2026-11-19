@@ -147,6 +147,8 @@ export const paths = {
     },
     general: {
       app: ROOTS.DASHBOARD,
+      salesFinance: `${ROOTS.DASHBOARD}/sales-finance`,
+      production: `${ROOTS.DASHBOARD}/production`,
       ecommerce: `${ROOTS.DASHBOARD}/ecommerce`,
       analytics: `${ROOTS.DASHBOARD}/analytics`,
       banking: `${ROOTS.DASHBOARD}/banking`,
@@ -255,6 +257,8 @@ export const paths = {
   },
   publicStore: {
     root: (slug: string) => `/p/${slug}`,
+    checkout: (slug: string) => `/p/${slug}/checkout`,
+    orders: (slug: string) => `/p/${slug}/orders`,
     order: (slug: string, orderId: string) => `/p/${slug}/order/${orderId}`,
   },
 };

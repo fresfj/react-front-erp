@@ -1,6 +1,6 @@
 import type { Customer } from 'src/api/firestore/customers';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
@@ -10,9 +10,11 @@ import Stack from '@mui/material/Stack';
 import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
+import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import TableBody from '@mui/material/TableBody';
 import TextField from '@mui/material/TextField';
+import { useTheme } from '@mui/material/styles';
 import IconButton from '@mui/material/IconButton';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogActions from '@mui/material/DialogActions';
@@ -25,6 +27,7 @@ import { RouterLink } from 'src/routes/components';
 import { useBoolean } from 'src/hooks/use-boolean';
 import { useSetState } from 'src/hooks/use-set-state';
 
+import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
@@ -43,12 +46,14 @@ import { Scrollbar } from 'src/components/scrollbar';
 import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { ErpTableToolbar, ErpTableAnalytic } from 'src/components/erp-table';
 import {
   useTable,
   emptyRows,
   rowInPage,
   TableNoData,
   getComparator,
+  TableSkeleton,
   TableEmptyRows,
   TableHeadCustom,
   TableSelectedAction,
@@ -58,8 +63,6 @@ import {
 import { useAuthContext } from 'src/auth/hooks';
 
 import { CustomerTableRow } from '../customer-table-row';
-import { CustomerTableToolbar } from '../customer-table-toolbar';
-import { CustomerTableFiltersResult } from '../customer-table-filters-result';
 
 import type { CustomerTableFilters } from '../customer-table-toolbar';
 
@@ -72,19 +75,35 @@ const STATUS_OPTIONS = [
   { value: 'inactive', label: 'Inativos' },
 ];
 
+const CREDIT_SITUATION_OPTIONS = [
+  { value: 'has_debt', label: 'Com Débito (Fiado)' },
+  { value: 'no_debt', label: 'Sem Débito' },
+  { value: 'has_limit', label: 'Com Limite de Crédito' },
+];
+
 const TABLE_HEAD = [
-  { id: 'name', label: 'Cliente' },
+  { id: 'name', label: 'Cliente', hideable: false },
   { id: 'phone', label: 'Telefone / WhatsApp', width: 180 },
   { id: 'creditLimit', label: 'Limite de Crédito', width: 160 },
   { id: 'currentDebt', label: 'Débito Atual (Fiado)', width: 170 },
   { id: 'status', label: 'Status', width: 110 },
-  { id: '', width: 110 },
+  { id: 'actions', label: '', width: 110, hideable: false },
 ];
+
+const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
+  name: true,
+  phone: true,
+  creditLimit: true,
+  currentDebt: true,
+  status: true,
+  actions: true,
+};
 
 // ----------------------------------------------------------------------
 
 export function CustomerListView() {
   const { t } = useTranslate('common');
+  const theme = useTheme();
   const table = useTable();
   const router = useRouter();
   const { user } = useAuthContext();
@@ -98,6 +117,9 @@ export function CustomerListView() {
 
   const [loading, setLoading] = useState(true);
   const [tableData, setTableData] = useState<Customer[]>([]);
+  const [creditFilters, setCreditFilters] = useState<string[]>([]);
+  const [visibleColumns, setVisibleColumns] =
+    useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
   const [settleTarget, setSettleTarget] = useState<Customer | null>(null);
   const [settleAmount, setSettleAmount] = useState<number>(0);
 
@@ -125,16 +147,93 @@ export function CustomerListView() {
     loadCustomers();
   }, [loadCustomers]);
 
-  const dataFiltered = applyFilter({
-    inputData: tableData,
-    comparator: getComparator(table.order, table.orderBy),
-    filters: filters.state,
-  });
+  const metrics = useMemo(() => {
+    const activeCount = tableData.filter((c) => c.active).length;
+    const withDebt = tableData.filter((c) => (c.currentDebt || 0) > 0);
+    const totalDebt = tableData.reduce((acc, c) => acc + (c.currentDebt || 0), 0);
+    const totalCreditLimit = tableData.reduce((acc, c) => acc + (c.creditLimit || 0), 0);
+
+    return {
+      total: tableData.length,
+      activeCount,
+      withDebtCount: withDebt.length,
+      totalDebt,
+      totalCreditLimit,
+      percentActive: tableData.length ? Math.round((activeCount / tableData.length) * 100) : 0,
+      percentWithDebt: tableData.length
+        ? Math.round((withDebt.length / tableData.length) * 100)
+        : 0,
+    };
+  }, [tableData]);
+
+  const dataFiltered = useMemo(() => {
+    let list = applyFilter({
+      inputData: tableData,
+      comparator: getComparator(table.order, table.orderBy),
+      filters: filters.state,
+    });
+
+    if (creditFilters.length > 0) {
+      list = list.filter((c) => {
+        const hasDebt = (c.currentDebt || 0) > 0;
+        const hasLimit = (c.creditLimit || 0) > 0;
+        return (
+          (creditFilters.includes('has_debt') && hasDebt) ||
+          (creditFilters.includes('no_debt') && !hasDebt) ||
+          (creditFilters.includes('has_limit') && hasLimit)
+        );
+      });
+    }
+
+    return list;
+  }, [creditFilters, filters.state, table.order, table.orderBy, tableData]);
 
   const dataInPage = rowInPage(dataFiltered, table.page, table.rowsPerPage);
 
-  const canReset = !!filters.state.name || filters.state.status !== 'all';
+  const canReset =
+    !!filters.state.name || filters.state.status !== 'all' || creditFilters.length > 0;
   const notFound = (!dataFiltered.length && canReset) || (!dataFiltered.length && !loading);
+
+  const visibleHeadLabel = useMemo(
+    () => TABLE_HEAD.filter((col) => visibleColumns[col.id] !== false),
+    [visibleColumns]
+  );
+
+  const handleToggleColumn = useCallback((colId: string) => {
+    setVisibleColumns((prev) => ({
+      ...prev,
+      [colId]: prev[colId] === false,
+    }));
+  }, []);
+
+  const handleResetColumns = useCallback(() => {
+    setVisibleColumns(DEFAULT_VISIBLE_COLUMNS);
+  }, []);
+
+  const handleExportCsv = useCallback(() => {
+    const headers = ['Cliente', 'Documento', 'Telefone', 'E-mail', 'Limite Crédito', 'Débito Atual', 'Status'];
+    const csvRows = [
+      headers.join(';'),
+      ...dataFiltered.map((r) =>
+        [
+          `"${r.name || ''}"`,
+          `"${r.document || ''}"`,
+          `"${r.phone || ''}"`,
+          `"${r.email || ''}"`,
+          (r.creditLimit || 0).toFixed(2),
+          (r.currentDebt || 0).toFixed(2),
+          r.active ? 'Ativo' : 'Inativo',
+        ].join(';')
+      ),
+    ];
+    const blob = new Blob([`\uFEFF${csvRows.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [dataFiltered]);
 
   const handleEditRow = useCallback(
     (id: string) => {
@@ -243,18 +342,72 @@ export function CustomerListView() {
 
         {enterpriseId && (
           <Card>
+            {/* 4 Indicadores Rápidos integrados no topo do Card da tabela */}
+            <Scrollbar sx={{ minHeight: 108 }}>
+              <Stack
+                direction="row"
+                divider={<Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />}
+                sx={{ py: 2.5 }}
+              >
+                <ErpTableAnalytic
+                  title="Total de Clientes"
+                  primaryValue={`${metrics.total} clientes`}
+                  secondaryValue={`${metrics.activeCount} ativos no cadastro`}
+                  percent={100}
+                  icon="solar:users-group-rounded-bold-duotone"
+                  color={theme.vars.palette.primary.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Clientes Ativos"
+                  primaryValue={`${metrics.activeCount} ativos`}
+                  secondaryValue={`${metrics.percentActive}% da base`}
+                  percent={metrics.percentActive}
+                  icon="solar:user-check-rounded-bold-duotone"
+                  color={theme.vars.palette.success.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Com Débito (Fiado)"
+                  primaryValue={fCurrency(metrics.totalDebt)}
+                  secondaryValue={`${metrics.withDebtCount} cliente(s) com débito`}
+                  percent={metrics.percentWithDebt}
+                  icon="solar:wad-of-money-bold-duotone"
+                  color={theme.vars.palette.error.main}
+                />
+
+                <ErpTableAnalytic
+                  title="Limite de Crédito"
+                  primaryValue={fCurrency(metrics.totalCreditLimit)}
+                  secondaryValue="Total liberado p/ crediário"
+                  percent={100}
+                  icon="solar:card-2-bold-duotone"
+                  color={theme.vars.palette.info.main}
+                />
+              </Stack>
+            </Scrollbar>
+
+            <Divider />
+
             <Tabs
               value={filters.state.status}
               onChange={handleFilterStatus}
               sx={{
                 px: 2.5,
-                boxShadow: (theme) =>
-                  `inset 0 -2px 0 0 ${varAlpha(theme.vars.palette.grey['500Channel'], 0.08)}`,
+                boxShadow: (th) =>
+                  `inset 0 -2px 0 0 ${varAlpha(th.vars.palette.grey['500Channel'], 0.08)}`,
               }}
             >
               {STATUS_OPTIONS.map((tab) => {
                 let count = tableData.length;
-                let color: 'default' | 'primary' | 'secondary' | 'info' | 'success' | 'warning' | 'error' = 'default';
+                let color:
+                  | 'default'
+                  | 'primary'
+                  | 'secondary'
+                  | 'info'
+                  | 'success'
+                  | 'warning'
+                  | 'error' = 'default';
 
                 if (tab.value === 'with_debt') {
                   count = tableData.filter((c) => (c.currentDebt || 0) > 0).length;
@@ -276,7 +429,8 @@ export function CustomerListView() {
                     icon={
                       <Label
                         variant={
-                          ((tab.value === 'all' || tab.value === filters.state.status) && 'filled') ||
+                          ((tab.value === 'all' || tab.value === filters.state.status) &&
+                            'filled') ||
                           'soft'
                         }
                         color={color}
@@ -289,16 +443,27 @@ export function CustomerListView() {
               })}
             </Tabs>
 
-            <CustomerTableToolbar filters={filters} onResetPage={table.onResetPage} />
-
-            {canReset && (
-              <CustomerTableFiltersResult
-                filters={filters}
-                totalResults={dataFiltered.length}
-                onResetPage={table.onResetPage}
-                sx={{ p: 2.5, pt: 0 }}
-              />
-            )}
+            <ErpTableToolbar
+              searchQuery={filters.state.name}
+              onSearchChange={(e) => filters.setState({ name: e.target.value })}
+              searchPlaceholder="Pesquisar por nome, CPF/CNPJ, e-mail ou telefone..."
+              onResetPage={table.onResetPage}
+              selectFilters={[
+                {
+                  id: 'creditSituation',
+                  label: 'Situação Financeira',
+                  options: CREDIT_SITUATION_OPTIONS,
+                  value: creditFilters,
+                  onChange: setCreditFilters,
+                },
+              ]}
+              columns={TABLE_HEAD}
+              visibleColumns={visibleColumns}
+              onToggleColumn={handleToggleColumn}
+              onResetColumns={handleResetColumns}
+              onExportCsv={handleExportCsv}
+              filteredResults={dataFiltered.length}
+            />
 
             <Box sx={{ position: 'relative' }}>
               <TableSelectedAction
@@ -313,7 +478,7 @@ export function CustomerListView() {
                 }
                 action={
                   <Tooltip title="Desativar selecionados">
-                    <IconButton color="primary" onClick={confirmMultiple.onTrue}>
+                    <IconButton color="error" onClick={confirmMultiple.onTrue}>
                       <Iconify icon="solar:trash-bin-trash-bold" />
                     </IconButton>
                   </Tooltip>
@@ -325,7 +490,7 @@ export function CustomerListView() {
                   <TableHeadCustom
                     order={table.order}
                     orderBy={table.orderBy}
-                    headLabel={TABLE_HEAD}
+                    headLabel={visibleHeadLabel}
                     rowCount={dataFiltered.length}
                     numSelected={table.selected.length}
                     onSort={table.onSort}
@@ -338,24 +503,33 @@ export function CustomerListView() {
                   />
 
                   <TableBody>
-                    {dataInPage.map((row) => (
-                      <CustomerTableRow
-                        key={row.id}
-                        row={row}
-                        selected={table.selected.includes(row.id)}
-                        onSelectRow={() => table.onSelectRow(row.id)}
-                        onEditRow={() => handleEditRow(row.id)}
-                        onDeleteRow={() => handleDeleteRow(row.id)}
-                        onSettleDebt={() => handleOpenSettle(row)}
-                      />
-                    ))}
+                    {loading ? (
+                      [...Array(table.rowsPerPage)].map((_, index) => (
+                        <TableSkeleton key={index} sx={{ height: table.dense ? 56 : 76 }} />
+                      ))
+                    ) : (
+                      <>
+                        {dataInPage.map((row) => (
+                          <CustomerTableRow
+                            key={row.id}
+                            row={row}
+                            selected={table.selected.includes(row.id)}
+                            onSelectRow={() => table.onSelectRow(row.id)}
+                            onEditRow={() => handleEditRow(row.id)}
+                            onDeleteRow={() => handleDeleteRow(row.id)}
+                            onSettleDebt={() => handleOpenSettle(row)}
+                            visibleColumns={visibleColumns}
+                          />
+                        ))}
 
-                    <TableEmptyRows
-                      height={table.dense ? 56 : 76}
-                      emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
-                    />
+                        <TableEmptyRows
+                          height={table.dense ? 56 : 76}
+                          emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
+                        />
 
-                    <TableNoData notFound={notFound} />
+                        <TableNoData notFound={notFound} />
+                      </>
+                    )}
                   </TableBody>
                 </Table>
               </Scrollbar>
@@ -379,11 +553,7 @@ export function CustomerListView() {
         <DialogTitle>Baixar Débito do Cliente</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2} sx={{ pt: 1 }}>
-            <TextField
-              disabled
-              label="Cliente"
-              value={settleTarget?.name || ''}
-            />
+            <TextField disabled label="Cliente" value={settleTarget?.name || ''} />
             <TextField
               type="number"
               label="Valor recebido (R$)"

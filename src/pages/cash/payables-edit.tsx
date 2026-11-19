@@ -1,20 +1,21 @@
+import type { Payable } from 'src/api/firestore/payables';
+
 import { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-
-import { CONFIG } from 'src/config-global';
-import { DashboardContent } from 'src/layouts/dashboard';
-import { getPayable } from 'src/api/firestore/payables';
-import type { Payable } from 'src/api/firestore/payables';
 
 import { paths } from 'src/routes/paths';
 import { useParams } from 'src/routes/hooks';
 
+import { CONFIG } from 'src/config-global';
+import { getPayable } from 'src/api/firestore/payables';
+import { DashboardContent } from 'src/layouts/dashboard';
+
 import { LoadingScreen } from 'src/components/loading-screen';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
-import { useAuthContext } from 'src/auth/hooks';
-
 import { PayableForm } from 'src/sections/cash/payable-form';
+
+import { useAuthContext } from 'src/auth/hooks';
 
 const metadata = { title: `Editar conta a pagar - ${CONFIG.site.name}` };
 

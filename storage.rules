@@ -15,9 +15,14 @@ service firebase.storage {
     }
 
     match /enterprises/{enterpriseId}/products/{allPaths=**} {
-      allow read: if signedIn()
+      allow read: if true;
+      allow write: if signedIn()
         && (request.auth.token.enterpriseId == enterpriseId
           || request.auth.token.platformAdmin == true);
+    }
+
+    match /enterprises/{enterpriseId}/store/{allPaths=**} {
+      allow read: if true;
       allow write: if signedIn()
         && (request.auth.token.enterpriseId == enterpriseId
           || request.auth.token.platformAdmin == true);

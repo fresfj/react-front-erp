@@ -1,10 +1,16 @@
 import type { ReactNode } from 'react';
+import type { GridDensity } from '@mui/x-data-grid';
 import type { SelectChangeEvent } from '@mui/material/Select';
+
+import { useState } from 'react';
 
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
+import Menu from '@mui/material/Menu';
+import Switch from '@mui/material/Switch';
 import Button from '@mui/material/Button';
 import Select from '@mui/material/Select';
+import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Checkbox from '@mui/material/Checkbox';
 import InputLabel from '@mui/material/InputLabel';
@@ -17,6 +23,12 @@ import {
   GridToolbarFilterButton,
   GridToolbarColumnsButton,
 } from '@mui/x-data-grid';
+
+import {
+  DataGridDensityCompactIcon,
+  DataGridDensityStandardIcon,
+  DataGridDensityComfortableIcon,
+} from 'src/theme/core/components/mui-x-data-grid';
 
 import { Iconify } from 'src/components/iconify';
 import { chipProps, FiltersBlock, FiltersResult } from 'src/components/filters-result';
@@ -34,6 +46,12 @@ export type ErpGridSelectFilter = {
   onChange: (value: string[]) => void;
 };
 
+export type ErpGridSettingsState = {
+  density: GridDensity;
+  showCellVerticalBorder: boolean;
+  showColumnVerticalBorder: boolean;
+};
+
 export type ErpGridToolbarProps = {
   selectFilters?: ErpGridSelectFilter[];
   searchPlaceholder?: string;
@@ -45,6 +63,9 @@ export type ErpGridToolbarProps = {
   /** Total após filtros, exibido no bloco de chips. */
   filteredResults?: number;
   hideExport?: boolean;
+  hideSettings?: boolean;
+  settings?: ErpGridSettingsState;
+  onChangeSettings?: (next: ErpGridSettingsState) => void;
   setFilterButtonEl?: React.Dispatch<React.SetStateAction<HTMLButtonElement | null>>;
 };
 
@@ -85,6 +106,28 @@ export function ErpSelectFilter({ id, label, options, value, onChange }: ErpGrid
 
 // ----------------------------------------------------------------------
 
+const DENSITY_OPTIONS: {
+  label: string;
+  value: GridDensity;
+  icon: ReactNode;
+}[] = [
+  {
+    label: 'Compact density',
+    value: 'compact',
+    icon: <DataGridDensityCompactIcon />,
+  },
+  {
+    label: 'Standard density',
+    value: 'standard',
+    icon: <DataGridDensityStandardIcon />,
+  },
+  {
+    label: 'Comfortable density',
+    value: 'comfortable',
+    icon: <DataGridDensityComfortableIcon />,
+  },
+];
+
 /**
  * Toolbar padrão das listas ERP (referência minimals.cc/dashboard/product).
  * Deve ser usado como slot estável: `slots.toolbar = ErpGridToolbar` e props via `slotProps.toolbar`.
@@ -99,8 +142,14 @@ export function ErpGridToolbar({
   deleteLabel = 'Excluir',
   filteredResults,
   hideExport,
+  hideSettings,
+  settings,
+  onChangeSettings,
   setFilterButtonEl,
 }: ErpGridToolbarProps) {
+  const [settingsAnchorEl, setSettingsAnchorEl] = useState<HTMLElement | null>(null);
+  const openSettings = Boolean(settingsAnchorEl);
+
   const activeFilters = selectFilters.filter((f) => f.value.length > 0);
   const canReset = activeFilters.length > 0;
 
@@ -177,6 +226,82 @@ export function ErpGridToolbar({
           <GridToolbarColumnsButton />
           <GridToolbarFilterButton ref={setFilterButtonEl} />
           {!hideExport && <GridToolbarExport />}
+          {!hideSettings && settings && onChangeSettings && (
+            <>
+              <Button
+                id="settings-menu-trigger"
+                aria-controls={openSettings ? 'settings-menu' : undefined}
+                aria-haspopup="true"
+                aria-expanded={openSettings ? 'true' : undefined}
+                aria-label="Settings"
+                size="small"
+                color="inherit"
+                disableElevation
+                onClick={(e) => setSettingsAnchorEl(e.currentTarget)}
+                startIcon={<Iconify icon="solar:settings-bold" />}
+              >
+                Settings
+              </Button>
+
+              <Menu
+                id="settings-menu"
+                anchorEl={settingsAnchorEl}
+                open={openSettings}
+                onClose={() => setSettingsAnchorEl(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                slotProps={{ paper: { sx: { width: 220 } } }}
+              >
+                {DENSITY_OPTIONS.map((opt) => (
+                  <MenuItem
+                    key={opt.value}
+                    selected={settings.density === opt.value}
+                    onClick={() => onChangeSettings({ ...settings, density: opt.value })}
+                    sx={{ gap: 1.5 }}
+                  >
+                    {opt.icon}
+                    {opt.label}
+                  </MenuItem>
+                ))}
+
+                <Divider sx={{ borderStyle: 'dashed', my: 0.5 }} />
+
+                <MenuItem
+                  onClick={() =>
+                    onChangeSettings({
+                      ...settings,
+                      showColumnVerticalBorder: !settings.showColumnVerticalBorder,
+                    })
+                  }
+                  sx={{ justifyContent: 'space-between' }}
+                >
+                  Show column borders
+                  <Switch
+                    size="small"
+                    edge="end"
+                    checked={settings.showColumnVerticalBorder}
+                  />
+                </MenuItem>
+
+                <MenuItem
+                  onClick={() =>
+                    onChangeSettings({
+                      ...settings,
+                      showCellVerticalBorder: !settings.showCellVerticalBorder,
+                    })
+                  }
+                  sx={{ justifyContent: 'space-between' }}
+                >
+                  Show cell borders
+                  <Switch
+                    size="small"
+                    edge="end"
+                    checked={settings.showCellVerticalBorder}
+                  />
+                </MenuItem>
+              </Menu>
+            </>
+          )}
         </Box>
       </GridToolbarContainer>
 

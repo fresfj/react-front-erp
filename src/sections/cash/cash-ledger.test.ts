@@ -1,7 +1,7 @@
 import type { CashSession } from 'src/api/firestore/cash-sessions';
 
 import dayjs from 'dayjs';
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import { buildCashLedger } from './cash-ledger';
 

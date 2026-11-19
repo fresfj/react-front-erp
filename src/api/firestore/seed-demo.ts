@@ -386,4 +386,550 @@ export async function seedDemoErpCatalog(enterpriseId: string): Promise<void> {
   );
 
   await wb.commit();
+
+  // Popula também as despesas e contas a pagar de demonstração
+  await seedDemoPayables(enterpriseId);
+
+  // Popula os títulos e clientes de contas a receber de demonstração
+  await seedDemoReceivables(enterpriseId);
+}
+
+// ----------------------------------------------------------------------
+
+export async function seedDemoPayables(enterpriseId: string): Promise<void> {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+
+  const d05 = `${year}-${month}-05`;
+  const d10 = `${year}-${month}-10`;
+  const d15 = `${year}-${month}-15`;
+  const d20 = `${year}-${month}-20`;
+  const d25 = `${year}-${month}-25`;
+
+  const wb = writeBatch(FIRESTORE);
+  const payablesCol = enterpriseCollection(enterpriseId, 'payables');
+  const suppliersCol = enterpriseCollection(enterpriseId, 'suppliers');
+
+  // Adiciona mais fornecedores de demonstração
+  wb.set(
+    doc(suppliersCol, 'sup-embalagens-norte'),
+    {
+      name: 'Norte Embalagens Plásticas Ltda',
+      tradeName: 'Embalagens Castanhal',
+      document: '98.765.432/0001-10',
+      contactPerson: 'Carlos Eduardo',
+      phone: '+5591981223344',
+      email: 'vendas@norteembalagens.com.br',
+      address: 'Av. Presidente Vargas, 1200',
+      city: 'Belém',
+      state: 'PA',
+      zipCode: '66017-000',
+      notes: 'Fornecedor de copos descartáveis 500ml e potes biodegradáveis',
+      active: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    { merge: true }
+  );
+
+  wb.set(
+    doc(suppliersCol, 'sup-polar-manutencao'),
+    {
+      name: 'Polar Refrigeração & Climatização Comercial',
+      tradeName: 'Polar Frio',
+      document: '45.123.789/0001-55',
+      contactPerson: 'Eng. Roberto Mendes',
+      phone: '+5591987654321',
+      email: 'suporte@polarfrio.com.br',
+      address: 'Travessa Castelo Branco, 850',
+      city: 'Castanhal',
+      state: 'PA',
+      zipCode: '68743-020',
+      notes: 'Manutenção preventiva e corretiva de compressores e câmaras frigoríficas',
+      active: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    { merge: true }
+  );
+
+  const demoPayables = [
+    {
+      id: 'pay-salario-operador',
+      description: 'Salário Mensal - Operador de Caixa & Atendimento (Maria Santos)',
+      category: 'other',
+      amount: 1650.0,
+      startDate: d05,
+      dueDate: d05,
+      competenceDate: d05,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-salario-beneficiador',
+      description: 'Salário Mensal - Operador de Despolpadeira e Batimento (José Silva)',
+      category: 'other',
+      amount: 1950.0,
+      startDate: d05,
+      dueDate: d05,
+      competenceDate: d05,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-adiantamento-quinzena',
+      description: 'Adiantamento Quinzenal (Vale Salarial) - Equipe de Loja e Produção',
+      category: 'other',
+      amount: 1200.0,
+      startDate: d20,
+      dueDate: d20,
+      competenceDate: d20,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-acai-saca-1',
+      description: 'Compra de 20 Sacas Açaí In Natura (Castanhal) - Parcela 1/2',
+      category: 'supplier',
+      supplierId: 'sup-cooperativa-para',
+      supplierName: 'Cooperativa Agroextrativista do Pará Ltda',
+      amount: 550.0,
+      startDate: d05,
+      dueDate: d10,
+      competenceDate: d05,
+      dreClass: 'cogs_inventory',
+      recurrence: 'none',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 2,
+      active: true,
+    },
+    {
+      id: 'pay-acai-saca-2',
+      description: 'Compra de 20 Sacas Açaí In Natura (Castanhal) - Parcela 2/2',
+      category: 'supplier',
+      supplierId: 'sup-cooperativa-para',
+      supplierName: 'Cooperativa Agroextrativista do Pará Ltda',
+      amount: 550.0,
+      startDate: d05,
+      dueDate: d25,
+      competenceDate: d05,
+      dreClass: 'cogs_inventory',
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 2,
+      installmentCount: 2,
+      active: true,
+    },
+    {
+      id: 'pay-copos-tampas',
+      description: 'Aquisição de 2.000 Copos 500ml Personalizados + Tampas Retas',
+      category: 'supplier',
+      supplierId: 'sup-embalagens-norte',
+      supplierName: 'Norte Embalagens Plásticas Ltda',
+      amount: 420.0,
+      startDate: d10,
+      dueDate: d15,
+      competenceDate: d10,
+      dreClass: 'operating',
+      recurrence: 'none',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-energia-eletrica',
+      description: 'Energia Elétrica Equatorial Pará - Câmaras Frias & Batedeiras',
+      category: 'utilities_power',
+      amount: 685.4,
+      startDate: d10,
+      dueDate: d20,
+      competenceDate: d10,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-internet-fibra',
+      description: 'Internet Fibra Óptica Comercial 500Mbps (PDV + Wi-Fi)',
+      category: 'utilities_internet',
+      amount: 149.9,
+      startDate: d05,
+      dueDate: d10,
+      competenceDate: d05,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-aluguel-galpao',
+      description: 'Aluguel do Ponto Comercial / Fábrica de Polpa Castanhal',
+      category: 'rent',
+      amount: 1800.0,
+      startDate: d10,
+      dueDate: d25,
+      competenceDate: d10,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-imposto-das',
+      description: 'DAS - Simples Nacional Competência Atual',
+      category: 'tax',
+      amount: 380.25,
+      startDate: d15,
+      dueDate: d20,
+      competenceDate: d15,
+      dreClass: 'operating',
+      recurrence: 'monthly',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+    {
+      id: 'pay-manutencao-polar',
+      description: 'Manutenção Preventiva de Compressor e Validação Térmica',
+      category: 'other',
+      supplierId: 'sup-polar-manutencao',
+      supplierName: 'Polar Refrigeração & Climatização Comercial',
+      amount: 350.0,
+      startDate: d05,
+      dueDate: d10,
+      competenceDate: d05,
+      dreClass: 'operating',
+      recurrence: 'none',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      active: true,
+    },
+  ];
+
+  demoPayables.forEach((p) => {
+    const { id, ...data } = p;
+    wb.set(
+      doc(payablesCol, id),
+      {
+        ...data,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      { merge: true }
+    );
+  });
+
+  await wb.commit();
+}
+
+// ----------------------------------------------------------------------
+
+export async function seedDemoReceivables(enterpriseId: string): Promise<void> {
+  const now = new Date();
+  const nowIso = now.toISOString();
+
+  // Helper para gerar datas no formato YYYY-MM-DD
+  const addDays = (days: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const wb = writeBatch(FIRESTORE);
+  const receivablesCol = enterpriseCollection(enterpriseId, 'receivables');
+  const customersCol = enterpriseCollection(enterpriseId, 'customers');
+
+  // Clientes com histórico de crediário/fiado e débito
+  wb.set(
+    doc(customersCol, 'cust-maria-fatima'),
+    {
+      name: 'Maria de Fátima Oliveira',
+      document: '123.456.789-00',
+      phone: '+5591981223344',
+      email: 'maria.fatima@gmail.com',
+      address: 'Rua dos Açaizeiros, 150',
+      city: 'Belém',
+      state: 'PA',
+      zipCode: '66000-000',
+      creditLimit: 1500,
+      currentDebt: 320.0,
+      notes: 'Cliente fiel semanal - compradora de polpa e açaí batido',
+      active: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    { merge: true }
+  );
+
+  wb.set(
+    doc(customersCol, 'cust-raimundo-nonato'),
+    {
+      name: 'Raimundo Nonato Ferreira',
+      document: '456.789.123-11',
+      phone: '+5591988776655',
+      email: 'raimundo.nonato@hotmail.com',
+      address: 'Travessa Mauriti, 840',
+      city: 'Belém',
+      state: 'PA',
+      zipCode: '66087-000',
+      creditLimit: 1000,
+      currentDebt: 180.0,
+      notes: 'Comerciante local - compra açaí médio e farinha d’água',
+      active: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    { merge: true }
+  );
+
+  wb.set(
+    doc(customersCol, 'cust-restaurante-estrela'),
+    {
+      name: 'Restaurante Estrela do Norte Ltda',
+      tradeName: 'Restaurante Estrela',
+      document: '12.345.678/0001-99',
+      phone: '+559132445566',
+      email: 'financeiro@estreladonorte.com.br',
+      address: 'Av. Nazaré, 450',
+      city: 'Belém',
+      state: 'PA',
+      zipCode: '66035-170',
+      creditLimit: 5000,
+      currentDebt: 850.0,
+      notes: 'Contrato de fornecimento corporativo quinzenal',
+      active: true,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+    { merge: true }
+  );
+
+  const demoReceivables = [
+    // 1) Crediário / Fiado parcelado (Parcela 1 vencida, 2 e 3 a vencer)
+    {
+      id: 'rec-fatima-1',
+      description: 'Venda #1008 - Crediário / Fiado (1/3)',
+      category: 'other',
+      customerId: 'cust-maria-fatima',
+      customerName: 'Maria de Fátima Oliveira',
+      amount: 100.0,
+      startDate: addDays(-45),
+      dueDate: addDays(-15), // Vencida há 15 dias!
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 3,
+      refType: 'sale',
+      refId: 'sale-1008',
+      active: true,
+    },
+    {
+      id: 'rec-fatima-2',
+      description: 'Venda #1008 - Crediário / Fiado (2/3)',
+      category: 'other',
+      customerId: 'cust-maria-fatima',
+      customerName: 'Maria de Fátima Oliveira',
+      amount: 110.0,
+      startDate: addDays(-45),
+      dueDate: addDays(15), // A vencer em 15 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 2,
+      installmentCount: 3,
+      refType: 'sale',
+      refId: 'sale-1008',
+      active: true,
+    },
+    {
+      id: 'rec-fatima-3',
+      description: 'Venda #1008 - Crediário / Fiado (3/3)',
+      category: 'other',
+      customerId: 'cust-maria-fatima',
+      customerName: 'Maria de Fátima Oliveira',
+      amount: 110.0,
+      startDate: addDays(-45),
+      dueDate: addDays(45), // A vencer em 45 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 3,
+      installmentCount: 3,
+      refType: 'sale',
+      refId: 'sale-1008',
+      active: true,
+    },
+
+    // 2) Crediário Raimundo Nonato (Parcela 1 vencida, 2 a vencer)
+    {
+      id: 'rec-raimundo-1',
+      description: 'Venda #1012 - Crediário / Fiado (1/2)',
+      category: 'other',
+      customerId: 'cust-raimundo-nonato',
+      customerName: 'Raimundo Nonato Ferreira',
+      amount: 90.0,
+      startDate: addDays(-35),
+      dueDate: addDays(-5), // Vencida há 5 dias!
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 2,
+      refType: 'sale',
+      refId: 'sale-1012',
+      active: true,
+    },
+    {
+      id: 'rec-raimundo-2',
+      description: 'Venda #1012 - Crediário / Fiado (2/2)',
+      category: 'other',
+      customerId: 'cust-raimundo-nonato',
+      customerName: 'Raimundo Nonato Ferreira',
+      amount: 90.0,
+      startDate: addDays(-35),
+      dueDate: addDays(25), // A vencer em 25 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 2,
+      installmentCount: 2,
+      refType: 'sale',
+      refId: 'sale-1012',
+      active: true,
+    },
+
+    // 3) Faturamento Corporativo a Prazo
+    {
+      id: 'rec-estrela-faturamento',
+      description: 'Faturamento Quinzenal #4021 - Fornecimento Polpa Açaí Especial',
+      category: 'other',
+      customerId: 'cust-restaurante-estrela',
+      customerName: 'Restaurante Estrela do Norte Ltda',
+      amount: 850.0,
+      startDate: addDays(-7),
+      dueDate: addDays(8), // A vencer em 8 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 1,
+      refType: 'invoice',
+      active: true,
+    },
+
+    // 4) Repasses futuros de Cartão de Crédito (Stone / Cielo / Maquininha)
+    {
+      id: 'rec-stone-repasse-1',
+      description: 'Repasse Cartão de Crédito (Stone) - Lote Vendas PDV (1/3)',
+      category: 'other',
+      customerName: 'Adquirente Stone Pagamentos',
+      amount: 1450.0,
+      startDate: addDays(-18),
+      dueDate: addDays(12), // A vencer em 12 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 1,
+      installmentCount: 3,
+      refType: 'credit_card',
+      active: true,
+    },
+    {
+      id: 'rec-stone-repasse-2',
+      description: 'Repasse Cartão de Crédito (Stone) - Lote Vendas PDV (2/3)',
+      category: 'other',
+      customerName: 'Adquirente Stone Pagamentos',
+      amount: 1450.0,
+      startDate: addDays(-18),
+      dueDate: addDays(42), // A vencer em 42 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 2,
+      installmentCount: 3,
+      refType: 'credit_card',
+      active: true,
+    },
+    {
+      id: 'rec-stone-repasse-3',
+      description: 'Repasse Cartão de Crédito (Stone) - Lote Vendas PDV (3/3)',
+      category: 'other',
+      customerName: 'Adquirente Stone Pagamentos',
+      amount: 1450.0,
+      startDate: addDays(-18),
+      dueDate: addDays(72), // A vencer em 72 dias
+      recurrence: 'none',
+      status: 'open',
+      installmentIndex: 3,
+      installmentCount: 3,
+      refType: 'credit_card',
+      active: true,
+    },
+
+    // 5) Títulos já baixados/recebidos (Histórico)
+    {
+      id: 'rec-pago-entrada',
+      description: 'Venda #1008 - Entrada / Parcela à vista',
+      category: 'other',
+      customerId: 'cust-maria-fatima',
+      customerName: 'Maria de Fátima Oliveira',
+      amount: 180.0,
+      startDate: addDays(-45),
+      dueDate: addDays(-45),
+      recurrence: 'none',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      refType: 'sale',
+      active: true,
+    },
+    {
+      id: 'rec-pago-debito-d1',
+      description: 'Repasse Cartão Débito D+1 (Stone)',
+      category: 'other',
+      customerName: 'Adquirente Stone Pagamentos',
+      amount: 920.0,
+      startDate: addDays(-3),
+      dueDate: addDays(-2),
+      recurrence: 'none',
+      status: 'paid',
+      installmentIndex: 1,
+      installmentCount: 1,
+      refType: 'debit_card',
+      active: true,
+    },
+  ];
+
+  demoReceivables.forEach((r) => {
+    const { id, ...data } = r;
+    wb.set(
+      doc(receivablesCol, id),
+      {
+        ...data,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      { merge: true }
+    );
+  });
+
+  await wb.commit();
 }

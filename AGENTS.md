@@ -25,9 +25,12 @@
 Toda nova tela ou módulo do ERP deve seguir estritamente este fluxo:
 1. **Schema Zod** no topo do form/section.
 2. **Camada de Dados:** Funções tipadas em `src/api/firestore/<modulo>.ts` usando `enterpriseCollection(enterpriseId, '<collection>')` e `omitUndefined`.
-3. **Listagem (`*-list-view.tsx`):**
-   - `DashboardContent` + `CustomBreadcrumbs` + `Card` (`height: 720`) + `DataGrid`.
-   - Toolbar com filtros de domínio + `GridToolbarQuickFilter`, `GridToolbarColumnsButton`, `GridToolbarFilterButton`, `GridToolbarExport`.
+3. **Listagem (`*-list-view.tsx`) — Referência Oficial `/dashboard/pos/sales` (`src/sections/pos/view/sale-list-view.tsx`):**
+   - `DashboardContent` + `CustomBreadcrumbs` + um único `<Card>` contendo:
+     1. **Analytics Strip (exatamente 4 indicadores)** dentro de `<Scrollbar sx={{ minHeight: 108 }}>` + `<Stack direction="row" divider={<Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />} sx={{ py: 2.5 }}>` usando `ErpTableAnalytic` (`src/components/erp-table`), seguido de `<Divider />`.
+     2. **Status `<Tabs>`** com contadores `<Label>` (`filled` na aba ativa / `'all'`, `soft` nas demais).
+     3. **Toolbar (`ErpTableToolbar` de `src/components/erp-table`):** Filtros multi-select (`Checkbox`) + busca rápida à esquerda; botões traduzidos `Colunas`, `Filtros` e `Exportar` (CSV/Imprimir) à direita; barra de chips `FiltersResult` abaixo quando houver filtro ativo.
+     4. **Tabela (`Table` + `TableHeadCustom` + `TableSelectedAction` + `TablePaginationCustom`):** Seleção por checkbox (cabeçalho + linhas) com barra de ação em massa e `<ConfirmDialog>` obrigatório para confirmação de segurança.
 4. **Formulário (`*-form.tsx`):**
    - `Card` + `CardHeader` colapsável (`Iconify` up/down) + `Collapse` + `Divider` + `Stack` com `Form` e `Field.*` (`src/components/hook-form`).
    - Não usar `FormTable` / `useFormTable` (restrito a telas legadas em `src/pages/sistema|inventario|auditoria`).
@@ -37,6 +40,8 @@ Toda nova tela ou módulo do ERP deve seguir estritamente este fluxo:
 6. **Internacionalização (i18n) e Feedback:**
    - Idioma padrão: `pt` (Português Brasil), com suporte obrigatório em `src/locales/langs/{pt,en,es}/common.json`.
    - Feedback com `toast` (`src/components/snackbar`) e erros traduzidos via `getFirebaseErrorMessage` (`src/utils/firebase-error.ts`).
+7. **Regra de Ouro de Carregamento (Skeleton Loading):**
+   - Sempre utilizar componentes de `<Skeleton animation="wave" />` que espelhem o layout real da tela (em vez de `CircularProgress` centralizado de página inteira), especialmente nas páginas públicas (`/p/:slug/*`: vitrine, checkout, meus pedidos e acompanhamento).
 
 ## 4. Roadmap Oficial (Superpowers / SDD)
 1. **Fase 1 — Fundação & Cadastros Base (Concluído):** Auth Firebase + Claims + Offline + Fornecedores (`/dashboard/suppliers`), Produtos Insumo/Acabado (`/dashboard/products`), Account (`/dashboard/account`) e Platform Admin (`/dashboard/enterprises`).
@@ -49,14 +54,26 @@ Toda nova tela ou módulo do ERP deve seguir estritamente este fluxo:
    - Abertura de caixa, sangria, suprimento, **Fechamento Cego** (divergência calculada), validação de limite de desconto no backend (Cloud Functions) e DRE.
 5. **Fase 5 — Integração Fiscal (NFC-e):** Integração via Cloud Functions com API externa (Focus NFe / PlugNotas / NuvemFiscal).
 
-## 5. Skills e regras em uso (obrigatório ler)
+## 5. Regra de Ouro de Qualidade de Código (ESLint + TypeScript Zero Warnings)
+O projeto roda `vite-plugin-checker` em tempo real no `vite dev`. Qualquer warning de ESLint polui o console e o overlay do navegador.
+- **Ordenação de Imports (`perfectionist/sort-imports` e `sort-named-imports`):**
+  - Os imports são agrupados por categoria (`type`, `external`, `@mui/**`, `src/routes/**`, `src/hooks/**`, `src/utils/**`, `src/**`, `src/components/**`, `src/sections/**`, `src/auth/**`, `src/types/**`, relativos `../` e `./`, e por fim `parent-type`/`sibling-type`) separados por linha em branco.
+  - **Dentro de cada grupo (e dentro de `{ ... }`), a ordenação é por tamanho da linha crescente (`type: 'line-length', order: 'asc'`)**, da linha mais curta para a mais longa.
+- **Type Imports:** Usar sempre `import type { ... }` para tipos (`@typescript-eslint/consistent-type-imports`).
+- **Comando Obrigatório antes de concluir qualquer alteração em `.ts`/`.tsx`:**
+  1. `./node_modules/.bin/eslint --fix <arquivos_alterados>`
+  2. `./node_modules/.bin/eslint --max-warnings=0 <arquivos_alterados>` (deve retornar 0 erros e 0 warnings)
+  3. `./node_modules/.bin/tsc --noEmit`
+
+## 6. Skills e regras em uso (obrigatório ler)
 
 ### No repositório
 | Skill / regra | Path | Quando usar |
 |---------------|------|-------------|
+| **code-quality-guardian** | `.agents/skills/code-quality-guardian/SKILL.md` | Sempre ao criar/editar `.ts`/`.tsx` (ESLint zero-warnings, `perfectionist/sort-imports`, `tsc`) |
 | **erp-crud-builder** | `.agents/skills/erp-crud-builder/SKILL.md` | Qualquer CRUD / módulo ERP (lista DataGrid, form CardHeader, Firestore, i18n) |
 | **superpowers-sdd** | `.agents/skills/superpowers-sdd/SKILL.md` | Spec → plan → fatias SDD; ledger `.superpowers/sdd/` |
-| **erp-firebase-forms** (Cursor rule) | `.cursor/rules/erp-firebase-forms.mdc` | Sempre: auth Firebase, i18n pt/en/es, padrão CRUD |
+| **erp-firebase-forms** (Cursor rule) | `.cursor/rules/erp-firebase-forms.mdc` | Sempre: auth Firebase, i18n pt/en/es, padrão CRUD e ESLint zero-warnings |
 | **Handoff Antigravity** | `docs/agents/antigravity-erp-handoff.md` | Continuidade de sessão / status feito-pendente |
 | **Visão PDV / beneficiamento** | `docs/deepseek_markdown_20261115_78aa86.md` | Roadmap produto (stack oficial = Firebase, não Nest) |
 | **UI CRUD** | `docs/reference/erp-crud-ui.md` | Checklist visual Minimals |

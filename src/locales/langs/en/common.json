@@ -11,7 +11,9 @@
   },
   "nav": {
     "overview": "Overview",
-    "app": "App",
+    "app": "General",
+    "salesFinance": "Sales & Finance",
+    "production": "Production",
     "management": "Management",
     "finance": "Finance",
     "administration": "Administration",
@@ -533,6 +535,8 @@
       "acceptPickup": "Accept pickup",
       "defaultDeliveryFee": "Delivery fee",
       "whatsapp": "WhatsApp",
+      "instagramUrl": "Instagram (link or @handle)",
+      "googleReviewUrl": "Google Business Review Link",
       "paymentMethods": "Pay on delivery methods",
       "openingHours": "Opening hours"
     }

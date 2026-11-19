@@ -3,8 +3,18 @@ const { getFirestore } = require('firebase-admin/firestore');
 
 // ----------------------------------------------------------------------
 
+let _firestore;
+
 function db() {
-  return getFirestore();
+  if (!_firestore) {
+    _firestore = getFirestore();
+    try {
+      _firestore.settings({ ignoreUndefinedProperties: true });
+    } catch {
+      // already initialized
+    }
+  }
+  return _firestore;
 }
 
 function nowIso() {
@@ -198,7 +208,12 @@ exports.getPublicStorefront = onCall(async (request) => {
   const productsSnap = await db().collection(`enterprises/${ctx.enterpriseId}/products`).get();
   const products = productsSnap.docs
     .map((d) => ({ id: d.id, ...d.data() }))
-    .filter((p) => p.active !== false && p.showOnline === true && p.type === 'finished')
+    .filter(
+      (p) =>
+        p.active !== false &&
+        p.showOnline === true &&
+        (p.type === 'finished' || p.type !== 'raw' || Number(p.salePrice || 0) > 0)
+    )
     .map((p) => ({
       id: p.id,
       name: String(p.name || ''),
@@ -211,8 +226,16 @@ exports.getPublicStorefront = onCall(async (request) => {
   const store = ctx.onlineStore || {};
   return {
     storeName: String(ctx.enterprise.tradeName || ctx.enterprise.name || ''),
+    logoUrl: store.logoUrl != null ? String(store.logoUrl) : (ctx.enterprise.logoUrl || undefined),
+    bannerUrl: store.bannerUrl != null ? String(store.bannerUrl) : undefined,
+    bannerFit: store.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionY:
+      typeof store.bannerPositionY === 'number' ? Number(store.bannerPositionY) : 50,
+    logoFit: store.logoFit === 'contain' ? 'contain' : 'cover',
+    minOrderAmount: Number(store.minOrderAmount || 0),
     isOpen: ctx.isOpen,
     closedReason: ctx.closedReason,
+    openingHours: Array.isArray(store.openingHours) ? store.openingHours : [],
     estimatedMinutes: Number(store.estimatedMinutes || 40),
     deliveryFee: Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0),
     acceptDelivery: store.acceptDelivery !== false,
@@ -221,6 +244,17 @@ exports.getPublicStorefront = onCall(async (request) => {
       ? store.paymentMethodsOnDelivery
       : ['cash', 'pix', 'debit_card', 'credit_card'],
     whatsapp: store.whatsapp != null ? String(store.whatsapp) : undefined,
+    instagramUrl: store.instagramUrl != null ? String(store.instagramUrl) : undefined,
+    googleReviewUrl: store.googleReviewUrl != null ? String(store.googleReviewUrl) : undefined,
+    address: {
+      street: String(ctx.enterprise.address || ''),
+      number: String(ctx.enterprise.addressNumber || ctx.enterprise.number || ''),
+      complement: String(ctx.enterprise.complement || ''),
+      neighborhood: String(ctx.enterprise.neighborhood || ''),
+      city: String(ctx.enterprise.city || ''),
+      state: String(ctx.enterprise.state || ''),
+      zipCode: String(ctx.enterprise.zipCode || ''),
+    },
     products,
   };
 });
@@ -274,7 +308,11 @@ exports.placeOnlineOrder = onCall(async (request) => {
       throw new HttpsError('failed-precondition', 'product_missing');
     }
     const product = prodSnap.data() || {};
-    if (product.active === false || product.showOnline !== true || product.type !== 'finished') {
+    if (
+      product.active === false ||
+      product.showOnline !== true ||
+      !(Number(product.salePrice || 0) > 0)
+    ) {
       throw new HttpsError('failed-precondition', 'product_unavailable');
     }
     const serverPrice = Number(product.salePrice || 0);
@@ -282,7 +320,7 @@ exports.placeOnlineOrder = onCall(async (request) => {
     if (Number.isFinite(clientPrice) && Math.abs(clientPrice - serverPrice) > 0.009) {
       throw new HttpsError('failed-precondition', 'price_changed');
     }
-    validatedItems.push({
+    const itemObj = {
       productId,
       productName: String(product.name || ''),
       productSku: String(product.sku || ''),
@@ -290,21 +328,41 @@ exports.placeOnlineOrder = onCall(async (request) => {
       qty,
       unitPrice: serverPrice,
       lineTotal: roundMoney(qty * serverPrice),
-      notes: line.notes != null ? String(line.notes) : undefined,
-    });
+    };
+    if (line.notes != null && String(line.notes).trim() !== '') {
+      itemObj.notes = String(line.notes).trim();
+    }
+    validatedItems.push(itemObj);
   }
 
   const { subtotal, total } = buildOnlineOrderTotals(validatedItems, deliveryFee);
   const code = generateOrderCode();
   const timestamp = nowIso();
   const ref = db().collection(`enterprises/${ctx.enterpriseId}/onlineOrders`).doc();
+  const rawAddrFields = request.data?.customerAddressFields;
+  const customerAddressFields =
+    rawAddrFields && typeof rawAddrFields === 'object'
+      ? {
+          cep: rawAddrFields.cep ? String(rawAddrFields.cep) : '',
+          street: rawAddrFields.street ? String(rawAddrFields.street) : '',
+          number: rawAddrFields.number ? String(rawAddrFields.number) : '',
+          complement: rawAddrFields.complement ? String(rawAddrFields.complement) : '',
+          neighborhood: rawAddrFields.neighborhood ? String(rawAddrFields.neighborhood) : '',
+          city: rawAddrFields.city ? String(rawAddrFields.city) : '',
+          state: rawAddrFields.state ? String(rawAddrFields.state) : '',
+        }
+      : null;
+
   const docData = {
     code,
     status: 'pending',
+    fulfillmentStatus: 'pending',
     customerName,
     customerPhone,
+    customerPhoneDigits: String(customerPhone).replace(/\D/g, ''),
     customerAddress:
       request.data?.customerAddress != null ? String(request.data.customerAddress) : null,
+    customerAddressFields,
     deliveryType,
     deliveryFee,
     paymentMethod,
@@ -350,12 +408,28 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
     acceptDelivery: onlineStore.acceptDelivery !== false,
     acceptPickup: onlineStore.acceptPickup !== false,
     defaultDeliveryFee: Number(onlineStore.defaultDeliveryFee || 0),
+    minOrderAmount: Number(onlineStore.minOrderAmount || 0),
     paymentMethodsOnDelivery: Array.isArray(onlineStore.paymentMethodsOnDelivery)
       ? onlineStore.paymentMethodsOnDelivery
       : ['cash', 'pix'],
     whatsapp: onlineStore.whatsapp != null ? String(onlineStore.whatsapp) : null,
+    instagramUrl: onlineStore.instagramUrl != null ? String(onlineStore.instagramUrl) : null,
+    googleReviewUrl:
+      onlineStore.googleReviewUrl != null ? String(onlineStore.googleReviewUrl) : null,
+    logoUrl: onlineStore.logoUrl != null ? String(onlineStore.logoUrl) : null,
+    bannerUrl: onlineStore.bannerUrl != null ? String(onlineStore.bannerUrl) : null,
+    bannerFit: onlineStore.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionY:
+      typeof onlineStore.bannerPositionY === 'number'
+        ? Math.min(100, Math.max(0, Math.round(onlineStore.bannerPositionY)))
+        : 50,
+    logoFit: onlineStore.logoFit === 'contain' ? 'contain' : 'cover',
   };
-  if (payload.whatsapp === null) delete payload.whatsapp;
+  ['whatsapp', 'instagramUrl', 'googleReviewUrl', 'logoUrl', 'bannerUrl'].forEach((k) => {
+    if (payload[k] === null || payload[k] === undefined || payload[k] === '') {
+      delete payload[k];
+    }
+  });
 
   const batch = db().batch();
   if (prevSlug && prevSlug !== slug) {
@@ -489,6 +563,7 @@ exports.acceptOnlineOrder = onCall(async (request) => {
 
   batch.update(orderRef, {
     status: 'accepted',
+    fulfillmentStatus: 'accepted',
     saleId: saleRef.id,
     cashSessionId: openCash.id,
     acceptedByUid: request.auth.uid,
@@ -516,10 +591,201 @@ exports.rejectOnlineOrder = onCall(async (request) => {
 
   const update = {
     status: 'rejected',
+    fulfillmentStatus: 'rejected',
     updatedAt: nowIso(),
   };
   if (request.data?.reason != null) {
     update.rejectedReason = String(request.data.reason);
   }
   await orderRef.update(update);
+});
+
+function phoneDigits(val) {
+  return String(val || '').replace(/\D/g, '');
+}
+
+function phonesMatch(a, b) {
+  const da = phoneDigits(a);
+  const dbVal = phoneDigits(b);
+  if (da.length < 10 || dbVal.length < 10) return false;
+  if (da === dbVal) return true;
+  // Match ignoring country code 55 prefix
+  const tailA = da.slice(-11);
+  const tailB = dbVal.slice(-11);
+  if (tailA === tailB) return true;
+  return da.slice(-10) === dbVal.slice(-10);
+}
+
+async function resolveEnterpriseBySlug(rawSlug) {
+  const slug = normalizeStoreSlug(rawSlug);
+  if (!slug) throw new HttpsError('invalid-argument', 'slug required');
+  const indexSnap = await db().doc(`publicStoreIndex/${slug}`).get();
+  if (!indexSnap.exists) throw new HttpsError('not-found', 'Store not found');
+  const enterpriseId = String(indexSnap.data()?.enterpriseId || '');
+  if (!enterpriseId) throw new HttpsError('not-found', 'Store not found');
+  const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
+  if (!entSnap.exists) throw new HttpsError('not-found', 'Enterprise not found');
+  return { enterpriseId, enterprise: entSnap.data() || {} };
+}
+
+function mapPublicOrderSummary(id, data, enterprise) {
+  const status = String(data.status || 'pending');
+  const fulfillmentStatus = String(
+    data.fulfillmentStatus || (status === 'accepted' ? 'accepted' : status)
+  );
+  const store = enterprise.onlineStore || {};
+  return {
+    id,
+    code: String(data.code || ''),
+    status,
+    fulfillmentStatus,
+    customerName: String(data.customerName || ''),
+    customerPhone: String(data.customerPhone || ''),
+    customerAddress: data.customerAddress != null ? String(data.customerAddress) : undefined,
+    deliveryType: data.deliveryType === 'delivery' ? 'delivery' : 'pickup',
+    deliveryFee: Number(data.deliveryFee || 0),
+    paymentMethod: String(data.paymentMethod || 'cash'),
+    items: Array.isArray(data.items) ? data.items : [],
+    subtotal: Number(data.subtotal || 0),
+    total: Number(data.total || 0),
+    notes: data.notes != null ? String(data.notes) : undefined,
+    rejectedReason: data.rejectedReason != null ? String(data.rejectedReason) : undefined,
+    createdAt: String(data.createdAt || ''),
+    updatedAt: String(data.updatedAt || ''),
+    storeName: String(enterprise.tradeName || enterprise.name || ''),
+    whatsapp: store.whatsapp != null ? String(store.whatsapp) : undefined,
+    googleReviewUrl: store.googleReviewUrl != null ? String(store.googleReviewUrl) : undefined,
+  };
+}
+
+exports.lookupPublicCustomerByPhone = onCall(async (request) => {
+  const { enterpriseId } = await resolveEnterpriseBySlug(request.data?.slug);
+  const digits = phoneDigits(request.data?.phone);
+  if (digits.length < 10) {
+    return { found: false };
+  }
+
+  // 1. Check ERP customers collection
+  const customersSnap = await db()
+    .collection(`enterprises/${enterpriseId}/customers`)
+    .where('active', '==', true)
+    .get();
+
+  const matchedCustomer = customersSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .find((c) => phonesMatch(c.phone || c.whatsapp, digits));
+
+  if (matchedCustomer) {
+    return {
+      found: true,
+      customer: {
+        name: String(matchedCustomer.name || ''),
+        phone: String(matchedCustomer.phone || matchedCustomer.whatsapp || ''),
+        cep: String(matchedCustomer.zipCode || matchedCustomer.cep || ''),
+        street: String(matchedCustomer.address || matchedCustomer.street || ''),
+        number: String(matchedCustomer.addressNumber || matchedCustomer.number || ''),
+        complement: String(matchedCustomer.complement || ''),
+        neighborhood: String(matchedCustomer.neighborhood || ''),
+        city: String(matchedCustomer.city || ''),
+        state: String(matchedCustomer.state || ''),
+      },
+    };
+  }
+
+  // 2. Fallback: check most recent online order from this phone
+  const ordersSnap = await db()
+    .collection(`enterprises/${enterpriseId}/onlineOrders`)
+    .orderBy('createdAt', 'desc')
+    .limit(100)
+    .get();
+
+  const matchedOrder = ordersSnap.docs
+    .map((d) => d.data() || {})
+    .find((o) => phonesMatch(o.customerPhoneDigits || o.customerPhone, digits));
+
+  if (matchedOrder) {
+    const addr = matchedOrder.customerAddressFields || {};
+    return {
+      found: true,
+      customer: {
+        name: String(matchedOrder.customerName || ''),
+        phone: String(matchedOrder.customerPhone || ''),
+        cep: String(addr.cep || ''),
+        street: String(addr.street || ''),
+        number: String(addr.number || ''),
+        complement: String(addr.complement || ''),
+        neighborhood: String(addr.neighborhood || ''),
+        city: String(addr.city || ''),
+        state: String(addr.state || ''),
+      },
+    };
+  }
+
+  return { found: false };
+});
+
+exports.listPublicOrdersByPhone = onCall(async (request) => {
+  const { enterpriseId, enterprise } = await resolveEnterpriseBySlug(request.data?.slug);
+  const digits = phoneDigits(request.data?.phone);
+  if (digits.length < 10) {
+    throw new HttpsError('invalid-argument', 'Informe um telefone válido com DDD');
+  }
+
+  const snap = await db()
+    .collection(`enterprises/${enterpriseId}/onlineOrders`)
+    .orderBy('createdAt', 'desc')
+    .limit(150)
+    .get();
+
+  const orders = snap.docs
+    .filter((d) => {
+      const data = d.data() || {};
+      return phonesMatch(data.customerPhoneDigits || data.customerPhone, digits);
+    })
+    .slice(0, 20)
+    .map((d) => mapPublicOrderSummary(d.id, d.data() || {}, enterprise));
+
+  return { orders };
+});
+
+exports.getPublicOrderStatus = onCall(async (request) => {
+  const { enterpriseId, enterprise } = await resolveEnterpriseBySlug(request.data?.slug);
+  const orderId = String(request.data?.orderId || '').trim();
+  if (!orderId) throw new HttpsError('invalid-argument', 'orderId required');
+
+  const snap = await db().doc(`enterprises/${enterpriseId}/onlineOrders/${orderId}`).get();
+  if (!snap.exists) throw new HttpsError('not-found', 'Order not found');
+
+  return { order: mapPublicOrderSummary(snap.id, snap.data() || {}, enterprise) };
+});
+
+const VALID_FULFILLMENT_STATUSES = new Set([
+  'accepted',
+  'preparing',
+  'out_for_delivery',
+  'delivered',
+]);
+
+exports.updateOnlineOrderStatus = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  const orderId = String(request.data?.orderId || '').trim();
+  const fulfillmentStatus = String(request.data?.fulfillmentStatus || '').trim();
+
+  if (!enterpriseId || !orderId || !VALID_FULFILLMENT_STATUSES.has(fulfillmentStatus)) {
+    throw new HttpsError('invalid-argument', 'Invalid enterpriseId, orderId, or fulfillmentStatus');
+  }
+  assertTenantPosAccess(request, enterpriseId);
+
+  const orderRef = db().doc(`enterprises/${enterpriseId}/onlineOrders/${orderId}`);
+  const orderSnap = await orderRef.get();
+  if (!orderSnap.exists) throw new HttpsError('not-found', 'Order not found');
+  if (orderSnap.data()?.status !== 'accepted') {
+    throw new HttpsError('failed-precondition', 'Only accepted orders can progress');
+  }
+
+  await orderRef.update({
+    fulfillmentStatus,
+    updatedAt: nowIso(),
+  });
+  return { fulfillmentStatus };
 });

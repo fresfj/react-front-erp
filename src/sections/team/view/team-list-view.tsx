@@ -1,6 +1,4 @@
-import type { GridColDef } from '@mui/x-data-grid';
 import type { TenantRole } from 'src/auth/firebase-claims';
-import type { ErpGridSelectFilter } from 'src/components/erp-data-grid';
 import type { TeamMember, MemberPermissionKey } from 'src/api/firestore/members';
 
 import { z as zod } from 'zod';
@@ -10,7 +8,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import Chip from '@mui/material/Chip';
+import Table from '@mui/material/Table';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -19,14 +17,15 @@ import Divider from '@mui/material/Divider';
 import Collapse from '@mui/material/Collapse';
 import MenuItem from '@mui/material/MenuItem';
 import Checkbox from '@mui/material/Checkbox';
+import TableBody from '@mui/material/TableBody';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import DialogTitle from '@mui/material/DialogTitle';
-import { GridActionsCellItem } from '@mui/x-data-grid';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
+import TableContainer from '@mui/material/TableContainer';
 import FormControlLabel from '@mui/material/FormControlLabel';
 
 import { paths } from 'src/routes/paths';
@@ -45,23 +44,35 @@ import {
   DEFAULT_OPERATOR_PERMISSIONS,
 } from 'src/api/firestore/members';
 
-import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { Scrollbar } from 'src/components/scrollbar';
 import { Form, Field } from 'src/components/hook-form';
-import { ErpDataGrid } from 'src/components/erp-data-grid';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import {
+  useTable,
+  emptyRows,
+  TableNoData,
+  TableSkeleton,
+  TableEmptyRows,
+  TableHeadCustom,
+  TablePaginationCustom,
+} from 'src/components/table';
 
 import { useAuthContext } from 'src/auth/hooks';
 import { TENANT_ROLES } from 'src/auth/firebase-claims';
 
+import { TeamTableRow } from '../team-table-row';
+import { TeamTableToolbar } from '../team-table-toolbar';
+
 // ----------------------------------------------------------------------
 
-const ROLE_OPTIONS = [
-  { value: 'operador', label: 'Operador (PDV)' },
-  { value: 'gestor', label: 'Gestor' },
-  { value: 'admin', label: 'Administrador' },
+const TABLE_HEAD = [
+  { id: 'displayName', label: 'Colaborador / E-mail', minWidth: 240 },
+  { id: 'role', label: 'Perfil / Cargo', width: 170 },
+  { id: 'permissions', label: 'Módulos Liberados', minWidth: 320 },
+  { id: 'actions', label: '', width: 80, align: 'right' },
 ];
 
 const InviteMemberSchema = zod.object({
@@ -77,6 +88,7 @@ type InviteMemberSchemaType = zod.infer<typeof InviteMemberSchema>;
 
 export function TeamListView() {
   const { t } = useTranslate('common');
+  const table = useTable({ defaultOrderBy: 'displayName', defaultOrder: 'asc' });
   const { user } = useAuthContext();
 
   const openInviteCard = useBoolean(true);
@@ -88,7 +100,8 @@ export function TeamListView() {
 
   const [loading, setLoading] = useState(true);
   const [members, setMembers] = useState<TeamMember[]>([]);
-  const [roleFilter, setRoleFilter] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [selectedPermissions, setSelectedPermissions] = useState<MemberPermissionKey[]>(
     DEFAULT_OPERATOR_PERMISSIONS
   );
@@ -140,6 +153,7 @@ export function TeamListView() {
     } catch (error) {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar colaboradores'));
+      setMembers([]);
     } finally {
       setLoading(false);
     }
@@ -149,187 +163,95 @@ export function TeamListView() {
     loadMembers();
   }, [loadMembers]);
 
-  const toggleCreatePermission = (key: MemberPermissionKey) => {
+  const toggleCreatePermission = (permKey: MemberPermissionKey) => {
     setSelectedPermissions((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(permKey) ? prev.filter((k) => k !== permKey) : [...prev, permKey]
     );
   };
 
-  const toggleEditPermission = (key: MemberPermissionKey) => {
+  const toggleEditPermission = (permKey: MemberPermissionKey) => {
     setEditPerms((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+      prev.includes(permKey) ? prev.filter((k) => k !== permKey) : [...prev, permKey]
     );
   };
 
   const onInviteSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
-
     try {
       await inviteMember({
         enterpriseId,
-        email: data.email.trim().toLowerCase(),
-        displayName: data.displayName.trim(),
+        email: data.email,
         role: data.role,
-        tempPassword: data.tempPassword.trim(),
+        displayName: data.displayName,
+        tempPassword: data.tempPassword,
         permissions: selectedPermissions,
       });
 
-      toast.success('Colaborador criado e permissões configuradas com sucesso!');
-      reset({
-        displayName: '',
-        email: '',
-        role: 'operador',
-        tempPassword: '',
-      });
+      toast.success(`Colaborador ${data.displayName} cadastrado com sucesso!`);
+      reset();
       setSelectedPermissions(DEFAULT_OPERATOR_PERMISSIONS);
       await loadMembers();
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Não foi possível criar o acesso do colaborador'));
+      toast.error(getFirebaseErrorMessage(error, 'Erro ao cadastrar colaborador'));
     }
   });
 
-  const handleOpenEditPermissions = useCallback(
-    (member: TeamMember) => {
-      setEditMember(member);
-      setEditRole(member.role);
-      setEditPerms(member.permissions);
-      permModal.onTrue();
-    },
-    [permModal]
-  );
+  const handleOpenEditPermissions = (member: TeamMember) => {
+    setEditMember(member);
+    setEditRole(member.role);
+    setEditPerms(member.permissions);
+    permModal.onTrue();
+  };
 
   const handleSaveMemberPermissions = async () => {
     if (!enterpriseId || !editMember) return;
     setSavingPerms(true);
     try {
+      if (editRole !== editMember.role) {
+        await setMemberClaims({
+          enterpriseId,
+          uid: editMember.uid,
+          role: editRole,
+        });
+      }
+
       await updateTeamMemberPermissions(enterpriseId, editMember.uid, {
         role: editRole,
         permissions: editPerms,
       });
 
-      try {
-        await setMemberClaims({
-          uid: editMember.uid,
-          enterpriseId,
-          role: editRole,
-          permissions: editPerms,
-        });
-      } catch (fnErr) {
-        console.warn('Cloud function setMemberClaims fallback to Firestore doc:', fnErr);
-      }
-
-      toast.success('Permissões do colaborador atualizadas!');
+      toast.success('Permissões e cargo atualizados com sucesso!');
       permModal.onFalse();
       await loadMembers();
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Erro ao atualizar permissões'));
+      toast.error(getFirebaseErrorMessage(error, 'Erro ao atualizar permissões do colaborador'));
     } finally {
       setSavingPerms(false);
     }
   };
 
   const dataFiltered = useMemo(() => {
-    if (!roleFilter.length) return members;
-    return members.filter((m) => roleFilter.includes(m.role));
-  }, [members, roleFilter]);
+    let rows = members;
 
-  const selectFilters: ErpGridSelectFilter[] = [
-    {
-      id: 'role',
-      label: 'Cargo / Perfil',
-      options: ROLE_OPTIONS,
-      value: roleFilter,
-      onChange: setRoleFilter,
-    },
-  ];
+    if (roleFilter !== 'all') {
+      rows = rows.filter((m) => m.role === roleFilter);
+    }
 
-  const columns = useMemo<GridColDef<TeamMember>[]>(
-    () => [
-      {
-        field: 'displayName',
-        headerName: 'Colaborador',
-        width: 200,
-        hideable: false,
-        valueGetter: (_v, row) => row.displayName || row.email.split('@')[0],
-      },
-      {
-        field: 'email',
-        headerName: 'E-mail de Acesso',
-        width: 230,
-      },
-      {
-        field: 'role',
-        headerName: 'Perfil / Cargo',
-        width: 150,
-        renderCell: (params) => (
-          <Label
-            color={
-              params.row.role === 'admin'
-                ? 'primary'
-                : params.row.role === 'gestor'
-                  ? 'info'
-                  : 'warning'
-            }
-            variant="soft"
-          >
-            {params.row.role === 'operador'
-              ? 'Operador (PDV)'
-              : params.row.role === 'gestor'
-                ? 'Gestor'
-                : 'Admin'}
-          </Label>
-        ),
-      },
-      {
-        field: 'permissions',
-        headerName: 'Módulos Liberados (Sem DRE por padrão no Operador)',
-        flex: 1,
-        minWidth: 320,
-        renderCell: (params) => (
-          <Stack direction="row" spacing={0.5} useFlexGap flexWrap="wrap" sx={{ py: 1 }}>
-            {params.row.permissions.map((permKey) => {
-              const meta = ALL_MEMBER_PERMISSIONS.find((p) => p.key === permKey);
-              return (
-                <Chip
-                  key={permKey}
-                  size="small"
-                  variant="soft"
-                  color={meta?.defaultForOperator ? 'default' : 'info'}
-                  label={meta?.label || permKey}
-                />
-              );
-            })}
-          </Stack>
-        ),
-      },
-      {
-        type: 'actions',
-        field: 'actions',
-        headerName: ' ',
-        align: 'right',
-        headerAlign: 'right',
-        width: 80,
-        sortable: false,
-        filterable: false,
-        disableColumnMenu: true,
-        getActions: (params) =>
-          isAdmin
-            ? [
-                <GridActionsCellItem
-                  key="perms"
-                  showInMenu
-                  icon={<Iconify icon="solar:settings-bold" />}
-                  label="Configurar Permissões"
-                  onClick={() => handleOpenEditPermissions(params.row)}
-                />,
-              ]
-            : [],
-      },
-    ],
-    [handleOpenEditPermissions, isAdmin]
-  );
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      rows = rows.filter(
+        (m) =>
+          m.displayName?.toLowerCase().includes(q) ||
+          m.email?.toLowerCase().includes(q)
+      );
+    }
+
+    return rows;
+  }, [members, roleFilter, searchQuery]);
+
+  const notFound = !dataFiltered.length && !loading;
 
   return (
     <>
@@ -419,7 +341,7 @@ export function TeamListView() {
                               <FormControlLabel
                                 key={perm.key}
                                 control={
-                                  <Checkbox
+                                   <Checkbox
                                     checked={checked}
                                     onChange={() => toggleCreatePermission(perm.key)}
                                   />
@@ -457,19 +379,67 @@ export function TeamListView() {
               </Card>
             )}
 
-            <Card sx={{ height: 600 }}>
-              <ErpDataGrid<TeamMember>
-                rows={dataFiltered}
-                columns={columns}
-                loading={loading}
-                getRowId={(row) => row.uid}
-                getRowHeight={() => 'auto'}
-                emptyTitle="Nenhum colaborador cadastrado ainda"
-                toolbar={{
-                  selectFilters,
-                  searchPlaceholder: 'Pesquisar colaborador por nome, e-mail…',
-                  filteredResults: dataFiltered.length,
-                }}
+            <Card>
+              <TeamTableToolbar
+                searchQuery={searchQuery}
+                onSearchChange={(e) => setSearchQuery(e.target.value)}
+                roleFilter={roleFilter}
+                onRoleFilterChange={setRoleFilter}
+                onResetPage={table.onResetPage}
+              />
+
+              <TableContainer sx={{ position: 'relative', overflow: 'unset' }}>
+                <Scrollbar>
+                  <Table size={table.dense ? 'small' : 'medium'} sx={{ minWidth: 900 }}>
+                    <TableHeadCustom
+                      order={table.order}
+                      orderBy={table.orderBy}
+                      headLabel={TABLE_HEAD}
+                      onSort={table.onSort}
+                    />
+
+                    <TableBody>
+                      {loading ? (
+                        [...Array(table.rowsPerPage)].map((_, index) => (
+                          <TableSkeleton key={index} sx={{ height: table.dense ? 56 : 76 }} />
+                        ))
+                      ) : (
+                        <>
+                          {dataFiltered
+                            .slice(
+                              table.page * table.rowsPerPage,
+                              table.page * table.rowsPerPage + table.rowsPerPage
+                            )
+                            .map((row) => (
+                              <TeamTableRow
+                                key={row.uid}
+                                row={row}
+                                isAdmin={isAdmin}
+                                onEditPermissions={() => handleOpenEditPermissions(row)}
+                              />
+                            ))}
+
+                          <TableEmptyRows
+                            height={table.dense ? 56 : 76}
+                            emptyRows={emptyRows(table.page, table.rowsPerPage, dataFiltered.length)}
+                          />
+
+                          <TableNoData notFound={notFound} />
+                        </>
+                      )}
+                    </TableBody>
+                  </Table>
+                </Scrollbar>
+              </TableContainer>
+
+              <TablePaginationCustom
+                count={dataFiltered.length}
+                page={table.page}
+                rowsPerPage={table.rowsPerPage}
+                onPageChange={table.onChangePage}
+                onRowsPerPageChange={table.onChangeRowsPerPage}
+                dense={table.dense}
+                onChangeDense={table.onChangeDense}
               />
             </Card>
           </Stack>

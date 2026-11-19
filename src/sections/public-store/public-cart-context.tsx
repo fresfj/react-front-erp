@@ -10,6 +10,7 @@ export type PublicCartLine = {
   name: string;
   unitPrice: number;
   qty: number;
+  imageUrl?: string;
   notes?: string;
 };
 
@@ -45,6 +46,7 @@ export function PublicCartProvider({ children }: { children: ReactNode }) {
           name: product.name,
           unitPrice: product.salePrice,
           qty,
+          imageUrl: product.imageUrl,
           notes,
         },
       ];

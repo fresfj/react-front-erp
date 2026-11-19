@@ -37,6 +37,10 @@ export function RHFTextField({ name, helperText, type, onChangeColumn, ...other 
               onChangeColumn();
             }
           }}
+          onBlur={(event) => {
+            field.onBlur();
+            other.onBlur?.(event);
+          }}
           error={!!error}
           helperText={error?.message ?? helperText}
           inputProps={{

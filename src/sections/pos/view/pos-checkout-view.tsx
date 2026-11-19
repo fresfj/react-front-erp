@@ -1,11 +1,13 @@
 import type { Batch } from 'src/api/firestore/batches';
 import type { Product } from 'src/api/firestore/products';
 import type { Customer } from 'src/api/firestore/customers';
-import type { SaleItem, SalePayment } from 'src/api/firestore/sales';
+import type { Enterprise } from 'src/api/firestore/platform';
+import type { SaleItem, SalePayment, DeliveryType, PaymentMethod } from 'src/api/firestore/sales';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
@@ -18,6 +20,7 @@ import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
+import ButtonBase from '@mui/material/ButtonBase';
 import LoadingButton from '@mui/lab/LoadingButton';
 import ListItemText from '@mui/material/ListItemText';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -35,8 +38,8 @@ import { useTranslate } from 'src/locales';
 import { createSale } from 'src/api/firestore/sales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { listProducts } from 'src/api/firestore/products';
+import { getEnterprise } from 'src/api/firestore/platform';
 import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
-import { getEffectivePermissions } from 'src/api/firestore/members';
 import { listAvailableBatchesFIFO } from 'src/api/firestore/batches';
 import { listCustomers, formatCustomerFullAddress } from 'src/api/firestore/customers';
 
@@ -44,6 +47,7 @@ import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
+import { CustomTabs } from 'src/components/custom-tabs';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
@@ -92,11 +96,8 @@ export function PosCheckoutView() {
   const [activePaymentIdx, setActivePaymentIdx] = useState<number | null>(null);
 
   const enterpriseId = user?.enterpriseId as string | undefined;
-  const effectivePermissions = useMemo(
-    () => getEffectivePermissions(user?.role, user?.permissions as string[] | undefined),
-    [user?.permissions, user?.role]
-  );
-  const canViewFinancialMargins = effectivePermissions.has('dre');
+  const isAdmin = Boolean(user?.platformAdmin) || user?.role === 'admin';
+  const canViewFinancialMargins = isAdmin;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -107,32 +108,42 @@ export function PosCheckoutView() {
   const [submitting, setSubmitting] = useState(false);
 
   const [cart, setCart] = useState<CartRow[]>([]);
+  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
   const [discountInput, setDiscountInput] = useState<string>('');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [payments, setPayments] = useState<SalePayment[]>([{ method: 'pix', amount: 0 }]);
+  const [deliveryType, setDeliveryType] = useState<DeliveryType>('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
   const [notes, setNotes] = useState('');
 
   const loadData = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      let [prods, availBatches, custs] = await Promise.all([
+      let [prods, availBatches, custs, ent] = await Promise.all([
         listProducts(enterpriseId),
         listAvailableBatchesFIFO(enterpriseId),
         listCustomers(enterpriseId),
+        getEnterprise(enterpriseId),
       ]);
 
       if (prods.length === 0) {
         await seedDemoErpCatalog(enterpriseId);
-        [prods, availBatches, custs] = await Promise.all([
+        [prods, availBatches, custs, ent] = await Promise.all([
           listProducts(enterpriseId),
           listAvailableBatchesFIFO(enterpriseId),
           listCustomers(enterpriseId),
+          getEnterprise(enterpriseId),
         ]);
       }
 
       setProducts(prods.filter((p) => p.active));
       setBatches(availBatches);
       setCustomers(custs.filter((c) => c.active));
+      setEnterprise(ent);
+      if (ent?.defaultDeliveryFee) {
+        setDeliveryFee(Number(ent.defaultDeliveryFee));
+      }
     } catch (error) {
       console.error(error);
     }
@@ -239,6 +250,61 @@ export function PosCheckoutView() {
     setCart((prev) => prev.filter((row) => row.key !== rowKey));
   };
 
+  const calculateMethodFee = useCallback(
+    (method: PaymentMethod, amount: number, installments?: number) => {
+      if (!enterprise || amount <= 0) return { feeRate: 0, feeAmount: 0 };
+      let rate = 0;
+      let fixed = 0;
+      switch (method) {
+        case 'credit_card': {
+          const baseRate = Number(enterprise.creditCardFeeRate || 0);
+          const extraRate =
+            installments && installments > 1
+              ? Number(enterprise.creditCardInstallmentFeeRate || 0) * (installments - 1)
+              : 0;
+          rate = baseRate + extraRate;
+          break;
+        }
+        case 'debit_card':
+          rate = Number(enterprise.debitCardFeeRate || 0);
+          break;
+        case 'pix':
+          rate = Number(enterprise.pixFeeRate || 0);
+          fixed = Number(enterprise.pixFeeFixed || 0);
+          break;
+        case 'credit_tab':
+          rate = Number(enterprise.creditTabFeeRate || 0);
+          break;
+        case 'cash':
+        default:
+          rate = 0;
+          fixed = 0;
+          break;
+      }
+      const feeAmount = Math.round((amount * (rate / 100) + fixed) * 100) / 100;
+      return { feeRate: rate, feeAmount };
+    },
+    [enterprise]
+  );
+
+  const enrichedPayments = useMemo(() => payments.map((p) => {
+      const { feeRate, feeAmount } = calculateMethodFee(p.method, p.amount, p.installments);
+      return {
+        ...p,
+        feeRate,
+        feeAmount,
+      };
+    }), [payments, calculateMethodFee]);
+
+  const totalPaymentFees = useMemo(
+    () => enrichedPayments.reduce((acc, p) => acc + (p.feeAmount || 0), 0),
+    [enrichedPayments]
+  );
+
+  const passFeesToCustomer = Boolean(enterprise?.passPaymentFeesToCustomer);
+  const surchargeAmount = passFeesToCustomer ? totalPaymentFees : 0;
+  const effectiveDeliveryFee = deliveryType === 'delivery' ? deliveryFee : 0;
+
   const summary = useMemo(
     () =>
       calculatePosTotals({
@@ -249,17 +315,25 @@ export function PosCheckoutView() {
           unitCost: c.unitCost,
         })),
         discountAmount,
-        payments,
+        deliveryFee: effectiveDeliveryFee,
+        surchargeAmount,
+        payments: enrichedPayments,
         role: user?.role,
       }),
-    [cart, discountAmount, payments, user?.role]
+    [cart, discountAmount, effectiveDeliveryFee, surchargeAmount, enrichedPayments, user?.role]
   );
 
   useEffect(() => {
     if (payments.length === 1) {
-      setPayments((prev) => [{ ...prev[0], amount: summary.total }]);
+      if (payments[0].method !== 'cash') {
+        if (payments[0].amount !== summary.total) {
+          setPayments((prev) => [{ ...prev[0], amount: summary.total }]);
+        }
+      } else if (payments[0].amount === 0 && summary.total > 0) {
+        setPayments((prev) => [{ ...prev[0], amount: summary.total }]);
+      }
     }
-  }, [payments.length, summary.total]);
+  }, [payments, summary.total]);
 
   const handleApplyDiscount = () => {
     const val = Math.max(0, Number(discountInput) || 0);
@@ -296,6 +370,19 @@ export function PosCheckoutView() {
       );
       customerPicker.onTrue();
       return;
+    }
+
+    if (deliveryType === 'delivery') {
+      if (!selectedCustomer) {
+        toast.error('Para entrega / delivery, vincule ou cadastre um cliente com endereço.');
+        customerPicker.onTrue();
+        return;
+      }
+      const finalAddress = deliveryAddress.trim() || formatCustomerFullAddress(selectedCustomer);
+      if (!finalAddress) {
+        toast.error('Informe o endereço de entrega do cliente.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -336,9 +423,18 @@ export function PosCheckoutView() {
         total: summary.total,
         totalCost: summary.totalCost,
         grossProfit: summary.grossProfit,
-        payments: payments.filter((p) => p.amount > 0),
+        payments: enrichedPayments.filter((p) => p.amount > 0),
         paidAmount: summary.paidAmount,
         changeAmount: summary.changeAmount,
+        deliveryType,
+        deliveryAddress:
+          deliveryType === 'delivery'
+            ? deliveryAddress.trim() || formatCustomerFullAddress(selectedCustomer) || undefined
+            : undefined,
+        deliveryFee: effectiveDeliveryFee,
+        paymentFeeAmount: totalPaymentFees,
+        feesPassedToCustomer: passFeesToCustomer,
+        surchargeAmount,
         notes: notes.trim() || undefined,
       });
 
@@ -354,13 +450,19 @@ export function PosCheckoutView() {
     batches,
     cart,
     customerPicker,
+    deliveryAddress,
+    deliveryType,
+    effectiveDeliveryFee,
     enterpriseId,
+    enrichedPayments,
     notes,
-    payments,
+    passFeesToCustomer,
     router,
     selectedCustomer,
     summary,
+    surchargeAmount,
     t,
+    totalPaymentFees,
     user?.email,
     user?.id,
   ]);
@@ -386,6 +488,31 @@ export function PosCheckoutView() {
         </Box>
       </Stack>
 
+      {deliveryType === 'delivery' && deliveryFee > 0 && (
+        <Stack direction="row">
+          <Box sx={{ color: 'text.secondary' }}>Taxa de entrega</Box>
+          <Box sx={{ width: 160 }}>+ {fCurrency(deliveryFee)}</Box>
+        </Stack>
+      )}
+
+      {surchargeAmount > 0 && (
+        <Stack direction="row">
+          <Box sx={{ color: 'text.secondary' }}>Acréscimo (Taxa de pagamento)</Box>
+          <Box sx={{ width: 160, color: 'warning.main' }}>+ {fCurrency(surchargeAmount)}</Box>
+        </Stack>
+      )}
+
+      {!passFeesToCustomer && totalPaymentFees > 0 && (
+        <Stack direction="row">
+          <Box sx={{ color: 'text.disabled', typography: 'caption' }}>
+            Taxa maquininha (despesa da loja DRE)
+          </Box>
+          <Box sx={{ width: 160, color: 'text.disabled', typography: 'caption' }}>
+            - {fCurrency(totalPaymentFees)}
+          </Box>
+        </Stack>
+      )}
+
       {canViewFinancialMargins && (
         <>
           <Stack direction="row">
@@ -402,9 +529,9 @@ export function PosCheckoutView() {
         </>
       )}
 
-      <Stack direction="row" sx={{ typography: 'subtitle1' }}>
+      <Stack direction="row" sx={{ typography: 'h4' }}>
         <div>{t('pos.fields.total')}</div>
-        <Box sx={{ width: 160, color: 'primary.main', typography: 'h6' }}>
+        <Box sx={{ width: 160, color: 'primary.main', typography: 'h4' }}>
           {fCurrency(summary.total)}
         </Box>
       </Stack>
@@ -413,7 +540,7 @@ export function PosCheckoutView() {
 
   return (
     <>
-      <DashboardContent>
+      <DashboardContent maxWidth="xl">
         <CustomBreadcrumbs
           heading={t('pos.checkoutHeading')}
           links={[
@@ -479,7 +606,7 @@ export function PosCheckoutView() {
                     >
                       Catálogo ({products.length})
                     </Button>
-                    <Button
+                    {/* <Button
                       variant="contained"
                       disabled={!filteredCatalog.length}
                       onClick={() => {
@@ -492,7 +619,7 @@ export function PosCheckoutView() {
                       sx={{ flexShrink: 0 }}
                     >
                       {t('pos.addFirstMatch')}
-                    </Button>
+                    </Button> */}
                   </Stack>
                 </Card>
 
@@ -537,11 +664,11 @@ export function PosCheckoutView() {
                           <Stack
                             key={row.key}
                             direction="row"
-                            alignItems="center"
+                            alignItems="flex-start"
                             spacing={2}
                             sx={{
                               p: 3,
-                              minWidth: 680,
+                              minWidth: 480,
                               borderBottom: (theme) =>
                                 `dashed 2px ${theme.vars.palette.background.neutral}`,
                             }}
@@ -552,6 +679,7 @@ export function PosCheckoutView() {
                               sx={{
                                 width: 48,
                                 height: 48,
+                                mt: 0.5,
                                 bgcolor: 'background.neutral',
                                 color: 'text.secondary',
                               }}
@@ -568,7 +696,7 @@ export function PosCheckoutView() {
                                 color: 'text.disabled',
                                 mt: 0.5,
                               }}
-                              sx={{ flex: 1, minWidth: 160 }}
+                              sx={{ flex: 1, minWidth: 160, mt: 0.5 }}
                             />
 
                             <TextField
@@ -577,7 +705,7 @@ export function PosCheckoutView() {
                               label={t('pos.fields.batch')}
                               value={row.batchId}
                               onChange={(e) => handleBatchChange(row.key, e.target.value)}
-                              sx={{ width: 185 }}
+                              sx={{ display: 'none', width: 185 }}
                             >
                               <MenuItem value="">{t('pos.noBatchAvailable')}</MenuItem>
                               {productBatches.map((b) => (
@@ -587,36 +715,31 @@ export function PosCheckoutView() {
                               ))}
                             </TextField>
 
-                            {/* IncrementerButton (- 1 +) from /product/checkout */}
-                            <Box sx={{ width: 96, textAlign: 'right' }}>
-                              <IncrementerButton
-                                quantity={row.qty}
-                                onDecrease={() => handleQtyChange(row.key, row.qty - 1)}
-                                onIncrease={() => handleQtyChange(row.key, row.qty + 1)}
-                                disabledDecrease={row.qty <= 1}
-                                disabledIncrease={
-                                  typeof availableQty === 'number' && row.qty >= availableQty
-                                }
-                              />
-                              {typeof availableQty === 'number' && (
-                                <Typography
-                                  variant="caption"
-                                  component="div"
-                                  sx={{ color: 'text.secondary', mt: 0.75 }}
-                                >
-                                  disp.: {availableQty} {row.unit}
-                                </Typography>
-                              )}
-                            </Box>
+                            {/* IncrementerButton (- 1 +) sized medium (56px) matching unitPrice with helperText */}
+                            <IncrementerButton
+                              size="medium"
+                              quantity={row.qty}
+                              onDecrease={() => handleQtyChange(row.key, row.qty - 1)}
+                              onIncrease={() => handleQtyChange(row.key, row.qty + 1)}
+                              onDelete={() => handleRemoveCartRow(row.key)}
+                              disabledIncrease={
+                                typeof availableQty === 'number' && row.qty >= availableQty
+                              }
+                              helperText={
+                                typeof availableQty === 'number'
+                                  ? `disp.: ${availableQty} ${row.unit}`
+                                  : ' '
+                              }
+                            />
 
                             <TextField
-                              size="small"
                               type="number"
                               label={t('pos.fields.unitPrice')}
                               value={row.unitPrice}
                               onChange={(e) =>
                                 handlePriceChange(row.key, Number(e.target.value))
                               }
+                              helperText={row.unit ? `por ${row.unit}` : ' '}
                               InputLabelProps={{ shrink: true }}
                               inputProps={{ min: 0, step: 'any' }}
                               InputProps={{
@@ -636,18 +759,11 @@ export function PosCheckoutView() {
                                 width: 100,
                                 textAlign: 'right',
                                 typography: 'subtitle2',
+                                pt: 2,
                               }}
                             >
                               {fCurrency(row.qty * row.unitPrice)}
                             </Box>
-
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => handleRemoveCartRow(row.key)}
-                            >
-                              <Iconify icon="solar:trash-bin-trash-bold" />
-                            </IconButton>
                           </Stack>
                         );
                       })}
@@ -669,7 +785,6 @@ export function PosCheckoutView() {
                     <Stack direction="row" spacing={0.5}>
                       {selectedCustomer && (
                         <IconButton
-                          size="small"
                           color="error"
                           title="Desvincular cliente"
                           onClick={() => setSelectedCustomer(null)}
@@ -747,13 +862,313 @@ export function PosCheckoutView() {
 
                 <Divider sx={{ borderStyle: 'dashed' }} />
 
-                {/* Section 2: Payment & Discount (Clean, without "Pagamento e fechamento" title) */}
-                <Stack spacing={2} sx={{ p: 3 }}>
-                  {/* Discount input matching CheckoutSummary */}
+                <CardHeader
+                  title={t('customers.delivery', { defaultValue: 'Entrega' })}
+                />
+                {/* Section 2: Delivery, Payment (Billing style) & Discount (below Paid) */}
+                <Stack spacing={2.5} sx={{ p: 3}}>
+                  {/* Delivery / Pickup Selector with animated smooth indicator (Banking Overview / CustomTabs style) */}
+                  <Stack spacing={1.5}>
+                    <CustomTabs
+                      value={deliveryType}
+                      onChange={(_, val) => {
+                        if (!val) return;
+                        if (val === 'delivery' && !selectedCustomer) {
+                          toast.info('Para entrega / delivery, vincule ou cadastre um cliente com endereço.');
+                          customerPicker.onTrue();
+                        }
+                        setDeliveryType(val);
+                        if (val === 'delivery') {
+                          if (deliveryFee === 0 && enterprise?.defaultDeliveryFee) {
+                            setDeliveryFee(Number(enterprise.defaultDeliveryFee));
+                          }
+                          if (!deliveryAddress && selectedCustomer) {
+                            setDeliveryAddress(formatCustomerFullAddress(selectedCustomer) || '');
+                          }
+                        }
+                      }}
+                      variant="fullWidth"
+                      sx={{
+                        borderRadius: 1.5,
+                        bgcolor: 'background.neutral',
+                        height: 58,
+                        minHeight: 58,
+                        mb: deliveryType === 'delivery' ? 1 : 0
+                      }}
+                      slotProps={{
+                        indicator: {
+                          borderRadius: 1,
+                          boxShadow: (theme) => theme.customShadows.z4,
+                        },
+                        tab: {
+                          minHeight: 48,
+                          py: 1,
+                          typography: 'subtitle2',
+                        },
+                      }}
+                    >
+                      <Tab
+                        value="pickup"
+                        label="Retirada"
+                        icon={<Iconify icon="solar:shop-bold" width={18} />}
+                        iconPosition="start"
+                      />
+                      <Tab
+                        value="delivery"
+                        label="Delivery"
+                        icon={<Iconify icon="solar:delivery-bold" width={18} />}
+                        iconPosition="start"
+                      />
+                    </CustomTabs>
+
+                    {deliveryType === 'delivery' && (
+                      <Stack spacing={2}>
+                        {selectedCustomer && !formatCustomerFullAddress(selectedCustomer) && (
+                          <Alert severity="warning" sx={{ typography: 'caption', py: 0.5 }}>
+                            O cliente selecionado não possui endereço completo no cadastro. Preencha o endereço abaixo.
+                          </Alert>
+                        )}
+
+                        <TextField
+                          fullWidth
+                          type="number"
+                          label="Taxa de entrega (R$)"
+                          placeholder="0.00"
+                          value={deliveryFee || ''}
+                          onChange={(e) => setDeliveryFee(Math.max(0, Number(e.target.value)))}
+                          InputLabelProps={{ shrink: true }}
+                          inputProps={{ min: 0, step: 'any' }}
+                          InputProps={{
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Box component="span" sx={{ color: 'text.disabled' }}>
+                                  R$
+                                </Box>
+                              </InputAdornment>
+                            ),
+                          }}
+                        />
+
+                        <TextField
+                          fullWidth
+                          label="Endereço de entrega"
+                          placeholder="Rua, número, complemento, bairro, cidade..."
+                          value={deliveryAddress}
+                          onChange={(e) => setDeliveryAddress(e.target.value)}
+                          InputLabelProps={{ shrink: true }}
+                          helperText={
+                            selectedCustomer && formatCustomerFullAddress(selectedCustomer)
+                              ? 'Endereço cadastrado do cliente'
+                              : 'Informe o endereço completo para envio'
+                          }
+                        />
+                      </Stack>
+                    )}
+                  </Stack>
+                </Stack>
+                <Divider sx={{ borderStyle: 'dashed' }} />
+                <CardHeader
+                  title={t('customers.payment_methods', { defaultValue: 'Formas de pagamento' })}
+                />
+                <Stack spacing={2.5} sx={{ p: 3 }}>
+                  {/* Payment Methods (Account Billing reference style) */}
+                  {payments.map((payment, idx) => {
+                    const meta = PAYMENT_METHOD_META[payment.method] || PAYMENT_METHOD_META.cash;
+                    const methodLabel = t(`pos.paymentMethods.${payment.method}`, {
+                      defaultValue: meta.defaultLabel,
+                    });
+                    const supportsInstallments =
+                      payment.method === 'credit_card' || payment.method === 'credit_tab';
+                    const currentInstallments = payment.installments || 1;
+                    const baseInstallmentAmount =
+                      payment.amount > 0 ? payment.amount : summary.total;
+
+                    return (
+                      <Stack key={idx} spacing={1.5}>
+                        {/* Billing-style row: Label + clickable ButtonBase (matching dashboard/user/account/billing) */}
+                        <Grid container spacing={{ xs: 0.5, md: 2 }} alignItems="center">
+                          <Grid xs={12} md={4} sx={{ color: 'text.secondary', typography: 'body2' }}>
+                            {payments.length > 1 ? `Pagamento ${idx + 1}` : 'Pagar com'}
+                          </Grid>
+                          <Grid xs={12} md={8}>
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              spacing={0.5}
+                            >
+                              <ButtonBase
+                                onClick={() => setActivePaymentIdx(idx)}
+                                sx={{
+                                  typography: 'subtitle2',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 1,
+                                  py: 0.5,
+                                  px: 0.75,
+                                  borderRadius: 0.75,
+                                  color: 'text.primary',
+                                  '&:hover': {
+                                    color: 'text.secondary',
+                                    bgcolor: 'action.hover',
+                                  },
+                                }}
+                              >
+                                <Iconify
+                                  icon={meta.icon}
+                                  width={20}
+                                  sx={{ color: meta.color, flexShrink: 0 }}
+                                />
+                                {methodLabel}
+                                <Iconify
+                                  icon="eva:arrow-ios-downward-fill"
+                                  width={16}
+                                  sx={{ color: 'text.disabled', ml: 0.25 }}
+                                />
+                              </ButtonBase>
+
+                              {payments.length > 1 && (
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => setPayments(payments.filter((_, i) => i !== idx))}
+                                >
+                                  <Iconify icon="solar:trash-bin-trash-bold" width={18} />
+                                </IconButton>
+                              )}
+                            </Stack>
+                          </Grid>
+                        </Grid>
+
+                        {/* Installments (1x to 12x) with minInstallmentAmount rule */}
+                        {supportsInstallments && (() => {
+                          const minInstallment = enterprise?.minInstallmentAmount ?? 15;
+                          const availableInstallments = Array.from({ length: 12 }, (_, i) => i + 1).filter(
+                            (n) => n === 1 || baseInstallmentAmount / n >= minInstallment
+                          );
+                          const safeInstallments = availableInstallments.includes(currentInstallments)
+                            ? currentInstallments
+                            : 1;
+
+                          return (
+                            <Grid container spacing={{ xs: 0.5, md: 2 }} alignItems="center">
+                              <Grid xs={12} md={4} sx={{ color: 'text.secondary', typography: 'body2' }}>
+                                Parcelas
+                              </Grid>
+                              <Grid xs={12} md={8}>
+                                <TextField
+                                  select
+                                  fullWidth
+                                  size="small"
+                                  value={safeInstallments}
+                                  onChange={(e) => {
+                                    const next = [...payments];
+                                    next[idx] = {
+                                      ...next[idx],
+                                      installments: Number(e.target.value),
+                                    };
+                                    setPayments(next);
+                                  }}
+                                >
+                                  {availableInstallments.map((n) => {
+                                    const perInstallment = baseInstallmentAmount / n;
+                                    return (
+                                      <MenuItem key={n} value={n}>
+                                        {n}x de {fCurrency(perInstallment)}
+                                        {n === 1 ? ' (À vista)' : ''}
+                                      </MenuItem>
+                                    );
+                                  })}
+                                </TextField>
+                              </Grid>
+                            </Grid>
+                          );
+                        })()}
+
+                        {/* Paid / Received Amount: only when cash, or for non-cash split payments if multiple payments */}
+                        {payment.method === 'cash' && (
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label={t('pos.fields.paymentAmount', { defaultValue: 'Valor recebido (R$)' })}
+                            placeholder="0.00"
+                            value={payment.amount || ''}
+                            onChange={(e) => {
+                              const next = [...payments];
+                              next[idx] = {
+                                ...next[idx],
+                                amount: Math.max(0, Number(e.target.value)),
+                              };
+                              setPayments(next);
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: 0, step: 'any' }}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Box component="span" sx={{ color: 'text.disabled' }}>
+                                    R$
+                                  </Box>
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        )}
+
+                        {payments.length > 1 && payment.method !== 'cash' && (
+                          <TextField
+                            fullWidth
+                            type="number"
+                            label="Valor deste pagamento (R$)"
+                            placeholder="0.00"
+                            value={payment.amount || ''}
+                            onChange={(e) => {
+                              const next = [...payments];
+                              next[idx] = {
+                                ...next[idx],
+                                amount: Math.max(0, Number(e.target.value)),
+                              };
+                              setPayments(next);
+                            }}
+                            InputLabelProps={{ shrink: true }}
+                            inputProps={{ min: 0, step: 'any' }}
+                            InputProps={{
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <Box component="span" sx={{ color: 'text.disabled' }}>
+                                    R$
+                                  </Box>
+                                </InputAdornment>
+                              ),
+                            }}
+                          />
+                        )}
+                      </Stack>
+                    );
+                  })}
+
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <Button
+                      size="small"
+                      color="primary"
+                      startIcon={<Iconify icon="mingcute:add-line" />}
+                      onClick={() =>
+                        setPayments([
+                          ...payments,
+                          { method: 'cash', amount: summary.remainingToPay },
+                        ])
+                      }
+                    >
+                      {t('pos.addPayment')}
+                    </Button>
+                  </Box>
+
+                  {/* Discount input positioned BELOW Received Amount */}
                   <TextField
                     fullWidth
                     type="number"
-                    placeholder="Desconto (R$)"
+                    label="Desconto (R$)"
+                    placeholder="0.00"
                     value={discountInput}
                     onChange={(e) => setDiscountInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -762,6 +1177,7 @@ export function PosCheckoutView() {
                         handleApplyDiscount();
                       }
                     }}
+                    InputLabelProps={{ shrink: true }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -793,108 +1209,14 @@ export function PosCheckoutView() {
                     </Alert>
                   )}
 
-                  {payments.map((payment, idx) => {
-                    const meta = PAYMENT_METHOD_META[payment.method] || PAYMENT_METHOD_META.cash;
-                    const methodLabel = t(`pos.paymentMethods.${payment.method}`, {
-                      defaultValue: meta.defaultLabel,
-                    });
-
-                    return (
-                      <Stack key={idx} spacing={1.5}>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <TextField
-                            fullWidth
-                            value={methodLabel}
-                            label={t('pos.fields.paymentMethod')}
-                            onClick={() => setActivePaymentIdx(idx)}
-                            InputProps={{
-                              readOnly: true,
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <Iconify
-                                    icon={meta.icon}
-                                    width={20}
-                                    sx={{ color: 'text.secondary' }}
-                                  />
-                                </InputAdornment>
-                              ),
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <Iconify
-                                    icon="eva:arrow-ios-downward-fill"
-                                    width={18}
-                                    sx={{ color: 'text.secondary' }}
-                                  />
-                                </InputAdornment>
-                              ),
-                            }}
-                            sx={{ cursor: 'pointer', '& input': { cursor: 'pointer' } }}
-                          />
-
-                          {payments.length > 1 && (
-                            <IconButton
-                              color="error"
-                              onClick={() => setPayments(payments.filter((_, i) => i !== idx))}
-                            >
-                              <Iconify icon="solar:trash-bin-trash-bold" />
-                            </IconButton>
-                          )}
-                        </Stack>
-
-                        <TextField
-                          fullWidth
-                          type="number"
-                          label={t('pos.fields.paymentAmount')}
-                          placeholder="0.00"
-                          value={payment.amount}
-                          onChange={(e) => {
-                            const next = [...payments];
-                            next[idx] = {
-                              ...next[idx],
-                              amount: Math.max(0, Number(e.target.value)),
-                            };
-                            setPayments(next);
-                          }}
-                          InputLabelProps={{ shrink: true }}
-                          inputProps={{ min: 0, step: 'any' }}
-                          InputProps={{
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <Box component="span" sx={{ color: 'text.disabled' }}>
-                                  R$
-                                </Box>
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Stack>
-                    );
-                  })}
-
-                  <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <Button
-                      size="small"
-                      color="primary"
-                      startIcon={<Iconify icon="mingcute:add-line" />}
-                      onClick={() =>
-                        setPayments([
-                          ...payments,
-                          { method: 'cash', amount: summary.remainingToPay },
-                        ])
-                      }
-                    >
-                      {t('pos.addPayment')}
-                    </Button>
-                  </Box>
-
                   <Divider sx={{ borderStyle: 'dashed' }} />
 
-                  <Stack spacing={1} sx={{ typography: 'body2' }}>
+                  <Stack spacing={1} sx={{ typography: 'h6' }}>
                     <Stack direction="row" justifyContent="space-between">
                       <Box component="span" sx={{ color: 'text.secondary' }}>
                         {t('pos.fields.paidAmount')}
                       </Box>
-                      <Typography variant="subtitle2">{fCurrency(summary.paidAmount)}</Typography>
+                      <Typography variant="h4">{fCurrency(summary.paidAmount)}</Typography>
                     </Stack>
 
                     {summary.remainingToPay > 0 && (
@@ -902,7 +1224,7 @@ export function PosCheckoutView() {
                         <Box component="span" sx={{ color: 'error.main' }}>
                           {t('pos.fields.remainingToPay')}
                         </Box>
-                        <Typography variant="subtitle2" color="error.main">
+                        <Typography variant="h6" color="error.main">
                           {fCurrency(summary.remainingToPay)}
                         </Typography>
                       </Stack>
@@ -912,7 +1234,7 @@ export function PosCheckoutView() {
                       <Box component="span" sx={{ color: 'success.main' }}>
                         {t('pos.fields.changeAmount')}
                       </Box>
-                      <Typography variant="subtitle1" color="success.main">
+                      <Typography variant="h4" color="success.main">
                         {fCurrency(summary.changeAmount)}
                       </Typography>
                     </Stack>
@@ -1006,7 +1328,18 @@ export function PosCheckoutView() {
         onSelect={(method) => {
           if (activePaymentIdx === null) return;
           const next = [...payments];
-          next[activePaymentIdx] = { ...next[activePaymentIdx], method };
+          const supportsInstallments = method === 'credit_card' || method === 'credit_tab';
+          next[activePaymentIdx] = {
+            ...next[activePaymentIdx],
+            method,
+            amount:
+              payments.length === 1
+                ? summary.total
+                : (next[activePaymentIdx].amount || summary.total),
+            installments: supportsInstallments
+              ? next[activePaymentIdx].installments || 1
+              : undefined,
+          };
           setPayments(next);
         }}
       />

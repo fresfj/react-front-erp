@@ -124,8 +124,9 @@ export function CustomerForm({ currentCustomer }: Props) {
   const zipCodeWatch = watch('zipCode') || '';
   const documentWatch = watch('document') || '';
 
-  useCepLookup({
+  const { handleBlur: handleCepBlur } = useCepLookup({
     cep: zipCodeWatch,
+    initialValue: currentCustomer?.zipCode,
     onSuccess: (fields) => {
       setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
       if (fields.address) setValue('address', fields.address, { shouldDirty: true });
@@ -145,8 +146,9 @@ export function CustomerForm({ currentCustomer }: Props) {
     },
   });
 
-  useCnpjLookup({
+  const { handleBlur: handleCnpjBlur } = useCnpjLookup({
     document: documentWatch,
+    initialValue: currentCustomer?.document,
     enabled: digitsOnly(documentWatch).length === 14,
     onSuccess: (fields) => {
       setValue('document', formatCpfCnpj(fields.document), { shouldDirty: true });
@@ -274,6 +276,7 @@ export function CustomerForm({ currentCustomer }: Props) {
                         shouldDirty: true,
                       });
                     }}
+                    onBlur={handleCnpjBlur}
                   />
                   <Field.Phone
                     name="phone"
@@ -315,6 +318,7 @@ export function CustomerForm({ currentCustomer }: Props) {
                     onChange={(event) => {
                       setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
                     }}
+                    onBlur={handleCepBlur}
                   />
                   <Field.Text
                     name="address"

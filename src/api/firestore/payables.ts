@@ -1,3 +1,5 @@
+import type { DreClass } from 'src/sections/cash/accrual-dre';
+
 import {
   doc,
   getDoc,
@@ -13,12 +15,11 @@ import {
   buildInstallmentDueDates,
 } from 'src/sections/cash/installments';
 
-import type { DreClass } from 'src/sections/cash/accrual-dre';
-
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
-import type { CashSession } from './cash-sessions';
 import { NoOpenCashSessionError } from './cash-sessions';
+
+import type { CashSession } from './cash-sessions';
 
 // ----------------------------------------------------------------------
 
@@ -27,6 +28,7 @@ export type FinancialCategory =
   | 'utilities_internet'
   | 'rent'
   | 'supplier'
+  | 'tax'
   | 'other';
 
 export type FinancialRecurrence = 'none' | 'weekly' | 'monthly';

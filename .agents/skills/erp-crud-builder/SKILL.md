@@ -47,8 +47,9 @@ Use este runbook para construir ou evoluir qualquer módulo do ERP Minimals gara
 2. Adicionar paths em `src/routes/paths.ts`, rotas lazy em `src/routes/sections/dashboard.tsx` e item de menu em `src/layouts/config-nav-dashboard.tsx`.
 3. Adicionar todas as traduções em `src/locales/langs/pt/common.json`, `en/common.json` e `es/common.json`.
 
-## 3. Validação Obrigatória
+## 3. Validação Obrigatória (Regra de Ouro — Zero Warnings)
 Antes de concluir qualquer entrega:
-1. Rodar `./node_modules/.bin/tsc --noEmit` (zero erros de TypeScript).
-2. Rodar `./node_modules/.bin/vitest run` (testes unitários passando).
-3. Se alterar `firestore.rules`, delegar ao subagente `firestore-rules-author`.
+1. Rodar `./node_modules/.bin/eslint --fix <arquivos_alterados>` e `./node_modules/.bin/eslint --max-warnings=0 <arquivos_alterados>` (garante zero warnings de `perfectionist/sort-imports`, `perfectionist/sort-named-imports` e `unused-imports`).
+2. Rodar `./node_modules/.bin/tsc --noEmit` (zero erros de TypeScript).
+3. Rodar `./node_modules/.bin/vitest run` (testes unitários passando).
+4. Se alterar `firestore.rules`, delegar ao subagente `firestore-rules-author`.

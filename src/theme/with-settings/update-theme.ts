@@ -64,6 +64,16 @@ export function updateCoreWithSettings(
 export function updateComponentsWithSettings(settings: SettingsState) {
   const components: ThemeComponents = {};
 
+  const MuiCssBaseline: Components<Theme>['MuiCssBaseline'] = {
+    styleOverrides: {
+      html: {
+        fontSize: settings.fontSize ?? 16,
+      },
+    },
+  };
+
+  components.MuiCssBaseline = MuiCssBaseline;
+
   /** [2] */
   if (settings.contrast === 'hight') {
     const MuiCard: Components<Theme>['MuiCard'] = {

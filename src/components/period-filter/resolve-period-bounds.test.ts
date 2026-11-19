@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import { isIsoInPeriodBounds, resolvePeriodBounds } from './resolve-period-bounds';
 

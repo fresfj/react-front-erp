@@ -1,13 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { it, expect, describe, beforeEach } from 'vitest';
 
-import {
-  clearClientAuthStorage,
-  getErpSessionParams,
-  resolveUserRole,
-  tryGetErpSessionParams,
-  USER_STORAGE_KEY,
-} from './erp-session';
 import { STORAGE_KEY } from '../context/jwt/constant';
+import {
+  resolveUserRole,
+  USER_STORAGE_KEY,
+  getErpSessionParams,
+  clearClientAuthStorage,
+  tryGetErpSessionParams,
+} from './erp-session';
 
 const memory = new Map<string, string>();
 

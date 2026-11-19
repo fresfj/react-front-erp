@@ -1,1 +1,0 @@
-export * from './sucursal-list-view';

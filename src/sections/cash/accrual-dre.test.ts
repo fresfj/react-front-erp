@@ -2,7 +2,7 @@ import type { Sale } from 'src/api/firestore/sales';
 import type { Payable } from 'src/api/firestore/payables';
 
 import dayjs from 'dayjs';
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import { buildAccrualDre, resolvePayableDreClass } from './accrual-dre';
 

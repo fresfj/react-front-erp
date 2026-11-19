@@ -13,6 +13,8 @@ import { AuthGuard, ClaimsGuard, PermissionGuard } from 'src/auth/guard';
 // ----------------------------------------------------------------------
 
 const IndexPage = lazy(() => import('src/pages/dashboard'));
+const SalesFinanceDashboardPage = lazy(() => import('src/pages/dashboard/sales-finance'));
+const ProductionDashboardPage = lazy(() => import('src/pages/dashboard/production'));
 
 // ERP Firestore
 const SupplierListPage = lazy(() => import('src/pages/supplier/list'));
@@ -73,7 +75,22 @@ export const dashboardRoutes = [
     element: CONFIG.auth.skip ? <>{layoutContent}</> : <AuthGuard>{layoutContent}</AuthGuard>,
     children: [
       { element: <IndexPage />, index: true },
-
+      {
+        path: 'sales-finance',
+        element: (
+          <PermissionGuard permission="dre">
+            <SalesFinanceDashboardPage />
+          </PermissionGuard>
+        ),
+      },
+      {
+        path: 'production',
+        element: (
+          <PermissionGuard permission="processing">
+            <ProductionDashboardPage />
+          </PermissionGuard>
+        ),
+      },
       {
         path: 'suppliers',
         element: (

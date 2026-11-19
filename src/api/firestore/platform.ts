@@ -43,6 +43,14 @@ export type OnlineStoreConfig = {
   defaultDeliveryFee: number;
   paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
   whatsapp?: string;
+  instagramUrl?: string;
+  googleReviewUrl?: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+  bannerFit?: 'cover' | 'contain';
+  bannerPositionY?: number;
+  logoFit?: 'cover' | 'contain';
+  minOrderAmount?: number;
 };
 
 export type Enterprise = {
@@ -131,6 +139,14 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
         m === 'cash' || m === 'pix' || m === 'debit_card' || m === 'credit_card'
       ),
     whatsapp: optStr(data.whatsapp),
+    instagramUrl: optStr(data.instagramUrl),
+    googleReviewUrl: optStr(data.googleReviewUrl),
+    logoUrl: optStr(data.logoUrl),
+    bannerUrl: optStr(data.bannerUrl),
+    bannerFit: data.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionY: typeof data.bannerPositionY === 'number' ? data.bannerPositionY : 50,
+    logoFit: data.logoFit === 'contain' ? 'contain' : 'cover',
+    minOrderAmount: Number(data.minOrderAmount || 0),
   };
 }
 

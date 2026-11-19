@@ -26,8 +26,8 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { listSales } from 'src/api/firestore/sales';
-import { listPayables } from 'src/api/firestore/payables';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { listPayables } from 'src/api/firestore/payables';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';

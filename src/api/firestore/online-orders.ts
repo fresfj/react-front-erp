@@ -23,6 +23,15 @@ export type { OnlineStoreConfig, OnlinePayOnDeliveryMethod };
 
 export type OnlineOrderStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
 
+export type OnlineOrderFulfillmentStatus =
+  | 'pending'
+  | 'accepted'
+  | 'preparing'
+  | 'out_for_delivery'
+  | 'delivered'
+  | 'rejected'
+  | 'cancelled';
+
 export type OnlineOrderItem = {
   productId: string;
   productName: string;
@@ -38,6 +47,7 @@ export type OnlineOrder = {
   id: string;
   code: string;
   status: OnlineOrderStatus;
+  fulfillmentStatus: OnlineOrderFulfillmentStatus;
   customerName: string;
   customerPhone: string;
   customerAddress?: string;
@@ -67,14 +77,32 @@ export type PublicStorefrontProduct = {
 
 export type PublicStorefront = {
   storeName: string;
+  logoUrl?: string;
+  bannerUrl?: string;
+  bannerFit?: 'cover' | 'contain';
+  bannerPositionY?: number;
+  logoFit?: 'cover' | 'contain';
+  minOrderAmount?: number;
   isOpen: boolean;
   closedReason?: 'plan' | 'disabled' | 'outside_hours' | 'no_open_cash';
+  openingHours?: Array<{ day: number; open: string; close: string; closed?: boolean }>;
   estimatedMinutes: number;
   deliveryFee: number;
   acceptDelivery: boolean;
   acceptPickup: boolean;
   paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
   whatsapp?: string;
+  instagramUrl?: string;
+  googleReviewUrl?: string;
+  address?: {
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
   products: PublicStorefrontProduct[];
 };
 
@@ -89,9 +117,56 @@ export type PlaceOnlineOrderInput = {
   customerName: string;
   customerPhone: string;
   customerAddress?: string;
+  customerAddressFields?: {
+    cep?: string;
+    street?: string;
+    number?: string;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+  };
   deliveryType: 'pickup' | 'delivery';
   paymentMethod: OnlinePayOnDeliveryMethod;
   notes?: string;
+};
+
+export type PublicCustomerLookupResult = {
+  found: boolean;
+  customer?: {
+    name: string;
+    phone: string;
+    cep: string;
+    street: string;
+    number: string;
+    complement: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+  };
+};
+
+export type PublicOrderTracking = {
+  id: string;
+  code: string;
+  status: OnlineOrderStatus;
+  fulfillmentStatus: OnlineOrderFulfillmentStatus;
+  customerName: string;
+  customerPhone: string;
+  customerAddress?: string;
+  deliveryType: 'pickup' | 'delivery';
+  deliveryFee: number;
+  paymentMethod: OnlinePayOnDeliveryMethod;
+  items: OnlineOrderItem[];
+  subtotal: number;
+  total: number;
+  notes?: string;
+  rejectedReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  storeName?: string;
+  whatsapp?: string;
+  googleReviewUrl?: string;
 };
 
 function optStr(val: unknown): string | undefined {
@@ -122,12 +197,32 @@ function mapPaymentMethod(raw: unknown): OnlinePayOnDeliveryMethod {
   return 'cash';
 }
 
+function mapFulfillmentStatus(
+  raw: unknown,
+  fallback: OnlineOrderStatus
+): OnlineOrderFulfillmentStatus {
+  if (
+    raw === 'pending' ||
+    raw === 'accepted' ||
+    raw === 'preparing' ||
+    raw === 'out_for_delivery' ||
+    raw === 'delivered' ||
+    raw === 'rejected' ||
+    raw === 'cancelled'
+  ) {
+    return raw;
+  }
+  return fallback;
+}
+
 export function mapOnlineOrder(id: string, data: Record<string, unknown>): OnlineOrder {
   const rawItems = Array.isArray(data.items) ? data.items : [];
+  const status = mapStatus(data.status);
   return {
     id,
     code: String(data.code ?? ''),
-    status: mapStatus(data.status),
+    status,
+    fulfillmentStatus: mapFulfillmentStatus(data.fulfillmentStatus, status),
     customerName: String(data.customerName ?? ''),
     customerPhone: String(data.customerPhone ?? ''),
     customerAddress: optStr(data.customerAddress),
@@ -209,4 +304,49 @@ export function upsertOnlineStoreConfigCf(
     'upsertOnlineStoreConfig',
     { enterpriseId, onlineStore: config }
   );
+}
+
+export function lookupPublicCustomerByPhoneCf(
+  slug: string,
+  phone: string
+): Promise<PublicCustomerLookupResult> {
+  return call<{ slug: string; phone: string }, PublicCustomerLookupResult>(
+    'lookupPublicCustomerByPhone',
+    { slug, phone }
+  );
+}
+
+export function listPublicOrdersByPhoneCf(
+  slug: string,
+  phone: string
+): Promise<{ orders: PublicOrderTracking[] }> {
+  return call<{ slug: string; phone: string }, { orders: PublicOrderTracking[] }>(
+    'listPublicOrdersByPhone',
+    { slug, phone }
+  );
+}
+
+export function getPublicOrderStatusCf(
+  slug: string,
+  orderId: string
+): Promise<{ order: PublicOrderTracking }> {
+  return call<{ slug: string; orderId: string }, { order: PublicOrderTracking }>(
+    'getPublicOrderStatus',
+    { slug, orderId }
+  );
+}
+
+export function updateOnlineOrderStatusCf(
+  enterpriseId: string,
+  orderId: string,
+  fulfillmentStatus: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+): Promise<{ fulfillmentStatus: OnlineOrderFulfillmentStatus }> {
+  return call<
+    {
+      enterpriseId: string;
+      orderId: string;
+      fulfillmentStatus: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered';
+    },
+    { fulfillmentStatus: OnlineOrderFulfillmentStatus }
+  >('updateOnlineOrderStatus', { enterpriseId, orderId, fulfillmentStatus });
 }

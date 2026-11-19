@@ -1,4 +1,5 @@
 import type { Sale } from 'src/api/firestore/sales';
+import type { Enterprise } from 'src/api/firestore/platform';
 
 import { useState, useEffect, useCallback } from 'react';
 
@@ -9,6 +10,7 @@ import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
+import Tooltip from '@mui/material/Tooltip';
 import MenuList from '@mui/material/MenuList';
 import MenuItem from '@mui/material/MenuItem';
 import Grid from '@mui/material/Unstable_Grid2';
@@ -27,12 +29,14 @@ import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
+import { formatCnpj } from 'src/utils/br-docs';
 import { fDateTime } from 'src/utils/format-time';
 import { fNumber, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { getEnterprise } from 'src/api/firestore/platform';
 import {
   getSale,
   cancelSale,
@@ -48,6 +52,8 @@ import { EmptyContent } from 'src/components/empty-content';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
 
 import { useAuthContext } from 'src/auth/hooks';
+
+import { ReceiptDialog } from '../receipt-dialog';
 
 // ----------------------------------------------------------------------
 
@@ -66,6 +72,8 @@ export function SaleDetailsView({ saleId }: Props) {
 
   const [loading, setLoading] = useState(true);
   const [sale, setSale] = useState<Sale | null>(null);
+  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
+  const [openInPdf, setOpenInPdf] = useState(false);
   const [issuingNfce, setIssuingNfce] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
@@ -79,8 +87,12 @@ export function SaleDetailsView({ saleId }: Props) {
 
     setLoading(true);
     try {
-      const data = await getSale(enterpriseId, saleId);
+      const [data, entData] = await Promise.all([
+        getSale(enterpriseId, saleId),
+        getEnterprise(enterpriseId),
+      ]);
       setSale(data);
+      setEnterprise(entData);
       if (data?.customerEmail) {
         setRecipientEmail(data.customerEmail);
       }
@@ -96,7 +108,7 @@ export function SaleDetailsView({ saleId }: Props) {
     loadSale();
   }, [loadSale]);
 
-  const handleIssueNfce = async () => {
+  const handleIssueNfce = useCallback(async () => {
     if (!enterpriseId || !sale) return;
     setIssuingNfce(true);
     try {
@@ -109,15 +121,52 @@ export function SaleDetailsView({ saleId }: Props) {
     } finally {
       setIssuingNfce(false);
     }
-  };
+  }, [enterpriseId, sale, loadSale]);
 
-  const handlePrintCupom = () => {
+  const handlePrintCupom = useCallback(() => {
+    setOpenInPdf(false);
     cupomDialog.onTrue();
-  };
+  }, [cupomDialog]);
 
-  const handleTriggerBrowserPrint = () => {
-    window.print();
-  };
+  const handleOpenPdf = useCallback(() => {
+    setOpenInPdf(true);
+    cupomDialog.onTrue();
+  }, [cupomDialog]);
+
+  // Global keyboard shortcuts on SaleDetailsView
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.getAttribute('contenteditable') === 'true'
+      ) {
+        return;
+      }
+
+      // If a modal is open, let modal handle shortcuts
+      if (cupomDialog.value || emailDialog.value) return;
+
+      const key = e.key.toLowerCase();
+      if (key === 'p') {
+        e.preventDefault();
+        handlePrintCupom();
+      } else if (key === 'v') {
+        e.preventDefault();
+        handleOpenPdf();
+      } else if (key === 'e') {
+        e.preventDefault();
+        emailDialog.onTrue();
+      } else if (key === 'n' && sale?.nfceStatus !== 'authorized' && sale?.status === 'completed') {
+        e.preventDefault();
+        handleIssueNfce();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cupomDialog, emailDialog, sale, handleIssueNfce, handleOpenPdf, handlePrintCupom]);
 
   const handleSendEmail = async () => {
     if (!enterpriseId || !sale) return;
@@ -131,9 +180,21 @@ export function SaleDetailsView({ saleId }: Props) {
     try {
       await recordSaleEmailSent(enterpriseId, sale.id, cleanEmail);
 
+      const enterpriseHeader = [
+        enterprise?.tradeName || enterprise?.name || 'ERP MINIMALS',
+        enterprise?.document ? `CNPJ: ${formatCnpj(enterprise.document)}` : '',
+        enterprise?.stateRegistration ? `IE: ${enterprise.stateRegistration}` : '',
+        enterprise?.address
+          ? `${enterprise.address}${enterprise.addressNumber ? `, ${enterprise.addressNumber}` : ''} - ${enterprise.city || ''}/${enterprise.state || ''}`
+          : '',
+        enterprise?.phone ? `Tel: ${enterprise.phone}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
       // Prepare mailto fallback + confirmation
       const subject = encodeURIComponent(
-        `Cupom Fiscal / NFC-e - Pedido ${sale.code} (${fCurrency(sale.total)})`
+        `Cupom Fiscal / NFC-e - Pedido ${sale.code} (${fCurrency(sale.total)}) - ${enterprise?.tradeName || enterprise?.name || 'ERP'}`
       );
       const itemsLines = sale.items
         .map(
@@ -144,15 +205,21 @@ export function SaleDetailsView({ saleId }: Props) {
         )
         .join('\n');
       const body = encodeURIComponent(
-        `Olá ${sale.customerName || 'Cliente'},\n\nSegue o resumo do seu Cupom Fiscal / NFC-e:\n\n` +
-          `Venda: ${sale.code}\nData: ${fDateTime(sale.createdAt)}\n${ 
-          sale.nfceKey ? `Chave de Acesso NFC-e: ${sale.nfceKey}\nProtocolo: ${sale.nfceProtocol}\n` : '' 
+        `EMPRESA EMISSORA:\n${enterpriseHeader}\n\n` +
+          `Olá ${sale.customerName || 'Cliente'},\n\nSegue o resumo do seu Cupom Fiscal / NFC-e:\n\n` +
+          `Venda: ${sale.code}\nData: ${fDateTime(sale.createdAt)}\n${
+            sale.nfceKey
+              ? `Chave de Acesso NFC-e: ${sale.nfceKey}\nProtocolo SEFAZ: ${sale.nfceProtocol}\nSérie: ${enterprise?.nfceSeries || '1'}\n`
+              : ''
           }\nItens:\n${itemsLines}\n\n` +
           `Subtotal: ${fCurrency(sale.subtotal)}\n` +
           `Desconto: ${fCurrency(sale.discountAmount)}\n` +
-          `Total Pago: ${fCurrency(sale.total)}\n\n${ 
-          emailMessage ? `${emailMessage}\n\n` : '' 
-          }Obrigado pela preferência!`
+          `Total Pago: ${fCurrency(sale.total)}\n\n` +
+          `Formas de Pagamento:\n${
+          sale.payments.map((p) => `- ${p.method.toUpperCase()}: ${fCurrency(p.amount)}`).join('\n')
+          }${sale.changeAmount > 0 ? `\n- Troco: ${fCurrency(sale.changeAmount)}` : ''
+          }\n\n${emailMessage ? `${emailMessage}\n\n` : ''}` +
+          `${enterprise?.receiptFooterMessage || 'Obrigado pela preferência! Volte sempre.'}`
       );
 
       window.open(`mailto:${cleanEmail}?subject=${subject}&body=${body}`, '_blank');
@@ -183,7 +250,7 @@ export function SaleDetailsView({ saleId }: Props) {
 
   if (!loading && !sale) {
     return (
-      <DashboardContent>
+      <DashboardContent maxWidth="xl">
         <EmptyContent filled title={t('pos.notFound')} sx={{ py: 10 }} />
       </DashboardContent>
     );
@@ -228,7 +295,7 @@ export function SaleDetailsView({ saleId }: Props) {
 
   return (
     <>
-      <DashboardContent>
+      <DashboardContent maxWidth="xl">
         {/* OrderDetailsToolbar Exact Pattern */}
         {sale && (
           <Stack
@@ -288,43 +355,49 @@ export function SaleDetailsView({ saleId }: Props) {
               </Button>
 
               {sale.nfceStatus !== 'authorized' && sale.status === 'completed' && (
-                <LoadingButton
-                  color="info"
-                  variant="soft"
-                  loading={issuingNfce}
-                  startIcon={<Iconify icon="solar:document-add-bold" />}
-                  onClick={handleIssueNfce}
-                >
-                  Emitir NFC-e
-                </LoadingButton>
+                <Tooltip title="Emitir NFC-e na SEFAZ [Atalho: N]">
+                  <LoadingButton
+                    color="info"
+                    variant="soft"
+                    loading={issuingNfce}
+                    startIcon={<Iconify icon="solar:document-add-bold" />}
+                    onClick={handleIssueNfce}
+                  >
+                    Emitir NFC-e
+                  </LoadingButton>
+                </Tooltip>
               )}
 
-              <Button
-                color="inherit"
-                variant="outlined"
-                startIcon={<Iconify icon="solar:printer-minimalistic-bold" />}
-                onClick={handlePrintCupom}
-              >
-                Imprimir
-              </Button>
+              <Tooltip title="Imprimir Cupom / NFC-e / Recibo A5 [Atalho: P]">
+                <Button
+                  color="inherit"
+                  variant="contained"
+                  startIcon={<Iconify icon="solar:printer-minimalistic-bold" />}
+                  onClick={handlePrintCupom}
+                >
+                  Imprimir Cupom
+                </Button>
+              </Tooltip>
 
-              <Button
-                color="inherit"
-                variant="outlined"
-                startIcon={<Iconify icon="iconamoon:send-fill" />}
-                onClick={() => {
-                  setRecipientEmail(sale.customerEmail || '');
-                  emailDialog.onTrue();
-                }}
-              >
-                Enviar E-mail
-              </Button>
+              <Tooltip title="Enviar Comprovante por E-mail [Atalho: E]">
+                <Button
+                  color="inherit"
+                  variant="outlined"
+                  startIcon={<Iconify icon="iconamoon:send-fill" />}
+                  onClick={() => {
+                    setRecipientEmail(sale.customerEmail || '');
+                    emailDialog.onTrue();
+                  }}
+                >
+                  Enviar E-mail
+                </Button>
+              </Tooltip>
 
               <Button
                 component={RouterLink}
                 href={paths.dashboard.pos.checkout}
                 color="inherit"
-                variant="contained"
+                variant="outlined"
                 startIcon={<Iconify icon="mingcute:add-line" />}
               >
                 {t('pos.newSale')}
@@ -491,7 +564,31 @@ export function SaleDetailsView({ saleId }: Props) {
 
                 <Divider sx={{ borderStyle: 'dashed' }} />
 
-                <CardHeader title="Pagamento" />
+                <CardHeader title={t('customers.delivery', { defaultValue: 'Entrega' })} />
+                <Stack spacing={1} sx={{ p: 3, typography: 'body2' }}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Box component="span" sx={{ color: 'text.secondary' }}>
+                      Modalidade
+                    </Box>
+                    <Label
+                      color={sale.deliveryType === 'delivery' ? 'info' : 'default'}
+                      variant="soft"
+                    >
+                      {sale.deliveryType === 'delivery' ? 'Entrega / Delivery' : 'Retirado no local'}
+                    </Label>
+                  </Stack>
+                  {sale.deliveryType === 'delivery' && sale.deliveryAddress && (
+                    <Box sx={{ color: 'text.secondary', typography: 'caption' }}>
+                      {sale.deliveryAddress}
+                    </Box>
+                  )}
+                </Stack>
+
+                <Divider sx={{ borderStyle: 'dashed' }} />
+
+                <CardHeader
+                  title={t('customers.payment_methods', { defaultValue: 'Formas de pagamento' })}
+                />
                 <Stack spacing={1.5} sx={{ p: 3, typography: 'body2' }}>
                   {sale.payments.map((p, idx) => (
                     <Stack key={idx} direction="row" justifyContent="space-between">
@@ -500,6 +597,9 @@ export function SaleDetailsView({ saleId }: Props) {
                           defaultValue:
                             p.method === 'credit_tab' ? 'Crediário / Fiado' : p.method,
                         })}
+                        {p.installments && p.installments > 1
+                          ? ` (${p.installments}x de ${fCurrency(p.amount / p.installments)})`
+                          : ''}
                       </Box>
                       <Typography variant="subtitle2">{fCurrency(p.amount)}</Typography>
                     </Stack>
@@ -531,100 +631,22 @@ export function SaleDetailsView({ saleId }: Props) {
         )}
       </DashboardContent>
 
-      {/* Modal: Imprimir Cupom Fiscal / DANFE NFC-e (Térmica 80mm / A4) */}
+      {/* Modal: Imprimir Cupom Fiscal / DANFE NFC-e (Térmica 58mm / 80mm / Recibo A5) */}
       {sale && (
-        <Dialog open={cupomDialog.value} onClose={cupomDialog.onFalse} fullWidth maxWidth="xs">
-          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span>Cupom Fiscal / NFC-e</span>
-            <Button
-              variant="contained"
-              size="small"
-              startIcon={<Iconify icon="solar:printer-minimalistic-bold" />}
-              onClick={handleTriggerBrowserPrint}
-            >
-              Imprimir Agora
-            </Button>
-          </DialogTitle>
-          <DialogContent dividers>
-            <Box
-              sx={{
-                p: 2,
-                fontFamily: 'monospace',
-                fontSize: 12,
-                bgcolor: 'background.neutral',
-                borderRadius: 1,
-              }}
-            >
-              <Typography variant="subtitle2" align="center" sx={{ fontFamily: 'monospace' }}>
-                ERP MINIMALS — COMPROVANTE / NFC-E
-              </Typography>
-              <Typography variant="caption" display="block" align="center" sx={{ mb: 1 }}>
-                {sale.nfceStatus === 'authorized'
-                  ? `DANFE NFC-e Nº ${sale.nfceNumber} • Série 1`
-                  : 'CUPOM DE VENDA / EXTRATO'}
-              </Typography>
-              <Divider sx={{ borderStyle: 'dashed', my: 1 }} />
-              <div>VENDA: {sale.code}</div>
-              <div>DATA: {fDateTime(sale.createdAt)}</div>
-              <div>CLIENTE: {sale.customerName || 'CONSUMIDOR FINAL'}</div>
-              {sale.customerDocument && <div>CPF/CNPJ: {sale.customerDocument}</div>}
-              <Divider sx={{ borderStyle: 'dashed', my: 1 }} />
-              {sale.items.map((item, idx) => (
-                <Box key={idx} sx={{ mb: 0.75 }}>
-                  <div>
-                    {idx + 1}. {item.productName} {item.lotCode ? `[${item.lotCode}]` : ''}
-                  </div>
-                  <Stack direction="row" justifyContent="space-between">
-                    <span>
-                      {item.qty} {item.unit} x {fCurrency(item.unitPrice)}
-                    </span>
-                    <strong>{fCurrency(item.lineTotal)}</strong>
-                  </Stack>
-                </Box>
-              ))}
-              <Divider sx={{ borderStyle: 'dashed', my: 1 }} />
-              <Stack direction="row" justifyContent="space-between">
-                <span>SUBTOTAL:</span>
-                <span>{fCurrency(sale.subtotal)}</span>
-              </Stack>
-              {sale.discountAmount > 0 && (
-                <Stack direction="row" justifyContent="space-between">
-                  <span>DESCONTO:</span>
-                  <span>- {fCurrency(sale.discountAmount)}</span>
-                </Stack>
-              )}
-              <Stack direction="row" justifyContent="space-between" sx={{ fontWeight: 700, my: 0.5 }}>
-                <span>TOTAL A PAGAR:</span>
-                <span>{fCurrency(sale.total)}</span>
-              </Stack>
-              <Divider sx={{ borderStyle: 'dashed', my: 1 }} />
-              {sale.payments.map((p, idx) => (
-                <Stack key={idx} direction="row" justifyContent="space-between">
-                  <span>{t(`pos.paymentMethods.${p.method}`).toUpperCase()}:</span>
-                  <span>{fCurrency(p.amount)}</span>
-                </Stack>
-              ))}
-              {sale.changeAmount > 0 && (
-                <Stack direction="row" justifyContent="space-between">
-                  <span>TROCO:</span>
-                  <span>{fCurrency(sale.changeAmount)}</span>
-                </Stack>
-              )}
-              {sale.nfceKey && (
-                <>
-                  <Divider sx={{ borderStyle: 'dashed', my: 1 }} />
-                  <div style={{ wordBreak: 'break-all' }}>CHAVE: {sale.nfceKey}</div>
-                  <div>PROT.: {sale.nfceProtocol}</div>
-                </>
-              )}
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button color="inherit" variant="outlined" onClick={cupomDialog.onFalse}>
-              Fechar
-            </Button>
-          </DialogActions>
-        </Dialog>
+        <ReceiptDialog
+          open={cupomDialog.value}
+          onClose={() => {
+            cupomDialog.onFalse();
+            setOpenInPdf(false);
+          }}
+          sale={sale}
+          enterprise={enterprise}
+          initialPdfView={openInPdf}
+          onOpenEmail={() => {
+            setRecipientEmail(sale.customerEmail || '');
+            emailDialog.onTrue();
+          }}
+        />
       )}
 
       {/* Modal: Enviar NFC-e / Cupom Fiscal por E-mail */}

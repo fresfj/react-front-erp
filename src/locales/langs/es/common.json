@@ -11,7 +11,9 @@
   },
   "nav": {
     "overview": "Resumen",
-    "app": "App",
+    "app": "General",
+    "salesFinance": "Ventas y Finanzas",
+    "production": "Producción",
     "management": "Gestión",
     "finance": "Financiero",
     "administration": "Administración",
@@ -533,6 +535,8 @@
       "acceptPickup": "Aceptar retiro",
       "defaultDeliveryFee": "Tasa de entrega",
       "whatsapp": "WhatsApp",
+      "instagramUrl": "Instagram (enlace o @usuario)",
+      "googleReviewUrl": "Enlace de Reseñas (Google My Business)",
       "paymentMethods": "Pago en la entrega",
       "openingHours": "Horario de funcionamiento"
     }

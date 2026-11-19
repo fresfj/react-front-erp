@@ -16,6 +16,7 @@ export type SettingsDrawerProps = {
 };
 
 export type SettingsState = {
+  fontSize?: number;
   fontFamily: string;
   compactLayout: boolean;
   direction: ThemeDirection;

@@ -1,6 +1,6 @@
 import type { Batch } from 'src/api/firestore/batches';
 
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import {
   pickFifoBatch,

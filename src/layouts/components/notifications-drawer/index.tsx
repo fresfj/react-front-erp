@@ -1,7 +1,7 @@
 import type { IconButtonProps } from '@mui/material/IconButton';
 
 import { m } from 'framer-motion';
-import { useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 
 import Tab from '@mui/material/Tab';
 import Box from '@mui/material/Box';
@@ -14,7 +14,11 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 
+import { paths } from 'src/routes/paths';
+import { useRouter } from 'src/routes/hooks';
+
 import { useBoolean } from 'src/hooks/use-boolean';
+import { playLoudOrderAlertSound } from 'src/hooks/use-online-orders-monitor';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
@@ -28,55 +32,110 @@ import type { NotificationItemProps } from './notification-item';
 
 // ----------------------------------------------------------------------
 
-const TABS = [
-  { value: 'all', label: 'All', count: 22 },
-  { value: 'unread', label: 'Unread', count: 12 },
-  { value: 'archived', label: 'Archived', count: 10 },
-];
-
-// ----------------------------------------------------------------------
-
 export type NotificationsDrawerProps = IconButtonProps & {
   data?: NotificationItemProps[];
 };
 
 export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDrawerProps) {
   const drawer = useBoolean();
+  const router = useRouter();
 
-  const [currentTab, setCurrentTab] = useState('all');
+  const [currentTab, setCurrentTab] = useState<'all' | 'unread' | 'read'>('all');
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
-  const handleChangeTab = useCallback((event: React.SyntheticEvent, newValue: string) => {
-    setCurrentTab(newValue);
-  }, []);
+  const handleChangeTab = useCallback(
+    (_event: React.SyntheticEvent, newValue: 'all' | 'unread' | 'read') => {
+      setCurrentTab(newValue);
+    },
+    []
+  );
 
-  const [notifications, setNotifications] = useState(data);
+  const notifications = useMemo(
+    () =>
+      data.map((item) => ({
+        ...item,
+        isUnRead: item.isUnRead && !readIds.has(item.id),
+      })),
+    [data, readIds]
+  );
 
-  const totalUnRead = notifications.filter((item) => item.isUnRead === true).length;
+  const unreadList = useMemo(
+    () => notifications.filter((item) => item.isUnRead),
+    [notifications]
+  );
+  const readList = useMemo(
+    () => notifications.filter((item) => !item.isUnRead),
+    [notifications]
+  );
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(notifications.map((notification) => ({ ...notification, isUnRead: false })));
-  };
+  const totalUnRead = unreadList.length;
+
+  const displayedList = useMemo(() => {
+    if (currentTab === 'unread') return unreadList;
+    if (currentTab === 'read') return readList;
+    return notifications;
+  }, [currentTab, notifications, readList, unreadList]);
+
+  const handleMarkAllAsRead = useCallback(() => {
+    setReadIds((prev) => {
+      const next = new Set(prev);
+      data.forEach((n) => next.add(n.id));
+      return next;
+    });
+  }, [data]);
+
+  const handleClickItem = useCallback(
+    (item: NotificationItemProps) => {
+      setReadIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+      drawer.onFalse();
+      if (item.href) {
+        router.push(item.href);
+      }
+    },
+    [drawer, router]
+  );
+
+  const handleViewAll = useCallback(() => {
+    drawer.onFalse();
+    router.push(paths.dashboard.pos.onlineOrders);
+  }, [drawer, router]);
+
+  const TABS = [
+    { value: 'all', label: 'Todas', count: notifications.length },
+    { value: 'unread', label: 'Não lidas', count: totalUnRead },
+    { value: 'read', label: 'Lidas', count: readList.length },
+  ] as const;
 
   const renderHead = (
     <Stack direction="row" alignItems="center" sx={{ py: 2, pl: 2.5, pr: 1, minHeight: 68 }}>
       <Typography variant="h6" sx={{ flexGrow: 1 }}>
-        Notifications
+        Notificações
       </Typography>
 
       {!!totalUnRead && (
-        <Tooltip title="Mark all as read">
-          <IconButton color="primary" onClick={handleMarkAllAsRead}>
+        <Tooltip title="Marcar todas como lidas">
+          <IconButton
+            color="primary"
+            onClick={handleMarkAllAsRead}
+            aria-label="Marcar todas como lidas"
+          >
             <Iconify icon="eva:done-all-fill" />
           </IconButton>
         </Tooltip>
       )}
 
-      <IconButton onClick={drawer.onFalse} sx={{ display: { xs: 'inline-flex', sm: 'none' } }}>
-        <Iconify icon="mingcute:close-line" />
-      </IconButton>
+      <Tooltip title="Testar alerta sonoro">
+        <IconButton onClick={playLoudOrderAlertSound} aria-label="Testar alerta sonoro">
+          <Iconify icon="solar:volume-loud-bold-duotone" />
+        </IconButton>
+      </Tooltip>
 
-      <IconButton>
-        <Iconify icon="solar:settings-bold-duotone" />
+      <IconButton onClick={drawer.onFalse} aria-label="Fechar notificações">
+        <Iconify icon="mingcute:close-line" />
       </IconButton>
     </Stack>
   );
@@ -93,8 +152,8 @@ export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDr
             <Label
               variant={((tab.value === 'all' || tab.value === currentTab) && 'filled') || 'soft'}
               color={
-                (tab.value === 'unread' && 'info') ||
-                (tab.value === 'archived' && 'success') ||
+                (tab.value === 'unread' && 'error') ||
+                (tab.value === 'read' && 'success') ||
                 'default'
               }
             >
@@ -108,13 +167,30 @@ export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDr
 
   const renderList = (
     <Scrollbar>
-      <Box component="ul">
-        {notifications?.map((notification) => (
-          <Box component="li" key={notification.id} sx={{ display: 'flex' }}>
-            <NotificationItem notification={notification} />
-          </Box>
-        ))}
-      </Box>
+      {displayedList.length === 0 ? (
+        <Box sx={{ py: 8, px: 3, textAlign: 'center', color: 'text.secondary' }}>
+          <Iconify
+            icon="solar:bell-off-bold-duotone"
+            width={44}
+            sx={{ color: 'text.disabled', mb: 1.5 }}
+          />
+          <Typography variant="subtitle2">Nenhuma notificação por aqui</Typography>
+          <Typography variant="caption" color="text.disabled">
+            Novos pedidos online aparecerão automaticamente em tempo real.
+          </Typography>
+        </Box>
+      ) : (
+        <Box component="ul" sx={{ p: 0, m: 0, listStyle: 'none' }}>
+          {displayedList.map((notification) => (
+            <Box component="li" key={notification.id} sx={{ display: 'flex' }}>
+              <NotificationItem
+                notification={notification}
+                onClick={() => handleClickItem(notification)}
+              />
+            </Box>
+          ))}
+        </Box>
+      )}
     </Scrollbar>
   );
 
@@ -126,6 +202,7 @@ export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDr
         whileHover="hover"
         variants={varHover(1.05)}
         onClick={drawer.onTrue}
+        aria-label="Notificações"
         sx={sx}
         {...other}
       >
@@ -158,9 +235,9 @@ export function NotificationsDrawer({ data = [], sx, ...other }: NotificationsDr
 
         {renderList}
 
-        <Box sx={{ p: 1 }}>
-          <Button fullWidth size="large">
-            View all
+        <Box sx={{ p: 1.5 }}>
+          <Button fullWidth size="large" variant="soft" color="primary" onClick={handleViewAll}>
+            Ver todos os pedidos online
           </Button>
         </Box>
       </Drawer>

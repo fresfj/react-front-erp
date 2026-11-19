@@ -8,6 +8,7 @@ import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 import { getEffectivePermissions } from 'src/api/firestore/members';
 
+import { Label } from 'src/components/label';
 import { SvgColor } from 'src/components/svg-color';
 
 import { useAuthContext } from 'src/auth/hooks';
@@ -26,6 +27,7 @@ const ICONS = {
   banking: icon('ic-banking'),
   invoice: icon('ic-invoice'),
   product: icon('ic-product'),
+  analytics: icon('ic-analytics'),
   ecommerce: icon('ic-ecommerce'),
   dashboard: icon('ic-dashboard'),
 };
@@ -34,9 +36,10 @@ type NavItem = NavSectionProps['data'][number]['items'][number];
 
 // ----------------------------------------------------------------------
 
-export function useNavData(): NavSectionProps['data'] {
+export function useNavData(options?: { onlineOrdersCount?: number }): NavSectionProps['data'] {
   const { t } = useTranslate('common');
   const { user } = useAuthContext();
+  const onlineOrdersCount = options?.onlineOrdersCount ?? 0;
   const platformAdmin = Boolean(user?.platformAdmin);
   const isAdminOrGestor =
     platformAdmin || user?.role === 'admin' || user?.role === 'gestor';
@@ -46,9 +49,36 @@ export function useNavData(): NavSectionProps['data'] {
   );
 
   return useMemo(() => {
+    const onlineOrdersBadge =
+      onlineOrdersCount > 0 ? (
+        <Label color="error" variant="inverted">
+          {onlineOrdersCount}
+        </Label>
+      ) : undefined;
+
     const overviewItems: NavItem[] = [
       ...(perms.has('dre') || isAdminOrGestor
-        ? [{ title: t('nav.app'), path: paths.dashboard.root, icon: ICONS.dashboard }]
+        ? [
+            {
+              title: t('nav.app', { defaultValue: 'Geral' }),
+              path: paths.dashboard.root,
+              icon: ICONS.dashboard,
+            },
+            {
+              title: t('nav.salesFinance', { defaultValue: 'Vendas & Financeiro' }),
+              path: paths.dashboard.general.salesFinance,
+              icon: ICONS.ecommerce,
+            },
+          ]
+        : []),
+      ...(perms.has('processing') || isAdminOrGestor
+        ? [
+            {
+              title: t('nav.production', { defaultValue: 'Produção' }),
+              path: paths.dashboard.general.production,
+              icon: ICONS.analytics,
+            },
+          ]
         : []),
     ];
 
@@ -60,12 +90,14 @@ export function useNavData(): NavSectionProps['data'] {
               // root path keeps parent active on /pos/sales/:id (deep match)
               path: paths.dashboard.pos.root,
               icon: ICONS.invoice,
+              ...(onlineOrdersBadge ? { info: onlineOrdersBadge } : {}),
               children: [
                 { title: t('nav.posCheckout'), path: paths.dashboard.pos.checkout },
                 { title: t('nav.salesHistory'), path: paths.dashboard.pos.sales },
                 {
                   title: t('nav.onlineOrders', { defaultValue: 'Pedidos online' }),
                   path: paths.dashboard.pos.onlineOrders,
+                  ...(onlineOrdersBadge ? { info: onlineOrdersBadge } : {}),
                 },
               ],
             },
@@ -322,5 +354,5 @@ export function useNavData(): NavSectionProps['data'] {
       },
       { subheader: t('nav.administration'), items: adminItems },
     ].filter((section) => section.items.length > 0);
-  }, [isAdminOrGestor, perms, platformAdmin, t, user?.enterpriseId, user?.role]);
+  }, [isAdminOrGestor, onlineOrdersCount, perms, platformAdmin, t, user?.enterpriseId, user?.role]);
 }

@@ -8,7 +8,7 @@ import { EmptyContent } from 'src/components/empty-content';
 
 import { ErpGridToolbar } from './erp-grid-toolbar';
 
-import type { ErpGridToolbarProps } from './erp-grid-toolbar';
+import type { ErpGridToolbarProps, ErpGridSettingsState } from './erp-grid-toolbar';
 
 // ----------------------------------------------------------------------
 
@@ -24,7 +24,7 @@ export type ErpDataGridProps<R extends GridValidRowModel> = Omit<
   DataGridProps<R>,
   'slots' | 'slotProps'
 > & {
-  toolbar?: Omit<ErpGridToolbarProps, 'setFilterButtonEl'>;
+  toolbar?: Omit<ErpGridToolbarProps, 'setFilterButtonEl' | 'settings' | 'onChangeSettings'>;
   emptyTitle?: string;
   noResultsTitle?: string;
   /** Campos que não aparecem no painel "Colunas" (ex.: coluna principal e ações). */
@@ -33,7 +33,7 @@ export type ErpDataGridProps<R extends GridValidRowModel> = Omit<
 
 /**
  * DataGrid padrão das listas ERP (Minimals v6):
- * toolbar com filtros multi-select + busca full-width, botões Colunas/Filtros/Exportar,
+ * toolbar com filtros multi-select + busca full-width, botões Colunas/Filtros/Exportar/Settings,
  * painel ancorado no botão de filtro e overlays traduzidos.
  * Use dentro de `<Card sx={{ height: 720 }}>` (ou flex column) conforme `docs/reference/erp-crud-ui.md`.
  */
@@ -47,6 +47,11 @@ export function ErpDataGrid<R extends GridValidRowModel>({
   ...other
 }: ErpDataGridProps<R>) {
   const [filterButtonEl, setFilterButtonEl] = useState<HTMLButtonElement | null>(null);
+  const [settings, setSettings] = useState<ErpGridSettingsState>({
+    density: 'standard',
+    showCellVerticalBorder: false,
+    showColumnVerticalBorder: false,
+  });
 
   const getTogglableColumns = () =>
     columns.filter((c) => !nonTogglableFields.includes(c.field)).map((c) => c.field);
@@ -56,6 +61,9 @@ export function ErpDataGrid<R extends GridValidRowModel>({
       disableRowSelectionOnClick
       pageSizeOptions={[5, 10, 25, 50]}
       initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+      density={settings.density}
+      showCellVerticalBorder={settings.showCellVerticalBorder}
+      showColumnVerticalBorder={settings.showColumnVerticalBorder}
       {...other}
       columns={columns}
       slots={{
@@ -65,7 +73,12 @@ export function ErpDataGrid<R extends GridValidRowModel>({
       }}
       slotProps={{
         panel: { anchorEl: filterButtonEl },
-        toolbar: { ...toolbar, setFilterButtonEl } as object,
+        toolbar: {
+          ...toolbar,
+          settings,
+          onChangeSettings: setSettings,
+          setFilterButtonEl,
+        } as object,
         noRowsOverlay: { title: emptyTitle } as object,
         noResultsOverlay: { title: noResultsTitle } as object,
         columnsManagement: { getTogglableColumns },

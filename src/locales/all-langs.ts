@@ -11,7 +11,7 @@ import {
 export const allLangs = [
   {
     value: 'pt',
-    label: 'Português (Brasil)',
+    label: 'Português',
     countryCode: 'BR',
     adapterLocale: 'pt-br',
     numberFormat: { code: 'pt-BR', currency: 'BRL' },

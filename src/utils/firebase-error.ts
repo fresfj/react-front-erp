@@ -12,6 +12,15 @@ export function getFirebaseErrorMessage(error: unknown, fallback: string): strin
     return `${fallback} (permission-denied)`;
   }
 
+  if (
+    message &&
+    message !== 'INTERNAL' &&
+    message !== 'internal' &&
+    !message.startsWith('Firebase:')
+  ) {
+    return `${fallback}: ${message}${code ? ` (${code})` : ''}`;
+  }
+
   if (code) {
     return `${fallback} (${code})`;
   }

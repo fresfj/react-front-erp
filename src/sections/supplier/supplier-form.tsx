@@ -119,8 +119,9 @@ export function SupplierForm({ currentSupplier }: Props) {
   const zipCodeWatch = watch('zipCode') || '';
   const documentWatch = watch('document') || '';
 
-  useCepLookup({
+  const { handleBlur: handleCepBlur } = useCepLookup({
     cep: zipCodeWatch,
+    initialValue: currentSupplier?.zipCode,
     onSuccess: (fields) => {
       setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
       if (fields.address) setValue('address', fields.address, { shouldDirty: true });
@@ -140,8 +141,9 @@ export function SupplierForm({ currentSupplier }: Props) {
     },
   });
 
-  useCnpjLookup({
+  const { handleBlur: handleCnpjBlur } = useCnpjLookup({
     document: documentWatch,
+    initialValue: currentSupplier?.document,
     onSuccess: (fields) => {
       setValue('document', formatCnpj(fields.document), { shouldDirty: true });
       if (fields.name) setValue('name', fields.name, { shouldDirty: true });
@@ -279,6 +281,7 @@ export function SupplierForm({ currentSupplier }: Props) {
               onChange={(event) => {
                 setValue('document', formatCnpj(event.target.value), { shouldDirty: true });
               }}
+              onBlur={handleCnpjBlur}
             />
             <Field.Text
               name="stateRegistration"
@@ -352,6 +355,7 @@ export function SupplierForm({ currentSupplier }: Props) {
               onChange={(event) => {
                 setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
               }}
+              onBlur={handleCepBlur}
             />
             <Field.Text
               name="address"

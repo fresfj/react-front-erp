@@ -38,6 +38,8 @@ export type PosTotalsSummary = {
   discountPercent: number;
   maxAllowedDiscountPercent: number;
   discountAllowed: boolean;
+  deliveryFee: number;
+  surchargeAmount: number;
   total: number;
   totalCost: number;
   grossProfit: number;
@@ -76,6 +78,8 @@ export function getMaxDiscountPercentForRole(role?: TenantRole | string | null):
 export function calculatePosTotals(params: {
   items: PosCartItemInput[];
   discountAmount?: number;
+  deliveryFee?: number;
+  surchargeAmount?: number;
   payments: PosPaymentInput[];
   role?: TenantRole | string | null;
 }): PosTotalsSummary {
@@ -102,7 +106,10 @@ export function calculatePosTotals(params: {
   const maxAllowedDiscountPercent = getMaxDiscountPercentForRole(params.role);
   const discountAllowed = discountPercent <= maxAllowedDiscountPercent + 0.0001;
 
-  const total = round2(Math.max(0, subtotal - discountAmount));
+  const deliveryFee = round2(Math.max(0, Number(params.deliveryFee) || 0));
+  const surchargeAmount = round2(Math.max(0, Number(params.surchargeAmount) || 0));
+
+  const total = round2(Math.max(0, subtotal - discountAmount + deliveryFee + surchargeAmount));
   const grossProfit = round2(total - totalCost);
 
   const paidAmount = round2(
@@ -125,6 +132,8 @@ export function calculatePosTotals(params: {
     discountPercent,
     maxAllowedDiscountPercent,
     discountAllowed,
+    deliveryFee,
+    surchargeAmount,
     total,
     totalCost,
     grossProfit,

@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { it, expect, describe } from 'vitest';
 
 import {
+  buildFreeSubscription,
   shouldDowngradeAfterGrace,
   mapAsaasPaymentEventToStatus,
-  buildFreeSubscription,
 } from './subscription-domain';
 
 describe('shouldDowngradeAfterGrace', () => {

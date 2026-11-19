@@ -153,7 +153,9 @@ export function SettingsDrawer({
   const renderFont = (
     <FontOptions
       value={settings.fontFamily}
+      fontSize={settings.fontSize ?? 16}
       onClickOption={(newValue) => settings.onUpdateField('fontFamily', newValue)}
+      onChangeFontSize={(newValue) => settings.onUpdateField('fontSize', newValue)}
       options={[defaultFont, 'Inter', 'DM Sans', 'Nunito Sans']}
     />
   );

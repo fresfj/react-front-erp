@@ -31,6 +31,7 @@ type Props = {
   onSelectRow: () => void;
   onDeleteRow: () => void;
   onSettleDebt: () => void;
+  visibleColumns?: Record<string, boolean>;
 };
 
 export function CustomerTableRow({
@@ -40,10 +41,12 @@ export function CustomerTableRow({
   onSelectRow,
   onDeleteRow,
   onSettleDebt,
+  visibleColumns,
 }: Props) {
   const confirm = useBoolean();
   const popover = usePopover();
 
+  const isVisible = (colId: string) => visibleColumns?.[colId] !== false;
   const hasDebt = (row.currentDebt || 0) > 0;
 
   return (
@@ -53,77 +56,83 @@ export function CustomerTableRow({
           <Checkbox id={row.id} checked={selected} onClick={onSelectRow} />
         </TableCell>
 
-        <TableCell>
-          <Stack spacing={2} direction="row" alignItems="center">
-            <Avatar
-              alt={row.name}
-              sx={{
-                bgcolor: hasDebt ? 'error.lighter' : 'primary.lighter',
-                color: hasDebt ? 'error.main' : 'primary.main',
-                fontWeight: 600,
-              }}
-            >
-              {row.name?.charAt(0).toUpperCase()}
-            </Avatar>
-
-            <Stack sx={{ typography: 'body2', flex: '1 1 auto', alignItems: 'flex-start' }}>
-              <Link
-                color="inherit"
-                onClick={onEditRow}
-                sx={{ cursor: 'pointer', fontWeight: 600, '&:hover': { textDecoration: 'underline' } }}
+        {isVisible('name') && (
+          <TableCell>
+            <Stack spacing={2} direction="row" alignItems="center">
+              <Avatar
+                alt={row.name}
+                sx={{
+                  bgcolor: hasDebt ? 'error.lighter' : 'primary.lighter',
+                  color: hasDebt ? 'error.main' : 'primary.main',
+                  fontWeight: 600,
+                }}
               >
-                {row.name}
-              </Link>
-              <Box component="span" sx={{ typography: 'caption', color: 'text.disabled' }}>
-                {[row.document, row.email].filter(Boolean).join(' • ') || 'Sem documento'}
-              </Box>
+                {row.name?.charAt(0).toUpperCase()}
+              </Avatar>
+
+              <Stack sx={{ typography: 'body2', flex: '1 1 auto', alignItems: 'flex-start' }}>
+                <Link
+                  color="inherit"
+                  onClick={onEditRow}
+                  sx={{
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    '&:hover': { textDecoration: 'underline' },
+                  }}
+                >
+                  {row.name}
+                </Link>
+                <Box component="span" sx={{ typography: 'caption', color: 'text.disabled' }}>
+                  {[row.document, row.email].filter(Boolean).join(' • ') || 'Sem documento'}
+                </Box>
+              </Stack>
             </Stack>
-          </Stack>
-        </TableCell>
+          </TableCell>
+        )}
 
-        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-          {row.phone || '—'}
-        </TableCell>
+        {isVisible('phone') && (
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+            {row.phone || '—'}
+          </TableCell>
+        )}
 
-        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-          {row.creditLimit ? fCurrency(row.creditLimit) : 'Sem limite'}
-        </TableCell>
+        {isVisible('creditLimit') && (
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+            {row.creditLimit ? fCurrency(row.creditLimit) : 'Sem limite'}
+          </TableCell>
+        )}
 
-        <TableCell sx={{ whiteSpace: 'nowrap' }}>
-          <Label
-            variant="soft"
-            color={hasDebt ? 'error' : 'success'}
-          >
-            {fCurrency(row.currentDebt || 0)}
-          </Label>
-        </TableCell>
+        {isVisible('currentDebt') && (
+          <TableCell sx={{ whiteSpace: 'nowrap' }}>
+            <Label variant="soft" color={hasDebt ? 'error' : 'success'}>
+              {fCurrency(row.currentDebt || 0)}
+            </Label>
+          </TableCell>
+        )}
 
-        <TableCell>
-          <Label
-            variant="soft"
-            color={row.active ? 'success' : 'default'}
-          >
-            {row.active ? 'Ativo' : 'Inativo'}
-          </Label>
-        </TableCell>
+        {isVisible('status') && (
+          <TableCell>
+            <Label variant="soft" color={row.active ? 'success' : 'default'}>
+              {row.active ? 'Ativo' : 'Inativo'}
+            </Label>
+          </TableCell>
+        )}
 
-        <TableCell align="right" sx={{ px: 1, whiteSpace: 'nowrap' }}>
-          {hasDebt && (
-            <Tooltip title="Quitar débito" placement="top" arrow>
-              <IconButton
-                color="success"
-                onClick={onSettleDebt}
-                sx={{ mr: 0.5 }}
-              >
-                <Iconify icon="solar:dollar-minimalistic-bold" />
-              </IconButton>
-            </Tooltip>
-          )}
+        {isVisible('actions') && (
+          <TableCell align="right" sx={{ px: 1, whiteSpace: 'nowrap' }}>
+            {hasDebt && (
+              <Tooltip title="Quitar débito" placement="top" arrow>
+                <IconButton color="success" onClick={onSettleDebt} sx={{ mr: 0.5 }}>
+                  <Iconify icon="solar:dollar-minimalistic-bold" />
+                </IconButton>
+              </Tooltip>
+            )}
 
-          <IconButton color={popover.open ? 'inherit' : 'default'} onClick={popover.onOpen}>
-            <Iconify icon="eva:more-vertical-fill" />
-          </IconButton>
-        </TableCell>
+            <IconButton color={popover.open ? 'inherit' : 'default'} onClick={popover.onOpen}>
+              <Iconify icon="eva:more-vertical-fill" />
+            </IconButton>
+          </TableCell>
+        )}
       </TableRow>
 
       <CustomPopover
