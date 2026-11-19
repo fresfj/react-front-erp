@@ -398,6 +398,7 @@
       "salePrice": "Sale price",
       "variant": "Variant",
       "active": "Active",
+      "showOnline": "Show on online storefront",
       "createdAt": "Created at"
     },
     "filters": {
@@ -409,6 +410,25 @@
     "empty": "No products found",
     "detailsSubheader": "Name, SKU, type and image...",
     "propertiesSubheader": "Unit, prices and attributes..."
+  },
+  "onlineStore": {
+    "title": "Online orders",
+    "hint": "Public link, schedule and modalities",
+    "saveSuccess": "Online store settings saved",
+    "saveError": "Could not save online store settings",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied",
+    "fields": {
+      "enabled": "Online store enabled",
+      "slug": "Link slug (/p/slug)",
+      "estimatedMinutes": "Estimated time (min)",
+      "acceptDelivery": "Accept delivery",
+      "acceptPickup": "Accept pickup",
+      "defaultDeliveryFee": "Delivery fee",
+      "whatsapp": "WhatsApp",
+      "paymentMethods": "Pay on delivery methods",
+      "openingHours": "Opening hours"
+    }
   },
   "inventory": {
     "products": "Products",

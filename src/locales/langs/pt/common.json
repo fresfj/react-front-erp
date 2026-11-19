@@ -398,6 +398,7 @@
       "salePrice": "Preço de venda",
       "variant": "Variante",
       "active": "Ativo",
+      "showOnline": "Exibir na vitrine online",
       "createdAt": "Criado em"
     },
     "filters": {
@@ -409,6 +410,25 @@
     "empty": "Nenhum produto encontrado",
     "detailsSubheader": "Nome, SKU, tipo e imagem...",
     "propertiesSubheader": "Unidade, preços e atributos..."
+  },
+  "onlineStore": {
+    "title": "Pedidos online",
+    "hint": "Link público, agenda e modalidades",
+    "saveSuccess": "Configuração da loja online salva",
+    "saveError": "Não foi possível salvar a loja online",
+    "copyLink": "Copiar link",
+    "linkCopied": "Link copiado",
+    "fields": {
+      "enabled": "Loja online ativa",
+      "slug": "Slug do link (/p/slug)",
+      "estimatedMinutes": "Tempo estimado (min)",
+      "acceptDelivery": "Aceitar entrega",
+      "acceptPickup": "Aceitar retirada",
+      "defaultDeliveryFee": "Taxa de entrega",
+      "whatsapp": "WhatsApp",
+      "paymentMethods": "Pagamento na entrega",
+      "openingHours": "Horário de funcionamento"
+    }
   },
   "inventory": {
     "products": "Produtos",

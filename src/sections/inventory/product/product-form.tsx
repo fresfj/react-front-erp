@@ -97,6 +97,7 @@ export const ProductSchema = zod.object({
   tags: zod.array(zod.string()).optional(),
   taxPercent: optionalNumber,
   imageUrl: zod.any().optional(),
+  showOnline: zod.boolean(),
   active: zod.boolean(),
 });
 
@@ -144,6 +145,7 @@ export function ProductForm({ currentProduct }: Props) {
       tags: currentProduct?.tags || [],
       taxPercent: currentProduct?.taxPercent ?? 0,
       imageUrl: currentProduct?.imageUrl || null,
+      showOnline: currentProduct?.showOnline === true,
       active: currentProduct?.active ?? true,
     }),
     [currentProduct]
@@ -232,6 +234,7 @@ export function ProductForm({ currentProduct }: Props) {
         tags: data.tags?.length ? data.tags : undefined,
         taxPercent: includeTaxes ? 0 : data.taxPercent,
         imageUrl: resolvedImageUrl,
+        showOnline: data.showOnline,
         active: data.active,
       };
 
@@ -548,14 +551,10 @@ export function ProductForm({ currentProduct }: Props) {
       justifyContent="space-between"
       flexWrap="wrap"
     >
-      <Field.Switch
-        name="active"
-        label={t('products.fields.active')}
-        slotProps={{
-          wrap: { pl: 3, flexGrow: 1 },
-          switch: {},
-        }}
-      />
+      <Stack direction="row" spacing={2} alignItems="center" sx={{ pl: 3, flexGrow: 1 }}>
+        <Field.Switch name="active" label={t('products.fields.active')} />
+        <Field.Switch name="showOnline" label={t('products.fields.showOnline')} />
+      </Stack>
 
       <Stack direction="row" spacing={2} alignItems="center" sx={{ ml: 'auto' }}>
         {currentProduct && (
