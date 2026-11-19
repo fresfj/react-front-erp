@@ -9,6 +9,7 @@ import { SplashScreen } from 'src/components/loading-screen';
 
 import { authRoutes } from './auth';
 import { dashboardRoutes } from './dashboard';
+import { publicStoreRoutes } from './public-store';
 
 // ----------------------------------------------------------------------
 
@@ -25,6 +26,7 @@ export function Router() {
       path: '/',
       element: <Navigate to={homeRedirect} replace />,
     },
+    ...publicStoreRoutes,
     ...authRoutes,
     ...dashboardRoutes,
     {

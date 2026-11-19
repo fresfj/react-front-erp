@@ -93,7 +93,14 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
       paymentMethodsOnDelivery: store?.paymentMethodsOnDelivery?.length
         ? store.paymentMethodsOnDelivery
         : ['cash', 'pix', 'debit_card', 'credit_card'],
-      openingHours: store?.openingHours?.length ? store.openingHours : defaultHours(),
+      openingHours: store?.openingHours?.length
+        ? store.openingHours.map((h) => ({
+            day: h.day,
+            open: h.open,
+            close: h.close,
+            closed: h.closed === true,
+          }))
+        : defaultHours(),
     };
   }, [enterprise]);
 
