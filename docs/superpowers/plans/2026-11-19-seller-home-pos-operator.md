@@ -51,7 +51,7 @@
   - `summarizeSellerDay(input: { sales: Array<{ createdAt: string; total?: number; grandTotal?: number; status?: string }>; onlineOrders: Array<{ status: string; createdAt?: string }>; dayStartIso: string; dayEndIso: string }): { salesCount: number; salesTotal: number; pendingOnlineCount: number; inProgressOnlineCount: number; todaySales: typeof sales; openOnlineOrders: typeof onlineOrders }`
 - Consumes: nenhum módulo ERP além de tipos inline / imports type de Sale/OnlineOrder se preferir
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```ts
 import { describe, it, expect } from 'vitest';

@@ -2,6 +2,8 @@ import type { EnterpriseUiSettings } from 'src/api/firestore/platform';
 
 import { useRef, useEffect } from 'react';
 
+import { useColorScheme } from '@mui/material/styles';
+
 import { getEnterprise, updateEnterpriseSettings } from 'src/api/firestore/platform';
 
 import { useAuthContext } from 'src/auth/hooks';
@@ -38,6 +40,7 @@ function pickUiSettings(input: {
  */
 export function EnterpriseThemeBridge() {
   const { user } = useAuthContext();
+  const { setMode } = useColorScheme();
   const {
     onUpdate,
     colorScheme,
@@ -77,6 +80,12 @@ export function EnterpriseThemeBridge() {
         if (enterprise?.uiSettings) {
           skipPersist.current = true;
           onUpdate(enterprise.uiSettings);
+          if (
+            enterprise.uiSettings.colorScheme === 'dark' ||
+            enterprise.uiSettings.colorScheme === 'light'
+          ) {
+            setMode(enterprise.uiSettings.colorScheme);
+          }
         }
       } catch (error) {
         console.warn('Enterprise uiSettings load skipped:', error);
@@ -86,7 +95,7 @@ export function EnterpriseThemeBridge() {
     return () => {
       cancelled = true;
     };
-  }, [enterpriseId, onUpdate]);
+  }, [enterpriseId, onUpdate, setMode]);
 
   useEffect(() => {
     if (!enterpriseId || !canPersist) return undefined;

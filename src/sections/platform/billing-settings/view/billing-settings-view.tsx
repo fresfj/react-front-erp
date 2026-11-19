@@ -24,6 +24,7 @@ import { toast } from 'src/components/snackbar';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
 import { BillingSettingsForm } from '../billing-settings-form';
+import { EvolutionSettingsCard } from '../evolution-settings-card';
 
 // ----------------------------------------------------------------------
 
@@ -98,7 +99,10 @@ export function BillingSettingsView() {
       {loading && settings === null ? (
         <BillingSettingsSkeleton />
       ) : (
-        <BillingSettingsForm current={settings} onSaved={handleSaved} />
+        <>
+          <BillingSettingsForm current={settings} onSaved={handleSaved} />
+          <EvolutionSettingsCard />
+        </>
       )}
     </DashboardContent>
   );

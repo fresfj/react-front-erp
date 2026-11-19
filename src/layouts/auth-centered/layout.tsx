@@ -1,14 +1,9 @@
 import type { Theme, SxProps, Breakpoint } from '@mui/material/styles';
 
-import Alert from '@mui/material/Alert';
-
-import { useBoolean } from 'src/hooks/use-boolean';
-
 import { CONFIG } from 'src/config-global';
 import { stylesMode } from 'src/theme/styles';
 
 import { Main } from './main';
-import { HeaderBase } from '../core/header-base';
 import { LayoutSection } from '../core/layout-section';
 
 // ----------------------------------------------------------------------
@@ -18,52 +13,16 @@ export type AuthCenteredLayoutProps = {
   children: React.ReactNode;
 };
 
+/** Auth centered sem header/toolbar (logo, Need help, settings). */
 export function AuthCenteredLayout({ sx, children }: AuthCenteredLayoutProps) {
-  const mobileNavOpen = useBoolean();
-
   const layoutQuery: Breakpoint = 'md';
 
   return (
     <LayoutSection
-      /** **************************************
-       * Header
-       *************************************** */
-      headerSection={
-        <HeaderBase
-          disableElevation
-          layoutQuery={layoutQuery}
-          onOpenNav={mobileNavOpen.onTrue}
-          slotsDisplay={{
-            signIn: false,
-            account: false,
-            purchase: false,
-            contacts: false,
-            searchbar: false,
-            workspaces: false,
-            menuButton: false,
-            localization: false,
-            notifications: false,
-          }}
-          slots={{
-            topArea: (
-              <Alert severity="info" sx={{ display: 'none', borderRadius: 0 }}>
-                This is an info Alert.
-              </Alert>
-            ),
-          }}
-          slotProps={{ container: { maxWidth: false } }}
-          sx={{ position: { [layoutQuery]: 'fixed' } }}
-        />
-      }
-      /** **************************************
-       * Footer
-       *************************************** */
+      headerSection={null}
       footerSection={null}
-      /** **************************************
-       * Style
-       *************************************** */
       cssVars={{
-        '--layout-auth-content-width': '420px',
+        '--layout-auth-content-width': '520px',
       }}
       sx={{
         '&::before': {

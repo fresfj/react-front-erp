@@ -8,8 +8,9 @@ alwaysApply: true
 ## Auth (obrigatório)
 
 - Login **sempre Firebase** (`CONFIG.auth.method = 'firebase'`).
-- Entrada do sistema: `/auth/firebase/sign-in` (raiz `/` redireciona para Firebase).
-- Logout: usar `signOut` de `src/auth/context/firebase`, depois `router.replace(paths.auth.firebase.signIn)`.
+- Entrada do sistema: `/auth/sign-in` (raiz `/` redireciona para Firebase; legado `/auth/firebase/*` redireciona).
+- Logout: usar `signOut` de `src/auth/context/firebase`, depois `router.replace(paths.auth.signIn)`.
+- **Antes de entregar qualquer alteração em `.ts`/`.tsx`:** `eslint --fix` + `eslint --max-warnings=0` nos arquivos alterados + `tsc --noEmit` (zero errors e zero warnings).
 - Não reativar Auth0/Amplify/Supabase. JWT só se `CONFIG.auth.method === 'jwt'` (emergência API).
 - Credenciais e keys só em `.env` (`VITE_FIREBASE_*`). Nunca hardcode secrets em commits.
 

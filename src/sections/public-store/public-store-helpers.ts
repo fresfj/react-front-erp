@@ -3,6 +3,8 @@ import type {
   OnlinePayOnDeliveryMethod,
 } from 'src/api/firestore/online-orders';
 
+import { PAYMENT_METHOD_BRANDS } from 'src/components/payment-method-icon';
+
 // ----------------------------------------------------------------------
 
 export const CLOSED_REASON_KEY: Record<string, string> = {
@@ -14,31 +16,34 @@ export const CLOSED_REASON_KEY: Record<string, string> = {
 
 export const PAYMENT_METHOD_CONFIG: Record<
   OnlinePayOnDeliveryMethod,
-  { label: string; icon: string; color: string; desc: string }
+  { label: string; icon: string; imageSrc?: string; color: string; desc: string; brandLogos?: string[] }
 > = {
   pix: {
-    label: 'Pix na entrega',
-    icon: 'solar:qr-code-bold',
-    color: '#00BFA5',
-    desc: 'Pague com QR Code ou Chave Pix na entrega',
+    label: PAYMENT_METHOD_BRANDS.pix.onlineLabel,
+    icon: PAYMENT_METHOD_BRANDS.pix.icon,
+    color: PAYMENT_METHOD_BRANDS.pix.color,
+    desc: PAYMENT_METHOD_BRANDS.pix.onlineDescription,
   },
   credit_card: {
-    label: 'Cartão de Crédito',
-    icon: 'solar:card-bold',
-    color: '#7B1FA2',
-    desc: 'O entregador levará a maquininha',
+    label: PAYMENT_METHOD_BRANDS.credit_card.onlineLabel,
+    icon: PAYMENT_METHOD_BRANDS.credit_card.icon,
+    color: PAYMENT_METHOD_BRANDS.credit_card.color,
+    desc: PAYMENT_METHOD_BRANDS.credit_card.onlineDescription,
+    brandLogos: PAYMENT_METHOD_BRANDS.credit_card.brandLogos,
   },
   debit_card: {
-    label: 'Cartão de Débito',
-    icon: 'solar:card-2-bold',
-    color: '#1976D2',
-    desc: 'O entregador levará a maquininha',
+    label: PAYMENT_METHOD_BRANDS.debit_card.onlineLabel,
+    icon: PAYMENT_METHOD_BRANDS.debit_card.icon,
+    color: PAYMENT_METHOD_BRANDS.debit_card.color,
+    desc: PAYMENT_METHOD_BRANDS.debit_card.onlineDescription,
+    brandLogos: PAYMENT_METHOD_BRANDS.debit_card.brandLogos,
   },
   cash: {
-    label: 'Dinheiro',
-    icon: 'solar:wad-of-money-bold',
-    color: '#2E7D32',
-    desc: 'Pagamento em espécie na entrega',
+    label: PAYMENT_METHOD_BRANDS.cash.onlineLabel,
+    icon: PAYMENT_METHOD_BRANDS.cash.icon,
+    imageSrc: PAYMENT_METHOD_BRANDS.cash.imageSrc,
+    color: PAYMENT_METHOD_BRANDS.cash.color,
+    desc: PAYMENT_METHOD_BRANDS.cash.onlineDescription,
   },
 };
 

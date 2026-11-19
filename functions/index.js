@@ -1,4 +1,7 @@
+const { setGlobalOptions } = require('firebase-functions/v2');
 const { onCall, HttpsError, onRequest } = require('firebase-functions/v2/https');
+
+setGlobalOptions({ maxInstances: 3, memory: '256MiB', concurrency: 80 });
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 const { initializeApp } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
@@ -9,10 +12,16 @@ const {
   mapAsaasPaymentEventToStatus,
 } = require('./billing/subscription-domain');
 const { asaasRequest } = require('./billing/asaas-client');
+const {
+  syncInvoiceToPayable,
+  syncEnterpriseSubscriptionPayables,
+} = require('./billing/subscription-payables');
 
 initializeApp();
 
 const onlineOrders = require('./online-orders');
+const whatsappService = require('./whatsapp/whatsapp-service');
+const userSwitch = require('./auth/user-switch');
 
 const auth = getAuth();
 const db = getFirestore();
@@ -210,6 +219,130 @@ exports.createEnterprise = onCall(async (request) => {
 
   await ref.set(payload);
   return { id, ...payload };
+});
+
+/**
+ * selfRegisterEnterprise({ name, document, phone, tradeName?, address... })
+ * Self-serve: usuário Auth autenticado (sem enterpriseId) cria empresa no plano Free
+ * e vira admin master da conta.
+ */
+exports.selfRegisterEnterprise = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+
+  if (request.auth.token.enterpriseId) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este usuário já está vinculado a uma empresa'
+    );
+  }
+
+  const name = String(request.data?.name || '').trim();
+  const tradeName = request.data?.tradeName ? String(request.data.tradeName).trim() : '';
+  const displayName = request.data?.displayName
+    ? String(request.data.displayName).trim()
+    : '';
+  const documentDigits = String(request.data?.document || '').replace(/\D/g, '');
+  const phoneDigits = String(request.data?.phone || '').replace(/\D/g, '');
+  const email = String(request.auth.token.email || '')
+    .trim()
+    .toLowerCase();
+
+  if (!name) {
+    throw new HttpsError('invalid-argument', 'Razão social é obrigatória');
+  }
+  if (documentDigits.length !== 14) {
+    throw new HttpsError('invalid-argument', 'CNPJ com 14 dígitos é obrigatório');
+  }
+  if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+    throw new HttpsError('invalid-argument', 'WhatsApp/telefone com DDD é obrigatório');
+  }
+  if (!email) {
+    throw new HttpsError('invalid-argument', 'E-mail da conta Auth é obrigatório');
+  }
+
+  const dup = await db
+    .collection('enterprises')
+    .where('document', '==', documentDigits)
+    .limit(1)
+    .get();
+  if (!dup.empty) {
+    throw new HttpsError('already-exists', 'Já existe uma empresa com este CNPJ');
+  }
+
+  let id = sanitizeId(request.data?.id || tradeName || name);
+  if (!id || id.length < 3) {
+    id = `emp-${documentDigits.slice(0, 8)}`;
+  }
+
+  let ref = db.doc(`enterprises/${id}`);
+  let existing = await ref.get();
+  if (existing.exists) {
+    id = `${id}-${documentDigits.slice(-4)}`;
+    ref = db.doc(`enterprises/${id}`);
+    existing = await ref.get();
+    if (existing.exists) {
+      throw new HttpsError('already-exists', `Identificador ${id} já existe. Escolha outro nome.`);
+    }
+  }
+
+  const freePlan = await ensureFreePlan();
+  const createdAt = nowIso();
+  const uid = request.auth.uid;
+  const payload = {
+    name,
+    active: true,
+    adminEmail: email,
+    adminUid: uid,
+    ...pickEnterpriseAddressFields({
+      ...request.data,
+      document: documentDigits,
+      phone: phoneDigits,
+      tradeName: tradeName || null,
+    }),
+    document: documentDigits,
+    phone: phoneDigits,
+    subscription: buildFreeSubscription(freePlan.id, createdAt),
+    createdAt,
+    updatedAt: createdAt,
+    createdBy: uid,
+  };
+
+  await ref.set(payload);
+
+  const existingClaims = (await auth.getUser(uid)).customClaims || {};
+  await auth.setCustomUserClaims(uid, {
+    ...existingClaims,
+    enterpriseId: id,
+    role: 'admin',
+  });
+
+  await db.doc(`enterprises/${id}/members/${uid}`).set(
+    {
+      email,
+      role: 'admin',
+      displayName: displayName || request.auth.token.name || email.split('@')[0],
+      invitedBy: uid,
+      invitedAt: createdAt,
+      updatedAt: createdAt,
+      active: true,
+    },
+    { merge: true }
+  );
+
+  await auth.updateUser(uid, {
+    emailVerified: true,
+    ...(displayName ? { displayName } : {}),
+  });
+
+  return {
+    id,
+    enterpriseId: id,
+    role: 'admin',
+    planCode: 'free',
+    ...payload,
+  };
 });
 
 /**
@@ -962,20 +1095,30 @@ exports.startSubscription = onCall(async (request) => {
         }
         if (asaasPaymentId) {
           const invRef = entRef.collection('subscriptionInvoices').doc(asaasPaymentId);
-          await invRef.set(
-            {
-              asaasPaymentId,
-              status: paymentStatus || 'PENDING',
-              value: Number(first?.value || plan.priceMonthly),
-              dueDate: String(first?.dueDate || dueDate),
-              paidAt: cardPaymentConfirmed ? now : null,
-              invoiceUrl: paymentUrl,
-              billingType: 'CREDIT_CARD',
-              createdAt: now,
-              updatedAt: now,
-            },
-            { merge: true }
-          );
+          const cardInvPayload = {
+            asaasPaymentId,
+            status: paymentStatus || 'PENDING',
+            value: Number(first?.value || plan.priceMonthly),
+            dueDate: String(first?.dueDate || dueDate),
+            paidAt: cardPaymentConfirmed ? now : null,
+            invoiceUrl: paymentUrl,
+            billingType: 'CREDIT_CARD',
+            createdAt: now,
+            updatedAt: now,
+          };
+          await invRef.set(cardInvPayload, { merge: true });
+          try {
+            await syncInvoiceToPayable({
+              db,
+              enterpriseId,
+              planName: plan.name,
+              planCode: plan.code,
+              billingMode: 'recurring',
+              invoice: cardInvPayload,
+            });
+          } catch (payErr) {
+            console.warn('syncInvoiceToPayable (card) skipped:', payErr.message);
+          }
         }
       } catch (e) {
         console.warn('list payments after subscribe failed', e.message);
@@ -1070,20 +1213,30 @@ exports.startSubscription = onCall(async (request) => {
       }
 
       const invRef = entRef.collection('subscriptionInvoices').doc(asaasPaymentId);
-      await invRef.set(
-        {
-          asaasPaymentId,
-          status: paymentStatus,
-          value: Number(payment.value || plan.priceMonthly),
-          dueDate: String(payment.dueDate || dueDate),
-          paidAt: null,
-          invoiceUrl: paymentUrl,
-          billingType: 'PIX',
-          createdAt: now,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
+      const pixInvPayload = {
+        asaasPaymentId,
+        status: paymentStatus,
+        value: Number(payment.value || plan.priceMonthly),
+        dueDate: String(payment.dueDate || dueDate),
+        paidAt: null,
+        invoiceUrl: paymentUrl,
+        billingType: 'PIX',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await invRef.set(pixInvPayload, { merge: true });
+      try {
+        await syncInvoiceToPayable({
+          db,
+          enterpriseId,
+          planName: plan.name,
+          planCode: plan.code,
+          billingMode: 'one_time',
+          invoice: pixInvPayload,
+        });
+      } catch (payErr) {
+        console.warn('syncInvoiceToPayable (pix) skipped:', payErr.message);
+      }
 
       const freePlan = await ensureFreePlan();
       const prevActivePlanId =
@@ -1238,6 +1391,32 @@ exports.asaasWebhook = onRequest(async (req, res) => {
   };
   await invRef.set(invPayload, { merge: true });
 
+  // Sincroniza fatura da assinatura no Contas a Pagar da empresa
+  try {
+    const entSub = q.docs[0].data()?.subscription || {};
+    const targetPlanId = entSub.pendingPlanId || entSub.planId;
+    let planName = entSub.pendingPlanCode || entSub.planCode || 'Assinatura';
+    const planCode = entSub.pendingPlanCode || entSub.planCode || '';
+    if (targetPlanId) {
+      const planSnap = await db.doc(`plans/${targetPlanId}`).get();
+      if (planSnap.exists && planSnap.data()?.name) {
+        planName = String(planSnap.data().name);
+      }
+    }
+    if (String(planCode).toLowerCase() !== 'free') {
+      await syncInvoiceToPayable({
+        db,
+        enterpriseId: entId,
+        planName,
+        planCode,
+        billingMode: entSub.billingMode || (entSub.asaasSubscriptionId ? 'recurring' : 'one_time'),
+        invoice: invPayload,
+      });
+    }
+  } catch (payErr) {
+    console.warn('asaasWebhook syncInvoiceToPayable skipped:', payErr.message);
+  }
+
   const status = mapAsaasPaymentEventToStatus(event);
   if (status) {
     const curSub = q.docs[0].data()?.subscription || {};
@@ -1342,7 +1521,199 @@ exports.enforceSubscriptionGrace = onSchedule('every 24 hours', async () => {
     if (Date.parse(sub.currentPeriodEnd) > now.getTime()) continue;
     await downgrade(docSnap, sub);
   }
+
+  // Garante o lançamento mensal recorrente em Contas a Pagar para todas as empresas com plano pago ativo
+  const allTrackable = [...activeSnap.docs, ...pastDueSnap.docs];
+  for (const docSnap of allTrackable) {
+    try {
+      await syncEnterpriseSubscriptionPayables({
+        db,
+        enterpriseId: docSnap.id,
+        enterpriseData: docSnap.data(),
+        now,
+      });
+    } catch (syncErr) {
+      console.warn('enforceSubscriptionGrace sync payables failed:', docSnap.id, syncErr.message);
+    }
+  }
 });
+
+const localActionHandlers = {};
+
+localActionHandlers.syncSubscriptionPayables = async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const requestedEnterpriseId = String(request.data?.enterpriseId || '').trim();
+  const isPlatformAdmin = request.auth.token.platformAdmin === true;
+
+  if (requestedEnterpriseId) {
+    if (!isPlatformAdmin) {
+      const sameEnt = request.auth.token.enterpriseId === requestedEnterpriseId;
+      const role = request.auth.token.role;
+      if (!sameEnt || (role !== 'admin' && role !== 'gestor')) {
+        throw new HttpsError('permission-denied', 'Admin or gestor required');
+      }
+    }
+    const result = await syncEnterpriseSubscriptionPayables({
+      db,
+      enterpriseId: requestedEnterpriseId,
+    });
+    return { results: [result] };
+  }
+
+  if (!isPlatformAdmin) {
+    throw new HttpsError('permission-denied', 'platformAdmin claim required to sync all enterprises');
+  }
+
+  const snap = await db.collection('enterprises').get();
+  const results = [];
+  for (const docSnap of snap.docs) {
+    const res = await syncEnterpriseSubscriptionPayables({
+      db,
+      enterpriseId: docSnap.id,
+      enterpriseData: docSnap.data(),
+    });
+    results.push(res);
+  }
+  return { totalEnterprises: snap.size, results };
+};
+
+localActionHandlers.listAccessibleWorkspaces = async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const uid = request.auth.uid;
+  const isPlatformAdmin = request.auth.token.platformAdmin === true;
+  const currentEnterpriseId =
+    typeof request.auth.token.enterpriseId === 'string' ? request.auth.token.enterpriseId : '';
+  const currentRole =
+    typeof request.auth.token.role === 'string' ? request.auth.token.role : 'operador';
+
+  const plansSnap = await db.collection('plans').get();
+  const planById = new Map();
+  const planByCode = new Map();
+  for (const p of plansSnap.docs) {
+    const data = p.data() || {};
+    planById.set(p.id, data);
+    if (data.code) planByCode.set(String(data.code).toLowerCase(), data);
+  }
+
+  function formatWorkspace(entId, entData, role) {
+    const sub = entData?.subscription || {};
+    const planObj =
+      (sub.planId && planById.get(sub.planId)) ||
+      (sub.planCode && planByCode.get(String(sub.planCode).toLowerCase())) ||
+      null;
+    const planCode = String(planObj?.code || sub.planCode || 'free').toLowerCase();
+    const planLabel = String(
+      planObj?.name ||
+        (planCode === 'ultra' ? 'Ultra' : planCode === 'pro' ? 'Pro' : 'Free')
+    );
+    const logo =
+      entData?.onlineStore?.logoUrl ||
+      entData?.logoUrl ||
+      '';
+    return {
+      id: entId,
+      name: String(entData?.tradeName || entData?.name || entId),
+      logo: String(logo),
+      plan: planLabel,
+      planCode,
+      role: String(role || 'operador'),
+    };
+  }
+
+  if (isPlatformAdmin) {
+    const entSnap = await db.collection('enterprises').get();
+    const workspaces = entSnap.docs
+      .filter((d) => d.data()?.active !== false)
+      .map((d) => formatWorkspace(d.id, d.data(), 'admin'))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return { workspaces };
+  }
+
+  const enterpriseRoles = new Map();
+  if (currentEnterpriseId) {
+    enterpriseRoles.set(currentEnterpriseId, currentRole);
+  }
+
+  // Also inspect multi-enterprise memberships if user belongs to multiple branches
+  try {
+    const userSnap = await db.doc(`users/${uid}`).get();
+    const memberships = userSnap.exists ? userSnap.data()?.memberships : null;
+    if (Array.isArray(memberships)) {
+      for (const m of memberships) {
+        if (m && m.enterpriseId && m.active !== false) {
+          enterpriseRoles.set(String(m.enterpriseId), String(m.role || 'operador'));
+        }
+      }
+    }
+  } catch {
+    // ignore optional memberships array
+  }
+
+  const workspaces = [];
+  for (const [entId, role] of enterpriseRoles.entries()) {
+    const entSnap = await db.doc(`enterprises/${entId}`).get();
+    if (!entSnap.exists || entSnap.data()?.active === false) continue;
+    const memSnap = await db.doc(`enterprises/${entId}/members/${uid}`).get();
+    if (memSnap.exists && memSnap.data()?.active === false) continue;
+    const resolvedRole = memSnap.exists && memSnap.data()?.role ? memSnap.data().role : role;
+    workspaces.push(formatWorkspace(entId, entSnap.data(), resolvedRole));
+  }
+
+  workspaces.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  return { workspaces };
+};
+
+localActionHandlers.switchActiveEnterprise = async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const uid = request.auth.uid;
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  if (!enterpriseId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId required');
+  }
+
+  const isPlatformAdmin = request.auth.token.platformAdmin === true;
+  const entSnap = await db.doc(`enterprises/${enterpriseId}`).get();
+  if (!entSnap.exists || entSnap.data()?.active === false) {
+    throw new HttpsError('not-found', 'Empresa não encontrada ou inativa.');
+  }
+
+  const memSnap = await db.doc(`enterprises/${enterpriseId}/members/${uid}`).get();
+  let targetRole = 'admin';
+
+  if (isPlatformAdmin) {
+    if (memSnap.exists && TENANT_ROLES.has(memSnap.data()?.role)) {
+      targetRole = memSnap.data().role;
+    }
+  } else {
+    if (!memSnap.exists || memSnap.data()?.active === false) {
+      throw new HttpsError('permission-denied', 'Sem acesso a esta empresa.');
+    }
+    const memberRole = memSnap.data()?.role;
+    targetRole = TENANT_ROLES.has(memberRole) ? memberRole : 'operador';
+  }
+
+  const userRecord = await auth.getUser(uid);
+  const existingClaims = userRecord.customClaims || {};
+  const nextClaims = {
+    ...existingClaims,
+    enterpriseId,
+    role: targetRole,
+    ...(isPlatformAdmin ? { platformAdmin: true } : {}),
+  };
+  await auth.setCustomUserClaims(uid, nextClaims);
+
+  return {
+    switched: true,
+    enterpriseId,
+    role: targetRole,
+  };
+};
 
 exports.getPublicStorefront = onlineOrders.getPublicStorefront;
 exports.placeOnlineOrder = onlineOrders.placeOnlineOrder;
@@ -1353,4 +1724,21 @@ exports.lookupPublicCustomerByPhone = onlineOrders.lookupPublicCustomerByPhone;
 exports.listPublicOrdersByPhone = onlineOrders.listPublicOrdersByPhone;
 exports.getPublicOrderStatus = onlineOrders.getPublicOrderStatus;
 exports.updateOnlineOrderStatus = onlineOrders.updateOnlineOrderStatus;
+exports.publicStoreShareMeta = onlineOrders.publicStoreShareMeta;
+
+// Consolidated low-cost Cloud Function router (17 actions -> 1 single Cloud Run container)
+const ERP_ACTION_HANDLERS = {
+  ...whatsappService.handlers,
+  ...userSwitch.handlers,
+  ...localActionHandlers,
+};
+
+exports.erpActions = onCall({ maxInstances: 2, memory: '256MiB', concurrency: 80 }, async (request) => {
+  const action = String(request.data?.action || '').trim();
+  const handler = ERP_ACTION_HANDLERS[action];
+  if (!handler) {
+    throw new HttpsError('invalid-argument', `Ação desconhecida: ${action}`);
+  }
+  return handler(request);
+});
 

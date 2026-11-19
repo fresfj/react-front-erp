@@ -18,7 +18,6 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { PasswordIcon } from 'src/assets/icons';
 
 import { Iconify } from 'src/components/iconify';
-import { AnimateLogo2 } from 'src/components/animate';
 import { Form, Field } from 'src/components/hook-form';
 
 import { sendPasswordResetEmail } from 'src/auth/context/firebase';
@@ -66,8 +65,6 @@ export function FirebaseResetPasswordView() {
       setErrorMsg(getFirebaseErrorMessage(error, 'Não foi possível enviar o e-mail de recuperação'));
     }
   });
-
-  const renderLogo = <AnimateLogo2 sx={{ mb: 3, mx: 'auto' }} />;
 
   const renderHead = (
     <>
@@ -119,8 +116,6 @@ export function FirebaseResetPasswordView() {
 
   return (
     <>
-      {renderLogo}
-
       {renderHead}
 
       {!!errorMsg && (

@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+
+import { paths } from 'src/routes/paths';
 
 import { AuthSplitLayout } from 'src/layouts/auth-split';
 import { AuthCenteredLayout } from 'src/layouts/auth-centered';
@@ -21,6 +23,10 @@ const Firebase = {
   VerifyPage: lazy(() => import('src/pages/auth/firebase/verify')),
   ResetPasswordPage: lazy(() => import('src/pages/auth/firebase/reset-password')),
 };
+
+function FirebaseAuthPage({ children }: { children: React.ReactNode }) {
+  return <AuthCenteredLayout>{children}</AuthCenteredLayout>;
+}
 
 export const authRoutes = [
   {
@@ -57,43 +63,51 @@ export const authRoutes = [
         ],
       },
       {
+        path: 'sign-in',
+        element: (
+          <GuestGuard>
+            <FirebaseAuthPage>
+              <Firebase.SignInPage />
+            </FirebaseAuthPage>
+          </GuestGuard>
+        ),
+      },
+      {
+        path: 'sign-up',
+        element: (
+          <GuestGuard>
+            <FirebaseAuthPage>
+              <Firebase.SignUpPage />
+            </FirebaseAuthPage>
+          </GuestGuard>
+        ),
+      },
+      {
+        path: 'verify',
+        element: (
+          <FirebaseAuthPage>
+            <Firebase.VerifyPage />
+          </FirebaseAuthPage>
+        ),
+      },
+      {
+        path: 'reset-password',
+        element: (
+          <FirebaseAuthPage>
+            <Firebase.ResetPasswordPage />
+          </FirebaseAuthPage>
+        ),
+      },
+      // Compat: /auth/firebase/* → /auth/*
+      {
         path: 'firebase',
         children: [
-          {
-            path: 'sign-in',
-            element: (
-              <GuestGuard>
-                <AuthCenteredLayout>
-                  <Firebase.SignInPage />
-                </AuthCenteredLayout>
-              </GuestGuard>
-            ),
-          },
-          {
-            path: 'sign-up',
-            element: (
-              <GuestGuard>
-                <AuthCenteredLayout>
-                  <Firebase.SignUpPage />
-                </AuthCenteredLayout>
-              </GuestGuard>
-            ),
-          },
-          {
-            path: 'verify',
-            element: (
-              <AuthCenteredLayout>
-                <Firebase.VerifyPage />
-              </AuthCenteredLayout>
-            ),
-          },
+          { path: 'sign-in', element: <Navigate to={paths.auth.signIn} replace /> },
+          { path: 'sign-up', element: <Navigate to={paths.auth.signUp} replace /> },
+          { path: 'verify', element: <Navigate to={paths.auth.verify} replace /> },
           {
             path: 'reset-password',
-            element: (
-              <AuthCenteredLayout>
-                <Firebase.ResetPasswordPage />
-              </AuthCenteredLayout>
-            ),
+            element: <Navigate to={paths.auth.resetPassword} replace />,
           },
         ],
       },

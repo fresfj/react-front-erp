@@ -2,6 +2,7 @@ import type { Sale } from 'src/api/firestore/sales';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
+import Stack from '@mui/material/Stack';
 import TableRow from '@mui/material/TableRow';
 import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
@@ -19,6 +20,7 @@ import { fCurrency } from 'src/utils/format-number';
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
+import { PaymentMethodIcon, getPaymentMethodBrand } from 'src/components/payment-method-icon';
 
 // ----------------------------------------------------------------------
 
@@ -49,10 +51,6 @@ export function SaleTableRow({
     popover.onClose();
     router.push(detailsHref);
   };
-
-  const paymentMethodsDisplay = row.payments
-    ? row.payments.map((p) => p.method.toUpperCase()).join(', ')
-    : '—';
 
   return (
     <>
@@ -191,7 +189,18 @@ export function SaleTableRow({
 
         {isVisible('payments') && (
           <TableCell sx={{ typography: 'caption', whiteSpace: 'nowrap' }}>
-            {paymentMethodsDisplay}
+            {row.payments?.length ? (
+              <Stack spacing={0.5}>
+                {row.payments.map((p, idx) => (
+                  <Stack key={`${p.method}-${idx}`} direction="row" spacing={0.75} alignItems="center">
+                    <PaymentMethodIcon method={p.method} size={16} />
+                    <span>{getPaymentMethodBrand(p.method).defaultLabel}</span>
+                  </Stack>
+                ))}
+              </Stack>
+            ) : (
+              '—'
+            )}
           </TableCell>
         )}
 

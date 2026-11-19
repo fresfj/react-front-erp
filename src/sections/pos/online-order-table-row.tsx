@@ -24,6 +24,7 @@ import { useTranslate } from 'src/locales';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
+import { PaymentMethodIcon } from 'src/components/payment-method-icon';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
 
 import { getFulfillmentLabel } from 'src/sections/public-store/order-progress-stepper';
@@ -167,9 +168,12 @@ export function OnlineOrderTableRow({
               <Typography variant="body2">
                 {row.deliveryType === 'delivery' ? 'Entrega' : 'Retirada'}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                {PAYMENT_LABELS[row.paymentMethod] || row.paymentMethod}
-              </Typography>
+              <Stack direction="row" spacing={0.5} alignItems="center">
+                <PaymentMethodIcon method={row.paymentMethod} size={16} />
+                <Typography variant="caption" color="text.secondary">
+                  {PAYMENT_LABELS[row.paymentMethod] || row.paymentMethod}
+                </Typography>
+              </Stack>
             </Stack>
           </TableCell>
         )}

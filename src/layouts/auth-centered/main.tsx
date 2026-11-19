@@ -48,7 +48,7 @@ export function Main({ sx, children, layoutQuery, ...other }: MainProps) {
         justifyContent: 'center',
         [theme.breakpoints.up(layoutQuery)]: {
           px: 0,
-          py: 'calc(var(--layout-header-desktop-height) + 24px)',
+          py: 5,
         },
         ...sx,
       }}

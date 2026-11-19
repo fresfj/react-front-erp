@@ -11,6 +11,7 @@ import { useRouter } from 'src/routes/hooks';
 import axios from 'src/utils/axios';
 
 import { CONFIG } from 'src/config-global';
+import { clearReturnSwitchSession } from 'src/api/firestore/user-switch';
 
 import { toast } from 'src/components/snackbar';
 
@@ -39,6 +40,7 @@ export function SignOutButton({ onClose, ...other }: Props) {
         await signOutJwt();
       }
 
+      clearReturnSwitchSession();
       clearClientAuthStorage();
       delete axios.defaults.headers.common.Authorization;
 

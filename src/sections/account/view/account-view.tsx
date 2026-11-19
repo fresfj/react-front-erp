@@ -16,6 +16,7 @@ import { AccountFiscalForm } from '../account-fiscal-form';
 import { AccountGeneralForm } from '../account-general-form';
 import { AccountCompanyForm } from '../account-company-form';
 import { AccountBillingView } from '../account-billing-view';
+import { AccountWhatsappView } from '../account-whatsapp-view';
 import { AccountOnlineStoreForm } from '../account-online-store-form';
 import { AccountChangePasswordForm } from '../account-change-password-form';
 
@@ -26,6 +27,7 @@ const TAB_SECURITY = 'security';
 const TAB_COMPANY = 'company';
 const TAB_FISCAL = 'fiscal';
 const TAB_ONLINE_STORE = 'online-store';
+const TAB_WHATSAPP = 'whatsapp';
 const TAB_BILLING = 'billing';
 
 // ----------------------------------------------------------------------
@@ -41,15 +43,17 @@ export function AccountView() {
 
   const currentTab = pathname.includes('/billing')
     ? TAB_BILLING
-    : pathname.includes('/online-store')
-      ? TAB_ONLINE_STORE
-      : pathname.includes('/fiscal')
-        ? TAB_FISCAL
-        : pathname.includes('/company')
-          ? TAB_COMPANY
-          : pathname.includes('/change-password') || pathname.endsWith('/security')
-            ? TAB_SECURITY
-            : TAB_GENERAL;
+    : pathname.includes('/whatsapp')
+      ? TAB_WHATSAPP
+      : pathname.includes('/online-store')
+        ? TAB_ONLINE_STORE
+        : pathname.includes('/fiscal')
+          ? TAB_FISCAL
+          : pathname.includes('/company')
+            ? TAB_COMPANY
+            : pathname.includes('/change-password') || pathname.endsWith('/security')
+              ? TAB_SECURITY
+              : TAB_GENERAL;
 
   const tabs = [
     {
@@ -83,6 +87,12 @@ export function AccountView() {
             label: t('account.tabs.onlineStore'),
             icon: <Iconify icon="solar:shop-bold" width={24} />,
             href: paths.dashboard.account.onlineStore,
+          },
+          {
+            value: TAB_WHATSAPP,
+            label: 'WhatsApp',
+            icon: <Iconify icon="ic:baseline-whatsapp" width={24} />,
+            href: paths.dashboard.account.whatsapp,
           },
         ]
       : []),
@@ -133,6 +143,7 @@ export function AccountView() {
       {currentTab === TAB_COMPANY && <AccountCompanyForm />}
       {currentTab === TAB_FISCAL && <AccountFiscalForm />}
       {currentTab === TAB_ONLINE_STORE && <AccountOnlineStoreForm />}
+      {currentTab === TAB_WHATSAPP && <AccountWhatsappView />}
       {currentTab === TAB_BILLING && <AccountBillingView />}
     </DashboardContent>
   );

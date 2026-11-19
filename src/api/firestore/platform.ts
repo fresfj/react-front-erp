@@ -43,6 +43,7 @@ export type OnlineStoreConfig = {
   defaultDeliveryFee: number;
   paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
   whatsapp?: string;
+  description?: string;
   instagramUrl?: string;
   googleReviewUrl?: string;
   logoUrl?: string;
@@ -153,6 +154,7 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
         m === 'cash' || m === 'pix' || m === 'debit_card' || m === 'credit_card'
       ),
     whatsapp: optStr(data.whatsapp),
+    description: optStr(data.description),
     instagramUrl: optStr(data.instagramUrl),
     googleReviewUrl: optStr(data.googleReviewUrl),
     logoUrl: optStr(data.logoUrl),
@@ -340,6 +342,27 @@ export function updateEnterprise(
   return call<typeof input, Enterprise>('updateEnterprise', input);
 }
 
+export function selfRegisterEnterprise(input: {
+  name: string;
+  document: string;
+  phone: string;
+  displayName?: string;
+  tradeName?: string;
+  zipCode?: string;
+  address?: string;
+  addressNumber?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  id?: string;
+}) {
+  return call<
+    typeof input,
+    { id: string; enterpriseId: string; role: string; planCode: string }
+  >('selfRegisterEnterprise', input);
+}
+
 export function inviteMember(input: {
   email: string;
   enterpriseId: string;
@@ -383,6 +406,30 @@ export function setMemberClaims(input: {
     'setMemberClaims',
     input
   );
+}
+
+export type AccessibleWorkspace = {
+  id: string;
+  name: string;
+  logo: string;
+  plan: string;
+  planCode: string;
+  role: string;
+};
+
+export function listAccessibleWorkspaces(): Promise<{ workspaces: AccessibleWorkspace[] }> {
+  return call<{ action: string }, { workspaces: AccessibleWorkspace[] }>('erpActions', {
+    action: 'listAccessibleWorkspaces',
+  });
+}
+
+export function switchActiveEnterprise(
+  enterpriseId: string
+): Promise<{ switched: boolean; enterpriseId: string; role: string }> {
+  return call<
+    { action: string; enterpriseId: string },
+    { switched: boolean; enterpriseId: string; role: string }
+  >('erpActions', { action: 'switchActiveEnterprise', enterpriseId });
 }
 
 export async function updateEnterpriseSettings(

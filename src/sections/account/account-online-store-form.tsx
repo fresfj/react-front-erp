@@ -46,6 +46,7 @@ const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const OnlineStoreSchema = zod.object({
   enabled: zod.boolean(),
   slug: zod.string().min(1),
+  description: zod.string().max(320).optional().or(zod.literal('')),
   logoUrl: zod.any().optional(),
   bannerUrl: zod.any().optional(),
   bannerFit: zod.enum(['cover', 'contain']).default('cover'),
@@ -86,6 +87,7 @@ function mapEnterpriseToForm(enterprise: Enterprise | null): OnlineStoreSchemaTy
   return {
     enabled: store?.enabled === true,
     slug: store?.slug || normalizeStoreSlug(enterprise?.tradeName || enterprise?.name || ''),
+    description: store?.description || '',
     logoUrl: store?.logoUrl || null,
     bannerUrl: store?.bannerUrl || null,
     bannerFit: store?.bannerFit === 'contain' ? 'contain' : 'cover',
@@ -231,6 +233,7 @@ export function AccountOnlineStoreForm() {
       const config: OnlineStoreConfig = {
         enabled: data.enabled,
         slug: normalizeStoreSlug(data.slug),
+        description: data.description?.trim() || undefined,
         logoUrl: resolvedLogoUrl,
         bannerUrl: resolvedBannerUrl,
         bannerFit: data.bannerFit,
@@ -586,6 +589,15 @@ export function AccountOnlineStoreForm() {
                 disabled={!canEdit}
               />
               <Field.Text name="slug" label={t('onlineStore.fields.slug')} disabled={!canEdit} />
+              <Field.Text
+                name="description"
+                label="Descrição da loja (SEO / WhatsApp / Redes Sociais)"
+                placeholder="Ex: O melhor açaí artesanal da região! Peça online com entrega rápida ou retirada no balcão."
+                helperText="Usada nos resultados do Google e na prévia ao compartilhar o link no WhatsApp."
+                multiline
+                rows={2}
+                disabled={!canEdit}
+              />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
                 <Typography variant="body2" sx={{ flexGrow: 1, wordBreak: 'break-all' }}>
                   {publicUrl}

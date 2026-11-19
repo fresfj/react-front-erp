@@ -20,6 +20,8 @@ import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import { alpha } from '@mui/material/styles';
+import MenuList from '@mui/material/MenuList';
+import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -44,11 +46,14 @@ import { getPublicStorefrontCf } from 'src/api/firestore/online-orders';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { usePopover, CustomPopover } from 'src/components/custom-popover';
+import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
 import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
 
 import { usePublicCart } from '../public-cart-context';
 import { StorefrontSkeleton } from '../public-store-skeletons';
+import { PublicStoreSeoHead, buildStoreSharePayload } from '../public-store-seo-head';
 import {
   CLOSED_REASON_KEY,
   getStoreOpenStatus,
@@ -68,8 +73,9 @@ export function PublicStorefrontView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Perfil da Loja Drawer
+  // Perfil da Loja Drawer & Popover de Compartilhamento
   const [profileOpen, setProfileOpen] = useState(false);
+  const sharePopover = usePopover();
 
   // Modal de detalhe / personalização de produto
   const [selectedProduct, setSelectedProduct] = useState<PublicStorefrontProduct | null>(null);
@@ -215,23 +221,51 @@ export function PublicStorefrontView() {
     navigate(paths.publicStore.checkout(slug), { state: { store } });
   };
 
-  const handleShareStore = async () => {
-    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
-    const title = store?.storeName || 'Cardápio Online';
-    const text = `Confira o cardápio online de ${title}:`;
+  const sharePayload = useMemo(
+    () => (store ? buildStoreSharePayload(store, slug) : null),
+    [store, slug]
+  );
 
+  const handleNativeShare = async () => {
+    sharePopover.onClose();
+    if (!sharePayload) return;
     if (typeof navigator !== 'undefined' && navigator.share) {
       try {
-        await navigator.share({ title, text, url: shareUrl });
+        await navigator.share({
+          title: sharePayload.title,
+          text: sharePayload.description,
+          url: sharePayload.storeUrl,
+        });
         return;
       } catch (err) {
         if ((err as Error)?.name === 'AbortError') return;
       }
     }
-
     try {
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Link da loja copiado! Agora é só compartilhar.');
+      await navigator.clipboard.writeText(sharePayload.whatsappText);
+      toast.success('Link e descrição copiados! Agora é só colar e enviar.');
+    } catch {
+      toast.error('Não foi possível copiar o link.');
+    }
+  };
+
+  const handleCopyShareText = async () => {
+    sharePopover.onClose();
+    if (!sharePayload) return;
+    try {
+      await navigator.clipboard.writeText(sharePayload.whatsappText);
+      toast.success('Descrição e link da loja copiados!');
+    } catch {
+      toast.error('Não foi possível copiar.');
+    }
+  };
+
+  const handleCopyLinkOnly = async () => {
+    sharePopover.onClose();
+    if (!sharePayload) return;
+    try {
+      await navigator.clipboard.writeText(sharePayload.storeUrl);
+      toast.success('Link da loja copiado!');
     } catch {
       toast.error('Não foi possível copiar o link.');
     }
@@ -277,7 +311,13 @@ export function PublicStorefrontView() {
   // Render Principal do Cardápio
   // --------------------------------------------------------------------
   return (
-    <Box sx={{ pb: 14, pt: { xs: 2, sm: 3 }, minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box
+      component="main"
+      sx={{ pb: 14, pt: { xs: 2, sm: 3 }, minHeight: '100vh', bgcolor: 'background.default' }}
+    >
+      {/* SEO Completo: Meta Tags Open Graph (WhatsApp/Banner), Twitter Card e JSON-LD de Produtos */}
+      <PublicStoreSeoHead store={store} slug={slug} />
+
       <Box sx={{ maxWidth: 640, mx: 'auto', px: 2 }}>
         {/* 1. Card de Identificação da Loja no estilo /dashboard/user/cards (AvatarShape + Cover + Avatar) */}
         <Card
@@ -352,7 +392,8 @@ export function PublicStorefrontView() {
 
               <Tooltip title="Compartilhar loja">
                 <IconButton
-                  onClick={handleShareStore}
+                  onClick={sharePopover.onOpen}
+                  aria-label="Compartilhar loja"
                   size="small"
                   sx={{
                     width: 36,
@@ -461,10 +502,20 @@ export function PublicStorefrontView() {
           </Box>
 
           <Box sx={{ pt: 6, px: 2.5, pb: 2.5 }}>
-            {/* Nome da Loja */}
-            <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.3 }}>
+            {/* Nome da Loja (H1 semântico para SEO) */}
+            <Typography component="h1" variant="h6" sx={{ fontWeight: 800, lineHeight: 1.3 }}>
               {store.storeName}
             </Typography>
+
+            {store.description && (
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.75, maxWidth: 480, mx: 'auto' }}
+              >
+                {store.description}
+              </Typography>
+            )}
 
             {/* Linha de Status: Aberto até 23h59 • Pedido mín. R$ ... • Mais informações */}
             <Stack
@@ -744,12 +795,14 @@ export function PublicStorefrontView() {
                         }}
                       >
                         <Stack direction="row" spacing={1.5} sx={{ flex: 1 }}>
-                          {/* Foto do Produto */}
+                          {/* Foto do Produto (lazy loading + async decode para alta performance) */}
                           {product.imageUrl ? (
                             <Box
                               component="img"
                               src={product.imageUrl}
                               alt={product.name}
+                              loading="lazy"
+                              decoding="async"
                               sx={{
                                 width: 84,
                                 height: 84,
@@ -1149,18 +1202,21 @@ export function PublicStorefrontView() {
                   >
                     <Avatar
                       sx={{
-                        width: 34,
-                        height: 34,
+                        width: 36,
+                        height: 36,
                         bgcolor: alpha(cfg.color, 0.12),
                         color: cfg.color,
                       }}
                     >
-                      <Iconify icon={cfg.icon} width={18} />
+                      <PaymentMethodIcon method={method} size={22} />
                     </Avatar>
-                    <Box>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                        {cfg.label}
-                      </Typography>
+                    <Box sx={{ flex: 1 }}>
+                      <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {cfg.label}
+                        </Typography>
+                        <PaymentBrandLogos method={method} size={18} />
+                      </Stack>
                       <Typography variant="caption" color="text.secondary">
                         {cfg.desc}
                       </Typography>
@@ -1213,6 +1269,46 @@ export function PublicStorefrontView() {
           )}
         </Box>
       </Drawer>
+
+      {/* 7. Menu de Compartilhamento (WhatsApp com descrição da empresa + Copiar) */}
+      <CustomPopover
+        open={sharePopover.open}
+        anchorEl={sharePopover.anchorEl}
+        onClose={sharePopover.onClose}
+        slotProps={{ arrow: { placement: 'top-right' } }}
+      >
+        <MenuList>
+          {sharePayload && (
+            <MenuItem
+              component="a"
+              href={sharePayload.whatsappShareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={sharePopover.onClose}
+            >
+              <Iconify icon="ic:baseline-whatsapp" sx={{ color: '#25D366' }} />
+              Compartilhar no WhatsApp
+            </MenuItem>
+          )}
+
+          <MenuItem onClick={handleCopyShareText}>
+            <Iconify icon="solar:document-text-bold" sx={{ color: 'primary.main' }} />
+            Copiar link com descrição
+          </MenuItem>
+
+          <MenuItem onClick={handleCopyLinkOnly}>
+            <Iconify icon="solar:copy-bold" sx={{ color: 'text.secondary' }} />
+            Copiar apenas o link
+          </MenuItem>
+
+          {typeof navigator !== 'undefined' && 'share' in navigator && (
+            <MenuItem onClick={handleNativeShare}>
+              <Iconify icon="solar:share-bold" sx={{ color: 'info.main' }} />
+              Mais opções...
+            </MenuItem>
+          )}
+        </MenuList>
+      </CustomPopover>
     </Box>
   );
 }

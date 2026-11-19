@@ -150,6 +150,9 @@ export function PublicOrdersView() {
           >
             <TextField
               fullWidth
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               label="WhatsApp / Telefone"
               placeholder="(91) 98888-7777"
               value={phone}

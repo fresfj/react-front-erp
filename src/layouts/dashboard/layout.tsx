@@ -28,9 +28,9 @@ import { NavHorizontal } from './nav-horizontal';
 import { _account } from '../config-nav-account';
 import { HeaderBase } from '../core/header-base';
 import { useNavData } from '../config-nav-dashboard';
-import { _workspaces } from '../config-nav-workspace';
 import { LayoutSection } from '../core/layout-section';
 import { OfflineBanner } from '../components/offline-banner';
+import { UserSwitchBanner } from '../components/user-switch-banner';
 
 // ----------------------------------------------------------------------
 
@@ -94,7 +94,6 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
                 (item) =>
                   item.href !== paths.dashboard.account.billing || user?.role === 'admin'
               ),
-              workspaces: _workspaces,
               notifications,
             }}
             slotsDisplay={{
@@ -105,7 +104,12 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
               notifications: true,
             }}
             slots={{
-              topArea: <OfflineBanner />,
+              topArea: (
+                <>
+                  <UserSwitchBanner />
+                  <OfflineBanner />
+                </>
+              ),
               bottomArea: isNavHorizontal ? (
                 <NavHorizontal
                   data={navData}

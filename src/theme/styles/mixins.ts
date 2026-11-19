@@ -7,7 +7,7 @@ import { autocompleteClasses } from '@mui/material/Autocomplete';
 
 import { CONFIG } from 'src/config-global';
 
-import { remToPx, varAlpha, mediaQueries } from './utils';
+import { remToPx, varAlpha, stylesMode, mediaQueries } from './utils';
 
 // ----------------------------------------------------------------------
 
@@ -214,6 +214,9 @@ export function paper({ theme, color, dropdown }: PaperProps) {
       padding: theme.spacing(0.5),
       boxShadow: theme.customShadows.dropdown,
       borderRadius: `${theme.shape.borderRadius * 1.25}px`,
+      [stylesMode.dark]: {
+        boxShadow: `0 0 2px 0 ${varAlpha(theme.vars.palette.common.blackChannel, 0.24)}, -20px 20px 40px -4px ${varAlpha(theme.vars.palette.common.blackChannel, 0.24)}`,
+      },
     }),
   };
 }

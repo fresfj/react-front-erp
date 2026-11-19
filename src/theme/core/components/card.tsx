@@ -1,5 +1,7 @@
 import type { Theme, Components } from '@mui/material/styles';
 
+import { varAlpha, stylesMode } from '../../styles';
+
 // ----------------------------------------------------------------------
 
 const MuiCard: Components<Theme>['MuiCard'] = {
@@ -12,6 +14,9 @@ const MuiCard: Components<Theme>['MuiCard'] = {
       boxShadow: theme.customShadows.card,
       borderRadius: theme.shape.borderRadius * 2,
       zIndex: 0, // Fix Safari overflow: hidden with border radius
+      [stylesMode.dark]: {
+        boxShadow: `0 0 2px 0 ${varAlpha(theme.vars.palette.common.blackChannel, 0.2)}, 0 12px 24px -4px ${varAlpha(theme.vars.palette.common.blackChannel, 0.12)}`,
+      },
     }),
   },
 };

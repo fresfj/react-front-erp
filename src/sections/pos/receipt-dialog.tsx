@@ -39,6 +39,8 @@ type Props = {
   enterprise?: Enterprise | null;
   onOpenEmail?: () => void;
   initialPdfView?: boolean;
+  autoPrint?: boolean;
+  onAutoPrintDone?: () => void;
 };
 
 export function ReceiptDialog({
@@ -48,6 +50,8 @@ export function ReceiptDialog({
   enterprise,
   onOpenEmail,
   initialPdfView,
+  autoPrint,
+  onAutoPrintDone,
 }: Props) {
   const [model, setModel] = useState<ReceiptModelType>(
     enterprise?.receiptDefaultModel || '58mm'
@@ -80,6 +84,27 @@ export function ReceiptDialog({
   const handlePrint = useCallback(() => {
     window.print();
   }, []);
+
+  // Auto-print immediately when triggered via Quick Print (F9 / Ctrl+P)
+  useEffect(() => {
+    if (!open || !autoPrint || pdfView.value) {
+      return undefined;
+    }
+
+    const handleAfterPrint = () => {
+      onAutoPrintDone?.();
+    };
+
+    window.addEventListener('afterprint', handleAfterPrint, { once: true });
+    const timer = window.setTimeout(() => {
+      window.print();
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [open, autoPrint, pdfView.value, onAutoPrintDone]);
 
   // Keyboard shortcuts when dialog is open
   useEffect(() => {

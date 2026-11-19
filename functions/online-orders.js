@@ -1,5 +1,11 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https');
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https');
 const { getFirestore } = require('firebase-admin/firestore');
+
+const {
+  formatCurrencyBrl,
+  formatOrderItemsText,
+  dispatchEnterpriseWhatsappEvent,
+} = require('./whatsapp/whatsapp-service');
 
 // ----------------------------------------------------------------------
 
@@ -226,6 +232,7 @@ exports.getPublicStorefront = onCall(async (request) => {
   const store = ctx.onlineStore || {};
   return {
     storeName: String(ctx.enterprise.tradeName || ctx.enterprise.name || ''),
+    description: store.description != null ? String(store.description) : undefined,
     logoUrl: store.logoUrl != null ? String(store.logoUrl) : (ctx.enterprise.logoUrl || undefined),
     bannerUrl: store.bannerUrl != null ? String(store.bannerUrl) : undefined,
     bannerFit: store.bannerFit === 'contain' ? 'contain' : 'cover',
@@ -377,6 +384,54 @@ exports.placeOnlineOrder = onCall(async (request) => {
     if (docData[k] === null || docData[k] === undefined) delete docData[k];
   });
   await ref.set(docData);
+
+  // Disparo automático não-bloqueante via WhatsApp (Plano Ultra ativo)
+  const storeName = String(ctx.enterprise.tradeName || ctx.enterprise.name || slug);
+  const clientOrigin =
+    typeof request.data?.origin === 'string' && /^https?:\/\//i.test(request.data.origin)
+      ? request.data.origin.replace(/\/+$/, '')
+      : 'https://checkout-shop-b5bb3.web.app';
+  const trackLink = `${clientOrigin}/p/${slug}/order/${ref.id}`;
+  const modeLabel = deliveryType === 'delivery' ? 'Entrega' : 'Retirada no balcão';
+  const itemsText = formatOrderItemsText(validatedItems);
+
+  await Promise.all([
+    dispatchEnterpriseWhatsappEvent({
+      enterpriseId: ctx.enterpriseId,
+      enterprise: ctx.enterprise,
+      event: 'orderReceived',
+      recipientPhone: customerPhone,
+      orderId: ref.id,
+      vars: {
+        cliente: customerName,
+        codigo: code,
+        loja: storeName,
+        itens: itemsText,
+        total: formatCurrencyBrl(total),
+        modalidade: modeLabel,
+        link: trackLink,
+      },
+    }),
+    dispatchEnterpriseWhatsappEvent({
+      enterpriseId: ctx.enterpriseId,
+      enterprise: ctx.enterprise,
+      event: 'storeOwnerNewOrder',
+      recipientPhone:
+        ctx.enterprise.whatsappIntegration?.ownerAlertPhone || ctx.onlineStore?.whatsapp || '',
+      orderId: ref.id,
+      vars: {
+        cliente: customerName,
+        telefone: customerPhone,
+        codigo: code,
+        loja: storeName,
+        itens: itemsText,
+        total: formatCurrencyBrl(total),
+        modalidade: modeLabel,
+        link: trackLink,
+      },
+    }),
+  ]);
+
   return { orderId: ref.id, code };
 });
 
@@ -413,6 +468,7 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
       ? onlineStore.paymentMethodsOnDelivery
       : ['cash', 'pix'],
     whatsapp: onlineStore.whatsapp != null ? String(onlineStore.whatsapp) : null,
+    description: onlineStore.description != null ? String(onlineStore.description).trim() : null,
     instagramUrl: onlineStore.instagramUrl != null ? String(onlineStore.instagramUrl) : null,
     googleReviewUrl:
       onlineStore.googleReviewUrl != null ? String(onlineStore.googleReviewUrl) : null,
@@ -425,7 +481,7 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
         : 50,
     logoFit: onlineStore.logoFit === 'contain' ? 'contain' : 'cover',
   };
-  ['whatsapp', 'instagramUrl', 'googleReviewUrl', 'logoUrl', 'bannerUrl'].forEach((k) => {
+  ['whatsapp', 'description', 'instagramUrl', 'googleReviewUrl', 'logoUrl', 'bannerUrl'].forEach((k) => {
     if (payload[k] === null || payload[k] === undefined || payload[k] === '') {
       delete payload[k];
     }
@@ -571,6 +627,34 @@ exports.acceptOnlineOrder = onCall(async (request) => {
   });
 
   await batch.commit();
+
+  // Notificação automática WhatsApp: Pedido Aceito (Plano Ultra ativo)
+  const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
+  if (entSnap.exists) {
+    const enterprise = { id: entSnap.id, ...entSnap.data() };
+    const store = enterprise.onlineStore || {};
+    const storeSlug = store.slug || '';
+    const storeName = String(enterprise.tradeName || enterprise.name || '');
+    const trackLink = storeSlug
+      ? `https://checkout-shop-b5bb3.web.app/p/${storeSlug}/order/${orderId}`
+      : '';
+    await dispatchEnterpriseWhatsappEvent({
+      enterpriseId,
+      enterprise,
+      event: 'orderAccepted',
+      recipientPhone: order.customerPhone,
+      orderId,
+      saleId: saleRef.id,
+      vars: {
+        cliente: order.customerName || 'Cliente',
+        codigo: order.code || orderId,
+        loja: storeName,
+        tempo: Number(store.estimatedMinutes || 40),
+        link: trackLink,
+      },
+    });
+  }
+
   return { saleId: saleRef.id };
 });
 
@@ -585,7 +669,8 @@ exports.rejectOnlineOrder = onCall(async (request) => {
   const orderRef = db().doc(`enterprises/${enterpriseId}/onlineOrders/${orderId}`);
   const orderSnap = await orderRef.get();
   if (!orderSnap.exists) throw new HttpsError('not-found', 'Order not found');
-  if (orderSnap.data()?.status !== 'pending') {
+  const orderData = orderSnap.data() || {};
+  if (orderData.status !== 'pending') {
     throw new HttpsError('failed-precondition', 'Order is not pending');
   }
 
@@ -598,6 +683,26 @@ exports.rejectOnlineOrder = onCall(async (request) => {
     update.rejectedReason = String(request.data.reason);
   }
   await orderRef.update(update);
+
+  // Notificação automática WhatsApp: Pedido Recusado (Plano Ultra ativo)
+  const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
+  if (entSnap.exists) {
+    const enterprise = { id: entSnap.id, ...entSnap.data() };
+    const storeName = String(enterprise.tradeName || enterprise.name || '');
+    await dispatchEnterpriseWhatsappEvent({
+      enterpriseId,
+      enterprise,
+      event: 'orderRejected',
+      recipientPhone: orderData.customerPhone,
+      orderId,
+      vars: {
+        cliente: orderData.customerName || 'Cliente',
+        codigo: orderData.code || orderId,
+        loja: storeName,
+        motivo: update.rejectedReason ? `\n\n*Motivo:* ${update.rejectedReason}` : '',
+      },
+    });
+  }
 });
 
 function phoneDigits(val) {
@@ -779,7 +884,8 @@ exports.updateOnlineOrderStatus = onCall(async (request) => {
   const orderRef = db().doc(`enterprises/${enterpriseId}/onlineOrders/${orderId}`);
   const orderSnap = await orderRef.get();
   if (!orderSnap.exists) throw new HttpsError('not-found', 'Order not found');
-  if (orderSnap.data()?.status !== 'accepted') {
+  const orderData = orderSnap.data() || {};
+  if (orderData.status !== 'accepted') {
     throw new HttpsError('failed-precondition', 'Only accepted orders can progress');
   }
 
@@ -787,5 +893,205 @@ exports.updateOnlineOrderStatus = onCall(async (request) => {
     fulfillmentStatus,
     updatedAt: nowIso(),
   });
+
+  // Notificação automática WhatsApp de avanço de etapa (Plano Ultra ativo)
+  const eventMap = {
+    preparing: 'orderPreparing',
+    out_for_delivery: 'orderOutForDelivery',
+    delivered: 'orderDelivered',
+  };
+  const waEvent = eventMap[fulfillmentStatus];
+  if (waEvent && orderData.customerPhone) {
+    const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
+    if (entSnap.exists) {
+      const enterprise = { id: entSnap.id, ...entSnap.data() };
+      const store = enterprise.onlineStore || {};
+      const storeName = String(enterprise.tradeName || enterprise.name || '');
+      const statusEntrega =
+        orderData.deliveryType === 'delivery'
+          ? 'Seu pedido *saiu para entrega*! Fique atento ao entregador.'
+          : 'Seu pedido está *pronto para retirada no balcão*!';
+      const avaliacao = store.googleReviewUrl
+        ? `\n\n⭐ Gostou? Avalie nossa loja:\n${store.googleReviewUrl}`
+        : '';
+
+      await dispatchEnterpriseWhatsappEvent({
+        enterpriseId,
+        enterprise,
+        event: waEvent,
+        recipientPhone: orderData.customerPhone,
+        orderId,
+        vars: {
+          cliente: orderData.customerName || 'Cliente',
+          codigo: orderData.code || orderId,
+          loja: storeName,
+          statusEntrega,
+          avaliacao,
+        },
+      });
+    }
+  }
+
   return { fulfillmentStatus };
+});
+
+function escapeHtmlAttr(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function buildFallbackStoreDescription(storeName, enterprise, store, categories) {
+  const modes = [];
+  if (store.acceptDelivery !== false) modes.push('Delivery');
+  if (store.acceptPickup !== false) modes.push('Retirada no balcão');
+  const cityPart = [enterprise.city, enterprise.state].filter(Boolean).join(' - ');
+  const catPart = categories.length ? ` Confira: ${categories.slice(0, 4).join(', ')}.` : '';
+  return `Faça seu pedido online em ${storeName}${cityPart ? ` (${cityPart})` : ''}.${
+    modes.length ? ` ${modes.join(' e ')}.` : ''
+  }${catPart}`.trim();
+}
+
+exports.publicStoreShareMeta = onRequest({ cors: true }, async (req, res) => {
+  try {
+    const pathMatch = String(req.path || '').match(/\/p\/([^/?#]+)/);
+    const rawSlug = req.query.slug || (pathMatch ? pathMatch[1] : '');
+    const slug = normalizeStoreSlug(rawSlug);
+    if (!slug) {
+      res.status(400).send('Missing store slug');
+      return;
+    }
+
+    const indexSnap = await db().doc(`publicStoreIndex/${slug}`).get();
+    if (!indexSnap.exists) {
+      res.status(404).send('Store not found');
+      return;
+    }
+
+    const enterpriseId = String(indexSnap.data()?.enterpriseId || '');
+    const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
+    if (!entSnap.exists) {
+      res.status(404).send('Enterprise not found');
+      return;
+    }
+
+    const enterprise = entSnap.data() || {};
+    const store = enterprise.onlineStore || {};
+    const storeName = String(enterprise.tradeName || enterprise.name || slug);
+
+    const productsSnap = await db().collection(`enterprises/${enterpriseId}/products`).get();
+    const products = productsSnap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter(
+        (p) =>
+          p.active !== false &&
+          p.showOnline === true &&
+          (p.type === 'finished' || p.type !== 'raw' || Number(p.salePrice || 0) > 0)
+      );
+
+    const categories = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
+    const description =
+      (store.description && String(store.description).trim()) ||
+      buildFallbackStoreDescription(storeName, enterprise, store, categories);
+
+    const ogImage = store.bannerUrl || store.logoUrl || enterprise.logoUrl || '';
+    const targetOrigin =
+      typeof req.query.target === 'string' && /^https?:\/\//i.test(req.query.target)
+        ? req.query.target.replace(/\/+$/, '')
+        : '';
+    const canonicalUrl = targetOrigin ? `${targetOrigin}/p/${slug}` : `https://${req.hostname}/p/${slug}`;
+
+    const jsonLd = {
+      '@context': 'https://schema.org',
+      '@type': 'FoodEstablishment',
+      name: storeName,
+      description,
+      url: canonicalUrl,
+      ...(ogImage ? { image: ogImage } : {}),
+      ...(store.logoUrl ? { logo: store.logoUrl } : {}),
+      ...(store.whatsapp ? { telephone: String(store.whatsapp) } : {}),
+      ...(enterprise.address || enterprise.city
+        ? {
+            address: {
+              '@type': 'PostalAddress',
+              streetAddress: [enterprise.address, enterprise.addressNumber || enterprise.number]
+                .filter(Boolean)
+                .join(', '),
+              addressLocality: enterprise.city || '',
+              addressRegion: enterprise.state || '',
+              postalCode: enterprise.zipCode || '',
+              addressCountry: 'BR',
+            },
+          }
+        : {}),
+      hasOfferCatalog: {
+        '@type': 'OfferCatalog',
+        name: `Cardápio ${storeName}`,
+        itemListElement: products.slice(0, 50).map((p) => ({
+          '@type': 'Offer',
+          priceCurrency: 'BRL',
+          price: Number(p.salePrice || 0).toFixed(2),
+          availability: 'https://schema.org/InStock',
+          itemOffered: {
+            '@type': 'Product',
+            name: String(p.name || ''),
+            ...(p.description ? { description: String(p.description) } : {}),
+            ...(p.imageUrl ? { image: String(p.imageUrl) } : {}),
+          },
+        })),
+      },
+    };
+
+    const title = `${storeName} — Cardápio Online e Delivery`;
+    const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtmlAttr(title)}</title>
+  <meta name="description" content="${escapeHtmlAttr(description)}" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="${escapeHtmlAttr(storeName)}" />
+  <meta property="og:title" content="${escapeHtmlAttr(title)}" />
+  <meta property="og:description" content="${escapeHtmlAttr(description)}" />
+  <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}" />
+  ${
+    ogImage
+      ? `<meta property="og:image" content="${escapeHtmlAttr(ogImage)}" />
+  <meta property="og:image:secure_url" content="${escapeHtmlAttr(ogImage)}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="${escapeHtmlAttr(storeName)}" />`
+      : ''
+  }
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtmlAttr(title)}" />
+  <meta name="twitter:description" content="${escapeHtmlAttr(description)}" />
+  ${ogImage ? `<meta name="twitter:image" content="${escapeHtmlAttr(ogImage)}" />` : ''}
+  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+  ${
+    targetOrigin
+      ? `<meta http-equiv="refresh" content="0;url=${escapeHtmlAttr(canonicalUrl)}" />
+  <script>window.location.replace(${JSON.stringify(canonicalUrl)});</script>`
+      : ''
+  }
+</head>
+<body>
+  <h1>${escapeHtmlAttr(storeName)}</h1>
+  <p>${escapeHtmlAttr(description)}</p>
+  <p><a href="${escapeHtmlAttr(canonicalUrl)}">Abrir cardápio online</a></p>
+</body>
+</html>`;
+
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=600');
+    res.status(200).type('text/html; charset=utf-8').send(html);
+  } catch (err) {
+    console.error('publicStoreShareMeta error:', err);
+    res.status(500).send('Internal error');
+  }
 });

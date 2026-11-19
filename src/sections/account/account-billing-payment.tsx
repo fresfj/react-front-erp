@@ -95,7 +95,7 @@ export function AccountBillingPayment({
             }}
           >
             <Stack direction="row" spacing={1.5} alignItems="center">
-              <Iconify icon="ic:baseline-pix" width={28} sx={{ flexShrink: 0 }} />
+              <Iconify icon="thesvg-color:pix" width={28} sx={{ flexShrink: 0 }} />
               <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                 <Typography variant="subtitle2" noWrap>
                   {t('billing.fields.pix')}

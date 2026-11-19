@@ -12,6 +12,7 @@
   "nav": {
     "overview": "Overview",
     "app": "General",
+    "sellerHome": "My day",
     "salesFinance": "Sales & Finance",
     "production": "Production",
     "management": "Management",
@@ -148,6 +149,8 @@
       "utilities_internet": "Internet",
       "rent": "Rent",
       "supplier": "Supplier",
+      "tax": "Taxes",
+      "subscription": "Plan / Subscription",
       "other": "Other"
     }
   },
@@ -393,6 +396,9 @@
       "minInstallmentAmount": "Min installment"
     },
     "password": {
+      "cardTitle": "Change password",
+      "cardSubheader": "Update your email sign-in password",
+      "googleOnlyHint": "Your account currently signs in with Google only. To create an email password, use \"Forgot password\" on the sign-in screen.",
       "oldPassword": "Current password",
       "newPassword": "New password",
       "confirmNewPassword": "Confirm new password",
@@ -405,6 +411,28 @@
       "tooManyRequests": "Too many attempts. Try again later",
       "userMismatch": "User not found or mismatched",
       "noEmailUser": "Account has no email for reauthentication"
+    },
+    "linkedAccounts": {
+      "title": "Linked accounts",
+      "subheader": "View and manage sign-in providers connected to your account",
+      "emailPasswordTitle": "Email & password",
+      "googleTitle": "Google",
+      "googleHint": "Sign in with 1 click using your Google account",
+      "linked": "Linked",
+      "notLinked": "Not linked",
+      "linkGoogle": "Link Google account",
+      "unlink": "Unlink",
+      "cannotUnlinkOnly": "You cannot unlink Google because it is your only active sign-in method.",
+      "confirmUnlinkTitle": "Unlink Google account?",
+      "confirmUnlinkContent": "You will no longer be able to sign in with this Google account and will use email and password instead.",
+      "linkSuccess": "Google account linked successfully!",
+      "unlinkSuccess": "Google account unlinked successfully.",
+      "alreadyInUse": "This Google account is already linked to another user.",
+      "alreadyLinked": "Your account is already linked to Google.",
+      "popupCancelled": "Operation cancelled.",
+      "requiresRecentLogin": "For security, please sign in again before changing linked accounts.",
+      "linkError": "Could not link Google account.",
+      "unlinkError": "Could not unlink Google account."
     }
   },
   "products": {
@@ -655,6 +683,36 @@
     "missingTitle": "Account has no company",
     "missingBody": "Your user has no enterpriseId/role (nor platformAdmin). Ask an admin to set permissions, then sign in again.",
     "signOut": "Sign out"
+  },
+  "sellerHome": {
+    "title": "My day",
+    "breadcrumb": "My day",
+    "salesToday": "Sales today",
+    "salesTodaySecondary": "{{count}} store sales",
+    "pendingOnline": "Pending orders",
+    "pendingOnlineSecondary": "Waiting for accept",
+    "inProgressOnline": "In progress",
+    "inProgressOnlineSecondary": "Accepted / preparing",
+    "cashOpen": "Cash open",
+    "cashClosed": "Cash closed",
+    "cashSecondary": "Today's session",
+    "customersShortcut": "Customers",
+    "customersSecondary": "Quick access",
+    "openPos": "Open POS",
+    "onlineOrders": "Online orders",
+    "salesHistory": "Sales history",
+    "openOrdersTitle": "Open online orders",
+    "todaySalesTitle": "Store sales today",
+    "viewAll": "View all",
+    "emptyOrders": "No pending online orders right now.",
+    "emptySales": "No sales recorded today.",
+    "noEnterprise": "Company not set in session",
+    "orderCode": "Order {{code}}",
+    "saleTotal": "Total",
+    "channelsToday": "Channels today",
+    "channelPos": "POS (store)",
+    "channelOnline": "Online orders",
+    "channelEmpty": "No sales today"
   },
   "permission": {
     "deniedTitle": "Permission denied",

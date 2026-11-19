@@ -1,5 +1,6 @@
 import type { DreClass } from 'src/sections/cash/accrual-dre';
 
+import { httpsCallable } from 'firebase/functions';
 import {
   doc,
   getDoc,
@@ -8,7 +9,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 
-import { FIRESTORE } from 'src/lib/firebase';
+import { FUNCTIONS, FIRESTORE } from 'src/lib/firebase';
 
 import {
   splitInstallments,
@@ -29,6 +30,7 @@ export type FinancialCategory =
   | 'rent'
   | 'supplier'
   | 'tax'
+  | 'subscription'
   | 'other';
 
 export type FinancialRecurrence = 'none' | 'weekly' | 'monthly';
@@ -61,6 +63,11 @@ export type Payable = {
   installmentIndex: number;
   installmentCount: number;
   active: boolean;
+  source?: 'subscription' | 'manual';
+  planCode?: string;
+  planName?: string;
+  asaasPaymentId?: string;
+  paidAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -118,9 +125,51 @@ function mapPayable(id: string, data: Record<string, unknown>): Payable {
     installmentIndex: Math.max(1, Number(data.installmentIndex ?? 1)),
     installmentCount,
     active: data.active !== false,
+    source: data.source === 'subscription' ? 'subscription' : undefined,
+    planCode: optStr(data.planCode),
+    planName: optStr(data.planName),
+    asaasPaymentId: optStr(data.asaasPaymentId),
+    paidAt: optStr(data.paidAt),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };
+}
+
+export async function syncSubscriptionPayablesCf(enterpriseId?: string): Promise<{
+  totalEnterprises?: number;
+  results: Array<{
+    enterpriseId: string;
+    enterpriseName?: string;
+    planCode?: string;
+    planName?: string;
+    subscriptionStatus?: string;
+    invoicesSynced: number;
+    monthlyCreated: boolean;
+    skippedReason?: string;
+  }>;
+}> {
+  const fn = httpsCallable<
+    { action: string; enterpriseId?: string },
+    {
+      totalEnterprises?: number;
+      results: Array<{
+        enterpriseId: string;
+        enterpriseName?: string;
+        planCode?: string;
+        planName?: string;
+        subscriptionStatus?: string;
+        invoicesSynced: number;
+        monthlyCreated: boolean;
+        skippedReason?: string;
+      }>;
+    }
+  >(FUNCTIONS, 'erpActions');
+  const res = await fn(
+    enterpriseId
+      ? { action: 'syncSubscriptionPayables', enterpriseId }
+      : { action: 'syncSubscriptionPayables' }
+  );
+  return res.data;
 }
 
 export async function listPayables(enterpriseId: string): Promise<Payable[]> {

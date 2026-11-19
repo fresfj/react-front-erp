@@ -8,12 +8,24 @@ import IconButton from '@mui/material/IconButton';
 
 import { useSettingsContext } from 'src/components/settings/context';
 
+import { useAuthContext } from 'src/auth/hooks';
+
 // ----------------------------------------------------------------------
 
 export type SettingsButtonProps = IconButtonProps;
 
+/** Tema/layout só para admin/gestor da empresa (ou platformAdmin), e somente autenticado. */
 export function SettingsButton({ sx, ...other }: SettingsButtonProps) {
   const settings = useSettingsContext();
+  const { user } = useAuthContext();
+
+  const canManageTheme =
+    Boolean(user) &&
+    (user?.role === 'admin' || user?.role === 'gestor' || Boolean(user?.platformAdmin));
+
+  if (!canManageTheme) {
+    return null;
+  }
 
   return (
     <IconButton

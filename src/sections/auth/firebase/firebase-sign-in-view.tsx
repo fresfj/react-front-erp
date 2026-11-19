@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
+import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
@@ -19,12 +20,12 @@ import { useBoolean } from 'src/hooks/use-boolean';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
-import { Iconify } from 'src/components/iconify';
 import { AnimateLogo2 } from 'src/components/animate';
 import { Form, Field } from 'src/components/hook-form';
+import { Iconify, SocialIcon } from 'src/components/iconify';
 
 import { useAuthContext } from 'src/auth/hooks';
-import { signInWithPassword } from 'src/auth/context/firebase';
+import { signInWithGoogle, signInWithPassword } from 'src/auth/context/firebase';
 
 // ----------------------------------------------------------------------
 
@@ -49,6 +50,7 @@ export function FirebaseSignInView() {
   const { checkUserSession } = useAuthContext();
 
   const [errorMsg, setErrorMsg] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const password = useBoolean();
 
@@ -81,6 +83,21 @@ export function FirebaseSignInView() {
       );
     }
   });
+
+  const handleSignInWithGoogle = async () => {
+    try {
+      setErrorMsg('');
+      setGoogleLoading(true);
+      await signInWithGoogle();
+      await checkUserSession?.();
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(getFirebaseErrorMessage(error, 'Não foi possível entrar com Google'));
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   const renderLogo = <AnimateLogo2 sx={{ mb: 3, mx: 'auto' }} />;
 
@@ -168,6 +185,29 @@ export function FirebaseSignInView() {
       <Form methods={methods} onSubmit={onSubmit}>
         {renderForm}
       </Form>
+
+      <Divider
+        sx={{
+          my: 3,
+          typography: 'overline',
+          color: 'text.disabled',
+          '&::before, :after': { borderTopStyle: 'dashed' },
+        }}
+      >
+        OU
+      </Divider>
+
+      <LoadingButton
+        fullWidth
+        color="inherit"
+        size="large"
+        variant="outlined"
+        loading={googleLoading}
+        onClick={handleSignInWithGoogle}
+        startIcon={<SocialIcon icon="google" width={22} />}
+      >
+        Entrar com Google
+      </LoadingButton>
     </>
   );
 }

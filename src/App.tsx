@@ -17,6 +17,7 @@ import { MotionLazy } from 'src/components/animate/motion-lazy';
 import { EnterpriseThemeBridge } from 'src/components/settings/enterprise-theme-bridge';
 import { SettingsDrawer, defaultSettings, SettingsProvider } from 'src/components/settings';
 
+import { useAuthContext } from 'src/auth/hooks';
 import { AuthProvider as JwtAuthProvider } from 'src/auth/context/jwt';
 import { AuthProvider as FirebaseAuthProvider } from 'src/auth/context/firebase';
 
@@ -24,6 +25,21 @@ import { AuthProvider as FirebaseAuthProvider } from 'src/auth/context/firebase'
 
 const AuthProvider =
   (CONFIG.auth.method === 'firebase' && FirebaseAuthProvider) || JwtAuthProvider;
+
+/** Drawer de tema só para admin/gestor autenticado (configuração da empresa). */
+function EnterpriseSettingsShell() {
+  const { user } = useAuthContext();
+  const canManageTheme =
+    Boolean(user) &&
+    (user?.role === 'admin' || user?.role === 'gestor' || Boolean(user?.platformAdmin));
+
+  return (
+    <>
+      {canManageTheme ? <SettingsDrawer /> : null}
+      <EnterpriseThemeBridge />
+    </>
+  );
+}
 
 export default function App() {
   useScrollToTop();
@@ -37,8 +53,7 @@ export default function App() {
               <MotionLazy>
                 <Snackbar />
                 <ProgressBar />
-                <SettingsDrawer />
-                <EnterpriseThemeBridge />
+                <EnterpriseSettingsShell />
                 <Router />
               </MotionLazy>
             </ThemeProvider>

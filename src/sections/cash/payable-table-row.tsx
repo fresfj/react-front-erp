@@ -1,5 +1,6 @@
 import type { Payable } from 'src/api/firestore/payables';
 
+import Stack from '@mui/material/Stack';
 import TableRow from '@mui/material/TableRow';
 import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
@@ -11,6 +12,8 @@ import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
 import { fCurrency } from 'src/utils/format-number';
+
+import { useTranslate } from 'src/locales';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
@@ -35,10 +38,16 @@ export function PayableTableRow({
   onPay,
   visibleColumns,
 }: Props) {
+  const { t } = useTranslate('common');
   const router = useRouter();
   const popover = usePopover();
 
   const isVisible = (colId: string) => visibleColumns?.[colId] !== false;
+  const isSubscription = row.source === 'subscription' || row.category === 'subscription';
+
+  const categoryLabel = row.category
+    ? t(`finance.categories.${row.category}`, { defaultValue: row.category })
+    : '—';
 
   const handleEdit = () => {
     popover.onClose();
@@ -66,16 +75,25 @@ export function PayableTableRow({
         {isVisible('supplierName') && (
           <TableCell>
             <ListItemText
-              primary={row.supplierName || '—'}
+              primary={
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                  <span>{row.supplierName || '—'}</span>
+                  {isSubscription && (
+                    <Label variant="soft" color="info">
+                      {row.recurrence === 'monthly' ? 'Mensal' : 'Plano'}
+                    </Label>
+                  )}
+                </Stack>
+              }
               secondary={row.description}
-              primaryTypographyProps={{ typography: 'subtitle2' }}
+              primaryTypographyProps={{ typography: 'subtitle2', component: 'div' }}
               secondaryTypographyProps={{ typography: 'caption', color: 'text.disabled' }}
             />
           </TableCell>
         )}
 
         {isVisible('category') && (
-          <TableCell sx={{ typography: 'body2' }}>{row.category || '—'}</TableCell>
+          <TableCell sx={{ typography: 'body2' }}>{categoryLabel}</TableCell>
         )}
 
         {isVisible('amount') && (

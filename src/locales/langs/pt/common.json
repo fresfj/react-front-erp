@@ -12,6 +12,7 @@
   "nav": {
     "overview": "Visão geral",
     "app": "Geral",
+    "sellerHome": "Meu dia",
     "salesFinance": "Vendas & Financeiro",
     "production": "Produção",
     "management": "Gestão",
@@ -148,6 +149,8 @@
       "utilities_internet": "Internet",
       "rent": "Aluguel",
       "supplier": "Fornecedor",
+      "tax": "Impostos",
+      "subscription": "Assinatura / Plano",
       "other": "Outros"
     }
   },
@@ -393,6 +396,9 @@
       "minInstallmentAmount": "Parcela mínima (R$)"
     },
     "password": {
+      "cardTitle": "Alterar senha",
+      "cardSubheader": "Atualize sua senha de acesso por e-mail",
+      "googleOnlyHint": "Sua conta acessa exclusivamente via Google. Para criar uma senha de acesso por e-mail, utilize \"Esqueci minha senha\" na tela de login.",
       "oldPassword": "Senha atual",
       "newPassword": "Nova senha",
       "confirmNewPassword": "Confirmar nova senha",
@@ -405,6 +411,28 @@
       "tooManyRequests": "Muitas tentativas. Tente novamente mais tarde",
       "userMismatch": "Usuário não encontrado ou incompatível",
       "noEmailUser": "Conta sem e-mail para reautenticação"
+    },
+    "linkedAccounts": {
+      "title": "Contas vinculadas",
+      "subheader": "Identifique e gerencie os métodos de login conectados à sua conta",
+      "emailPasswordTitle": "E-mail e senha",
+      "googleTitle": "Google",
+      "googleHint": "Entre com 1 clique usando sua conta Google",
+      "linked": "Vinculado",
+      "notLinked": "Não vinculado",
+      "linkGoogle": "Vincular conta Google",
+      "unlink": "Desvincular",
+      "cannotUnlinkOnly": "Não é possível desvincular o Google pois é seu único método de acesso ativo.",
+      "confirmUnlinkTitle": "Desvincular conta Google?",
+      "confirmUnlinkContent": "Você deixará de entrar com esta conta Google e passará a acessar apenas com e-mail e senha.",
+      "linkSuccess": "Conta Google vinculada com sucesso!",
+      "unlinkSuccess": "Conta Google desvinculada com sucesso.",
+      "alreadyInUse": "Esta conta Google já está vinculada a outro usuário.",
+      "alreadyLinked": "Sua conta já possui um vínculo com o Google.",
+      "popupCancelled": "Operação cancelada.",
+      "requiresRecentLogin": "Por segurança, faça login novamente antes de alterar vínculos.",
+      "linkError": "Não foi possível vincular a conta Google.",
+      "unlinkError": "Não foi possível desvincular a conta Google."
     }
   },
   "products": {
@@ -655,6 +683,36 @@
     "missingTitle": "Conta sem empresa",
     "missingBody": "Seu usuário não tem enterpriseId/role (nem platformAdmin). Peça ao administrador para definir as permissões e entre novamente.",
     "signOut": "Sair"
+  },
+  "sellerHome": {
+    "title": "Meu dia",
+    "breadcrumb": "Meu dia",
+    "salesToday": "Vendas hoje",
+    "salesTodaySecondary": "{{count}} vendas na loja",
+    "pendingOnline": "Pedidos pendentes",
+    "pendingOnlineSecondary": "Aguardando aceite",
+    "inProgressOnline": "Em andamento",
+    "inProgressOnlineSecondary": "Aceitos / em preparo",
+    "cashOpen": "Caixa aberto",
+    "cashClosed": "Caixa fechado",
+    "cashSecondary": "Sessão do dia",
+    "customersShortcut": "Clientes",
+    "customersSecondary": "Cadastro rápido",
+    "openPos": "Abrir PDV",
+    "onlineOrders": "Pedidos online",
+    "salesHistory": "Histórico de vendas",
+    "openOrdersTitle": "Pedidos online abertos",
+    "todaySalesTitle": "Vendas da loja hoje",
+    "viewAll": "Ver todos",
+    "emptyOrders": "Nenhum pedido online pendente agora.",
+    "emptySales": "Nenhuma venda registrada hoje.",
+    "noEnterprise": "Empresa não configurada na sessão",
+    "orderCode": "Pedido {{code}}",
+    "saleTotal": "Total",
+    "channelsToday": "Canais de hoje",
+    "channelPos": "PDV (loja)",
+    "channelOnline": "Pedidos online",
+    "channelEmpty": "Sem vendas hoje"
   },
   "permission": {
     "deniedTitle": "Sem permissão",

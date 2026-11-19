@@ -4,7 +4,7 @@
 - **Produto:** ERP SaaS Multi-tenant para Varejo, Beneficiamento (ex.: açaí bruto → lotes classificados com rateio de custo) e PDV Offline.
 - **Frontend:** `@minimal-kit/vite-ts` 6.x, Vite, React 18, TypeScript, MUI 5, `@mui/x-data-grid` 7, React Hook Form + Zod.
 - **Backend / Persistência (Oficial):**
-  - **Firebase Auth:** `CONFIG.auth.method = 'firebase'` (entrada `/auth/firebase/sign-in`). Nunca reativar Auth0, Amplify, Supabase ou JWT mock.
+  - **Firebase Auth:** `CONFIG.auth.method = 'firebase'` (entrada `/auth/sign-in`). Nunca reativar Auth0, Amplify, Supabase ou JWT mock.
   - **Cloud Firestore (Offline-first):** Persistência IndexedDB ativa (`src/lib/firebase.ts`). Dados isolados por tenant em `enterprises/{enterpriseId}/...` (campos e coleções sempre em **inglês**).
   - **Cloud Functions v2 (`functions/index.js`):** Operações privilegiadas (`createEnterprise`, `updateEnterprise`, `inviteMember`, `setMemberClaims`, e futuras validações de desconto/sangria/fechamento de caixa).
   - **Firebase Storage (`storage.rules`):** Avatares (`enterprises/{enterpriseId}/members/{uid}/avatar.*`) e anexos/imagens de produtos.

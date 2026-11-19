@@ -51,11 +51,17 @@ export const paths = {
       signUp: `${ROOTS.AUTH}/jwt/sign-up`,
     },
     firebase: {
-      signIn: `${ROOTS.AUTH}/firebase/sign-in`,
-      verify: `${ROOTS.AUTH}/firebase/verify`,
-      signUp: `${ROOTS.AUTH}/firebase/sign-up`,
-      resetPassword: `${ROOTS.AUTH}/firebase/reset-password`,
+      signIn: `${ROOTS.AUTH}/sign-in`,
+      verify: `${ROOTS.AUTH}/verify`,
+      signUp: `${ROOTS.AUTH}/sign-up`,
+      resetPassword: `${ROOTS.AUTH}/reset-password`,
     },
+    /** Alias canônico (mesmo que firebase — Auth oficial do ERP). */
+    signIn: `${ROOTS.AUTH}/sign-in`,
+    signUp: `${ROOTS.AUTH}/sign-up`,
+    verify: `${ROOTS.AUTH}/verify`,
+    resetPassword: `${ROOTS.AUTH}/reset-password`,
+
   },
   // DASHBOARD
   dashboard: {
@@ -130,6 +136,7 @@ export const paths = {
       company: `${ROOTS.DASHBOARD}/account/company`,
       fiscal: `${ROOTS.DASHBOARD}/account/fiscal`,
       onlineStore: `${ROOTS.DASHBOARD}/account/online-store`,
+      whatsapp: `${ROOTS.DASHBOARD}/account/whatsapp`,
     },
     plans: {
       root: `${ROOTS.DASHBOARD}/plans`,

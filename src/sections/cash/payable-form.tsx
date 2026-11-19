@@ -36,7 +36,15 @@ import { useAuthContext } from 'src/auth/hooks';
 
 const Schema = zod.object({
   description: zod.string().min(1),
-  category: zod.enum(['utilities_power', 'utilities_internet', 'rent', 'supplier', 'tax', 'other']),
+  category: zod.enum([
+    'utilities_power',
+    'utilities_internet',
+    'rent',
+    'supplier',
+    'tax',
+    'subscription',
+    'other',
+  ]),
   amount: zod.coerce.number().positive(),
   startDate: zod.string().min(1),
   dueDate: zod.string().min(1),
@@ -62,6 +70,7 @@ const CATEGORIES: FinancialCategory[] = [
   'rent',
   'supplier',
   'tax',
+  'subscription',
   'other',
 ];
 

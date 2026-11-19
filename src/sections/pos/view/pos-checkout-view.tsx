@@ -50,6 +50,7 @@ import { Scrollbar } from 'src/components/scrollbar';
 import { CustomTabs } from 'src/components/custom-tabs';
 import { EmptyContent } from 'src/components/empty-content';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
+import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
 import { CustomerListDialog } from 'src/sections/customer/customer-list-dialog';
 import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
@@ -128,13 +129,18 @@ export function PosCheckoutView() {
       ]);
 
       if (prods.length === 0) {
-        await seedDemoErpCatalog(enterpriseId);
-        [prods, availBatches, custs, ent] = await Promise.all([
-          listProducts(enterpriseId),
-          listAvailableBatchesFIFO(enterpriseId),
-          listCustomers(enterpriseId),
-          getEnterprise(enterpriseId),
-        ]);
+        try {
+          await seedDemoErpCatalog(enterpriseId);
+          [prods, availBatches, custs, ent] = await Promise.all([
+            listProducts(enterpriseId),
+            listAvailableBatchesFIFO(enterpriseId),
+            listCustomers(enterpriseId),
+            getEnterprise(enterpriseId),
+          ]);
+        } catch (seedError) {
+          // Operador PDV não tem write em products — seed é best-effort (admin/gestor).
+          console.warn(seedError);
+        }
       }
 
       setProducts(prods.filter((p) => p.active));
@@ -146,6 +152,12 @@ export function PosCheckoutView() {
       }
     } catch (error) {
       console.error(error);
+      toast.error(
+        getFirebaseErrorMessage(
+          error,
+          'Não foi possível carregar o catálogo do PDV (produtos/estoque)'
+        )
+      );
     }
   }, [enterpriseId]);
 
@@ -1014,12 +1026,9 @@ export function PosCheckoutView() {
                                   },
                                 }}
                               >
-                                <Iconify
-                                  icon={meta.icon}
-                                  width={20}
-                                  sx={{ color: meta.color, flexShrink: 0 }}
-                                />
+                                <PaymentMethodIcon method={payment.method} size={22} />
                                 {methodLabel}
+                                <PaymentBrandLogos method={payment.method} size={18} />
                                 <Iconify
                                   icon="eva:arrow-ios-downward-fill"
                                   width={16}

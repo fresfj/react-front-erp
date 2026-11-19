@@ -77,6 +77,7 @@ export type PublicStorefrontProduct = {
 
 export type PublicStorefront = {
   storeName: string;
+  description?: string;
   logoUrl?: string;
   bannerUrl?: string;
   bannerFit?: 'cover' | 'contain';
@@ -129,6 +130,7 @@ export type PlaceOnlineOrderInput = {
   deliveryType: 'pickup' | 'delivery';
   paymentMethod: OnlinePayOnDeliveryMethod;
   notes?: string;
+  origin?: string;
 };
 
 export type PublicCustomerLookupResult = {

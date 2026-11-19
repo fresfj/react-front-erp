@@ -29,14 +29,15 @@ import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
-import { formatCnpj } from 'src/utils/br-docs';
 import { fDateTime } from 'src/utils/format-time';
 import { fNumber, fCurrency } from 'src/utils/format-number';
+import { formatCnpj , formatPhoneBr } from 'src/utils/br-docs';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { getEnterprise } from 'src/api/firestore/platform';
+import { sendSaleReceiptWhatsappCf } from 'src/api/firestore/whatsapp';
 import {
   getSale,
   cancelSale,
@@ -66,6 +67,7 @@ export function SaleDetailsView({ saleId }: Props) {
   const { user } = useAuthContext();
   const popover = usePopover();
   const emailDialog = useBoolean();
+  const whatsappDialog = useBoolean();
   const cupomDialog = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
@@ -74,10 +76,13 @@ export function SaleDetailsView({ saleId }: Props) {
   const [sale, setSale] = useState<Sale | null>(null);
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
   const [openInPdf, setOpenInPdf] = useState(false);
+  const [autoPrint, setAutoPrint] = useState(false);
   const [issuingNfce, setIssuingNfce] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
 
   const loadSale = useCallback(async () => {
     if (!enterpriseId || !saleId) {
@@ -125,11 +130,19 @@ export function SaleDetailsView({ saleId }: Props) {
 
   const handlePrintCupom = useCallback(() => {
     setOpenInPdf(false);
+    setAutoPrint(false);
+    cupomDialog.onTrue();
+  }, [cupomDialog]);
+
+  const handleQuickPrint = useCallback(() => {
+    setOpenInPdf(false);
+    setAutoPrint(true);
     cupomDialog.onTrue();
   }, [cupomDialog]);
 
   const handleOpenPdf = useCallback(() => {
     setOpenInPdf(true);
+    setAutoPrint(false);
     cupomDialog.onTrue();
   }, [cupomDialog]);
 
@@ -146,10 +159,14 @@ export function SaleDetailsView({ saleId }: Props) {
       }
 
       // If a modal is open, let modal handle shortcuts
-      if (cupomDialog.value || emailDialog.value) return;
+      if (cupomDialog.value || emailDialog.value || whatsappDialog.value) return;
 
       const key = e.key.toLowerCase();
-      if (key === 'p') {
+      // Quick Print: F9 or Ctrl+P / Cmd+P
+      if (e.key === 'F9' || ((e.ctrlKey || e.metaKey) && key === 'p')) {
+        e.preventDefault();
+        handleQuickPrint();
+      } else if (key === 'p' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         handlePrintCupom();
       } else if (key === 'v') {
@@ -166,7 +183,16 @@ export function SaleDetailsView({ saleId }: Props) {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cupomDialog, emailDialog, sale, handleIssueNfce, handleOpenPdf, handlePrintCupom]);
+  }, [
+    cupomDialog,
+    emailDialog,
+    whatsappDialog,
+    sale,
+    handleIssueNfce,
+    handleOpenPdf,
+    handlePrintCupom,
+    handleQuickPrint,
+  ]);
 
   const handleSendEmail = async () => {
     if (!enterpriseId || !sale) return;
@@ -368,14 +394,14 @@ export function SaleDetailsView({ saleId }: Props) {
                 </Tooltip>
               )}
 
-              <Tooltip title="Imprimir Cupom / NFC-e / Recibo A5 [Atalho: P]">
+              <Tooltip title="Impressão Térmica Direta 80mm / 58mm [Atalho: F9 ou Ctrl+P | P: visualizar]">
                 <Button
-                  color="inherit"
+                  color="primary"
                   variant="contained"
-                  startIcon={<Iconify icon="solar:printer-minimalistic-bold" />}
-                  onClick={handlePrintCupom}
+                  startIcon={<Iconify icon="solar:printer-bold" />}
+                  onClick={handleQuickPrint}
                 >
-                  Imprimir Cupom
+                  Impressão Rápida (F9)
                 </Button>
               </Tooltip>
 
@@ -390,6 +416,20 @@ export function SaleDetailsView({ saleId }: Props) {
                   }}
                 >
                   Enviar E-mail
+                </Button>
+              </Tooltip>
+
+              <Tooltip title="Enviar Comprovante via WhatsApp (Plano Ultra)">
+                <Button
+                  color="success"
+                  variant="soft"
+                  startIcon={<Iconify icon="ic:baseline-whatsapp" />}
+                  onClick={() => {
+                    setWhatsappPhone(sale.customerPhone ? formatPhoneBr(sale.customerPhone) : '');
+                    whatsappDialog.onTrue();
+                  }}
+                >
+                  Enviar WhatsApp
                 </Button>
               </Tooltip>
 
@@ -642,6 +682,8 @@ export function SaleDetailsView({ saleId }: Props) {
           sale={sale}
           enterprise={enterprise}
           initialPdfView={openInPdf}
+          autoPrint={autoPrint}
+          onAutoPrintDone={() => setAutoPrint(false)}
           onOpenEmail={() => {
             setRecipientEmail(sale.customerEmail || '');
             emailDialog.onTrue();
@@ -684,6 +726,56 @@ export function SaleDetailsView({ saleId }: Props) {
               onClick={handleSendEmail}
             >
               Enviar Comprovante
+            </LoadingButton>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      {/* Dialog: Enviar Comprovante via WhatsApp (Plano Ultra / Evolution API) */}
+      {sale && (
+        <Dialog open={whatsappDialog.value} onClose={whatsappDialog.onFalse} maxWidth="xs" fullWidth>
+          <DialogTitle>Enviar Comprovante via WhatsApp</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                fullWidth
+                label="WhatsApp do Cliente (com DDD)"
+                placeholder="(91) 98888-7777"
+                value={whatsappPhone}
+                onChange={(e) => setWhatsappPhone(formatPhoneBr(e.target.value))}
+                helperText="O envio será disparado pela instância WhatsApp conectada da sua loja."
+              />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button color="inherit" variant="outlined" onClick={whatsappDialog.onFalse}>
+              Cancelar
+            </Button>
+            <LoadingButton
+              variant="contained"
+              color="success"
+              loading={sendingWhatsapp}
+              startIcon={<Iconify icon="ic:baseline-whatsapp" />}
+              onClick={async () => {
+                if (!enterpriseId || !whatsappPhone.trim()) {
+                  toast.error('Informe o número de WhatsApp do cliente.');
+                  return;
+                }
+                setSendingWhatsapp(true);
+                try {
+                  await sendSaleReceiptWhatsappCf(enterpriseId, sale.id, whatsappPhone.trim());
+                  toast.success('Comprovante enviado no WhatsApp com sucesso!');
+                  whatsappDialog.onFalse();
+                } catch (err) {
+                  toast.error(
+                    getFirebaseErrorMessage(err, 'Não foi possível enviar no WhatsApp.')
+                  );
+                } finally {
+                  setSendingWhatsapp(false);
+                }
+              }}
+            >
+              Enviar agora
             </LoadingButton>
           </DialogActions>
         </Dialog>

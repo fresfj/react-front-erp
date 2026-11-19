@@ -70,7 +70,15 @@ export function useNavData(options?: { onlineOrdersCount?: number }): NavSection
               icon: ICONS.ecommerce,
             },
           ]
-        : []),
+        : perms.has('pos')
+          ? [
+              {
+                title: t('nav.sellerHome', { defaultValue: 'Meu dia' }),
+                path: paths.dashboard.root,
+                icon: ICONS.dashboard,
+              },
+            ]
+          : []),
       ...(perms.has('processing') || isAdminOrGestor
         ? [
             {
@@ -330,6 +338,10 @@ export function useNavData(options?: { onlineOrdersCount?: number }): NavSection
                 {
                   title: t('nav.accountOnlineStore', { defaultValue: 'Loja online' }),
                   path: paths.dashboard.account.onlineStore,
+                },
+                {
+                  title: 'WhatsApp',
+                  path: paths.dashboard.account.whatsapp,
                 },
               ]
             : []),

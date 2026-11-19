@@ -38,6 +38,7 @@ import {
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
 import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
 
@@ -258,6 +259,7 @@ export function PublicCheckoutView() {
         deliveryType,
         paymentMethod,
         notes: finalNotes || undefined,
+        origin: typeof window !== 'undefined' ? window.location.origin : undefined,
       });
 
       try {
@@ -533,6 +535,9 @@ export function PublicCheckoutView() {
                   <Stack spacing={2}>
                     <TextField
                       fullWidth
+                      type="tel"
+                      inputMode="tel"
+                      autoComplete="tel"
                       label="WhatsApp para contato"
                       placeholder="(91) 98888-7777"
                       value={customerPhone}
@@ -592,6 +597,9 @@ export function PublicCheckoutView() {
                     <Stack spacing={2}>
                       <TextField
                         fullWidth
+                        type="tel"
+                        inputMode="numeric"
+                        autoComplete="postal-code"
                         label="CEP (opcional - busca automática)"
                         placeholder="00000-000"
                         value={cep}
@@ -618,6 +626,8 @@ export function PublicCheckoutView() {
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                           fullWidth
+                          type="tel"
+                          inputMode="numeric"
                           label="Número"
                           placeholder="123"
                           value={number}
@@ -713,13 +723,16 @@ export function PublicCheckoutView() {
                                 color: cfg.color,
                               }}
                             >
-                              <Iconify icon={cfg.icon} width={22} />
+                              <PaymentMethodIcon method={method} size={24} />
                             </Avatar>
 
                             <Box sx={{ flex: 1 }}>
-                              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                                {cfg.label}
-                              </Typography>
+                              <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                                  {cfg.label}
+                                </Typography>
+                                <PaymentBrandLogos method={method} size={20} />
+                              </Stack>
                               <Typography variant="caption" color="text.secondary">
                                 {cfg.desc}
                               </Typography>

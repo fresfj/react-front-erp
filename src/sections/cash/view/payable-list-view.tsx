@@ -27,8 +27,12 @@ import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { seedDemoPayables } from 'src/api/firestore/seed-demo';
-import { listPayables, markPayablePaid } from 'src/api/firestore/payables';
 import { getOpenCashSession, NoOpenCashSessionError } from 'src/api/firestore/cash-sessions';
+import {
+  listPayables,
+  markPayablePaid,
+  syncSubscriptionPayablesCf,
+} from 'src/api/firestore/payables';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -109,6 +113,14 @@ export function PayableListView() {
 
     setLoading(true);
     try {
+      const canSyncSub =
+        Boolean(user?.platformAdmin) || user?.role === 'admin' || user?.role === 'gestor';
+      const syncKey = `erp_sub_payables_synced_${enterpriseId}`;
+      if (canSyncSub && !window.sessionStorage.getItem(syncKey)) {
+        await syncSubscriptionPayablesCf(enterpriseId)
+          .then(() => window.sessionStorage.setItem(syncKey, '1'))
+          .catch(() => {});
+      }
       let rows = await listPayables(enterpriseId);
       if (rows.length === 0) {
         await seedDemoPayables(enterpriseId);
@@ -122,7 +134,7 @@ export function PayableListView() {
     } finally {
       setLoading(false);
     }
-  }, [enterpriseId, t]);
+  }, [enterpriseId, t, user?.platformAdmin, user?.role]);
 
   const handleSeedDemo = async () => {
     if (!enterpriseId) return;
@@ -145,9 +157,12 @@ export function PayableListView() {
 
   const categoryOptions = useMemo(() => {
     const cats = Array.from(new Set(tableData.map((p) => p.category).filter(Boolean))) as string[];
-    const base = cats.length > 0 ? cats : ['supplier', 'tax', 'rent', 'other'];
-    return base.map((c) => ({ value: c, label: c }));
-  }, [tableData]);
+    const base = cats.length > 0 ? cats : ['subscription', 'supplier', 'tax', 'rent', 'other'];
+    return base.map((c) => ({
+      value: c,
+      label: t(`finance.categories.${c}`, { defaultValue: c }),
+    }));
+  }, [tableData, t]);
 
   // Indicadores de Alto Nível (4 KPIs)
   const metrics = useMemo(() => {

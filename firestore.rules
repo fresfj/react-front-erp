@@ -92,7 +92,9 @@ service cloud.firestore {
     }
 
     match /enterprises/{enterpriseId}/products/{id} {
-      allow read, write: if hasPerm(enterpriseId, 'products');
+      // PDV (pos) precisa ler o catálogo para vender; escrita só com 'products'
+      allow read: if hasPerm(enterpriseId, 'products') || hasPerm(enterpriseId, 'pos');
+      allow write: if hasPerm(enterpriseId, 'products');
     }
 
     match /enterprises/{enterpriseId}/suppliers/{id} {

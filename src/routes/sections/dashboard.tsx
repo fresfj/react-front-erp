@@ -270,6 +270,7 @@ export const dashboardRoutes = [
           { path: 'company', element: <AccountPage /> },
           { path: 'fiscal', element: <AccountPage /> },
           { path: 'online-store', element: <AccountPage /> },
+          { path: 'whatsapp', element: <AccountPage /> },
           {
             path: 'billing',
             element: (

@@ -15,6 +15,11 @@ import { useTranslate } from 'src/locales';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 import { SearchNotFound } from 'src/components/search-not-found';
+import {
+  PaymentMethodIcon,
+  PaymentBrandLogos,
+  PAYMENT_METHOD_BRANDS,
+} from 'src/components/payment-method-icon';
 
 import { PAYMENT_METHODS } from './pos-calculator';
 
@@ -22,47 +27,7 @@ import type { PaymentMethod } from './pos-calculator';
 
 // ----------------------------------------------------------------------
 
-export const PAYMENT_METHOD_META: Record<
-  PaymentMethod,
-  { icon: string; color: string; defaultLabel: string; description: string }
-> = {
-  pix: {
-    icon: 'ic:baseline-pix',
-    color: '#00BFA5',
-    defaultLabel: 'PIX',
-    description: 'Transferência instantânea via QR Code ou Chave',
-  },
-  cash: {
-    icon: 'solar:wad-of-money-bold-duotone',
-    color: 'success.main',
-    defaultLabel: 'Dinheiro',
-    description: 'Pagamento em espécie na gaveta (calcula troco)',
-  },
-  credit_card: {
-    icon: 'solar:card-bold-duotone',
-    color: 'primary.main',
-    defaultLabel: 'Cartão de Crédito',
-    description: 'Maquininha / TEF Crédito à vista ou parcelado',
-  },
-  debit_card: {
-    icon: 'solar:card-transfer-bold-duotone',
-    color: 'info.main',
-    defaultLabel: 'Cartão de Débito',
-    description: 'Maquininha / TEF Débito imediato',
-  },
-  store_credit: {
-    icon: 'solar:ticket-sale-bold-duotone',
-    color: 'warning.main',
-    defaultLabel: 'Vale-Troca',
-    description: 'Crédito de devolução ou troca da loja',
-  },
-  credit_tab: {
-    icon: 'solar:wallet-money-bold-duotone',
-    color: 'error.main',
-    defaultLabel: 'Crediário / Fiado (A Prazo)',
-    description: 'Lança no saldo devedor do cliente vinculado',
-  },
-};
+export const PAYMENT_METHOD_META = PAYMENT_METHOD_BRANDS;
 
 type Props = {
   open: boolean;
@@ -174,18 +139,9 @@ export function PaymentMethodListDialog({ open, onClose, selected, onSelect }: P
                           {option.label}
                         </Box>
 
-                        <Stack spacing={0.5} direction="row" alignItems="center">
-                          {option.value === 'credit_card' && (
-                            <>
-                              <Iconify icon="logos:mastercard" width={22} />
-                              <Iconify icon="logos:visa" width={22} />
-                            </>
-                          )}
-                          <Iconify
-                            icon={option.icon}
-                            width={22}
-                            sx={{ color: option.color }}
-                          />
+                        <Stack spacing={0.75} direction="row" alignItems="center">
+                          <PaymentBrandLogos method={option.value} size={22} />
+                          <PaymentMethodIcon method={option.value} size={22} />
                         </Stack>
                       </Stack>
                     }
