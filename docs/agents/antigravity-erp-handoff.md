@@ -99,13 +99,14 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 
 ## Pendente (próximo)
 
-1. Smoke Billing-A sandbox (Free → upgrade → webhook → grace/cancel)
-2. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
-3. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
-4. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
-5. Smoke accrual: AP aluguel no período → Despesas; AP supplier → fora OpEx; DRE/Overview mesmos totais
-6. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
-7. Revisar `package-lock.json` local (não commitado)
+1. **Online orders (branch `feat/public-online-orders`):** deploy CF + `firestore.rules`; seed Pro/Ultra `entitlements: ['online_orders']`; config slug/agenda; marcar `showOnline`; abrir caixa → smoke `/p/:slug` → fila → Accept
+2. Smoke Billing-A sandbox (Free → upgrade → webhook → grace/cancel)
+3. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
+4. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
+5. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
+6. Smoke accrual: AP aluguel no período → Despesas; AP supplier → fora OpEx; DRE/Overview mesmos totais
+7. `firebase functions:artifacts:setpolicy` (cleanup Artifact Registry)
+8. Revisar `package-lock.json` local (não commitado)
 
 ## Validar
 
@@ -126,5 +127,6 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 
 - API: `src/api/firestore/{products,suppliers,platform,storage,paths}.ts`
 - Auth: `src/auth/firebase-claims.ts`, `claims-guard.tsx`, `auth-provider.tsx`
-- Functions: `functions/index.js`
+- Functions: `functions/index.js`, `functions/online-orders.js`
 - Rules: `firestore.rules`, `storage.rules`
+- Online orders: spec `docs/superpowers/specs/2026-11-18-public-online-orders-design.md`, plan `docs/superpowers/plans/2026-11-18-public-online-orders.md`
