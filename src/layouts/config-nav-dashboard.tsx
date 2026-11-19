@@ -63,6 +63,10 @@ export function useNavData(): NavSectionProps['data'] {
               children: [
                 { title: t('nav.posCheckout'), path: paths.dashboard.pos.checkout },
                 { title: t('nav.salesHistory'), path: paths.dashboard.pos.sales },
+                {
+                  title: t('nav.onlineOrders', { defaultValue: 'Pedidos online' }),
+                  path: paths.dashboard.pos.onlineOrders,
+                },
               ],
             },
           ]
@@ -310,5 +314,5 @@ export function useNavData(): NavSectionProps['data'] {
       },
       { subheader: t('nav.administration'), items: adminItems },
     ].filter((section) => section.items.length > 0);
-  }, [isAdminOrGestor, perms, platformAdmin, t, user?.enterpriseId]);
+  }, [isAdminOrGestor, perms, platformAdmin, t, user?.enterpriseId, user?.role]);
 }

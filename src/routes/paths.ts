@@ -104,6 +104,7 @@ export const paths = {
       checkout: `${ROOTS.DASHBOARD}/pos`,
       sales: `${ROOTS.DASHBOARD}/pos/sales`,
       saleDetails: (id: string) => `${ROOTS.DASHBOARD}/pos/sales/${id}`,
+      onlineOrders: `${ROOTS.DASHBOARD}/pos/online-orders`,
     },
     cash: {
       root: `${ROOTS.DASHBOARD}/cash`,
@@ -124,9 +125,9 @@ export const paths = {
     account: {
       root: `${ROOTS.DASHBOARD}/account`,
       general: `${ROOTS.DASHBOARD}/account/general`,
+      billing: `${ROOTS.DASHBOARD}/account/billing`,
       changePassword: `${ROOTS.DASHBOARD}/account/change-password`,
       company: `${ROOTS.DASHBOARD}/account/company`,
-      billing: `${ROOTS.DASHBOARD}/account/billing`,
     },
     plans: {
       root: `${ROOTS.DASHBOARD}/plans`,
@@ -249,5 +250,9 @@ export const paths = {
         edit: `${ROOTS.DASHBOARD}/tour/${MOCK_ID}/edit`,
       },
     },
+  },
+  publicStore: {
+    root: (slug: string) => `/p/${slug}`,
+    order: (slug: string, orderId: string) => `/p/${slug}/order/${orderId}`,
   },
 };

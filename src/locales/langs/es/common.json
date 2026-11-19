@@ -38,6 +38,7 @@
     "pos": "PDV y Ventas",
     "posCheckout": "Caja (PDV)",
     "salesHistory": "Historial de ventas",
+    "onlineOrders": "Pedidos online",
     "cash": "Financiero y Caja",
     "cashSession": "Caja (cierre ciego)",
     "dre": "DRE Financiero",
@@ -410,6 +411,29 @@
     "empty": "No se encontraron productos",
     "detailsSubheader": "Nombre, SKU, tipo e imagen...",
     "propertiesSubheader": "Unidad, precios y atributos..."
+  },
+  "onlineOrders": {
+    "heading": "Pedidos online",
+    "newOrderToast": "¡Nuevo pedido online!",
+    "accept": "Aceptar",
+    "reject": "Rechazar",
+    "viewSale": "Ver venta",
+    "acceptSuccess": "Pedido aceptado y venta creada",
+    "acceptError": "No se pudo aceptar el pedido",
+    "rejectSuccess": "Pedido rechazado",
+    "rejectError": "No se pudo rechazar el pedido",
+    "tabs": {
+      "pending": "Pendientes",
+      "accepted": "Aceptados",
+      "rejected": "Rechazados",
+      "all": "Todos"
+    },
+    "fields": {
+      "code": "Código",
+      "customer": "Cliente",
+      "total": "Total",
+      "status": "Estado"
+    }
   },
   "onlineStore": {
     "title": "Pedidos online",

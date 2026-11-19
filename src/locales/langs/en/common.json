@@ -38,6 +38,7 @@
     "pos": "POS & Sales",
     "posCheckout": "POS Checkout",
     "salesHistory": "Sales history",
+    "onlineOrders": "Online orders",
     "cash": "Finance & Cash",
     "cashSession": "Cash (blind close)",
     "dre": "P&L (DRE)",
@@ -410,6 +411,29 @@
     "empty": "No products found",
     "detailsSubheader": "Name, SKU, type and image...",
     "propertiesSubheader": "Unit, prices and attributes..."
+  },
+  "onlineOrders": {
+    "heading": "Online orders",
+    "newOrderToast": "New online order!",
+    "accept": "Accept",
+    "reject": "Reject",
+    "viewSale": "View sale",
+    "acceptSuccess": "Order accepted and sale created",
+    "acceptError": "Could not accept the order",
+    "rejectSuccess": "Order rejected",
+    "rejectError": "Could not reject the order",
+    "tabs": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "all": "All"
+    },
+    "fields": {
+      "code": "Code",
+      "customer": "Customer",
+      "total": "Total",
+      "status": "Status"
+    }
   },
   "onlineStore": {
     "title": "Online orders",
