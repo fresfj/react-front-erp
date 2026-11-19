@@ -111,6 +111,16 @@ service cloud.firestore {
       allow read, write: if hasPerm(enterpriseId, 'pos');
     }
 
+    match /enterprises/{enterpriseId}/onlineOrders/{id} {
+      allow read: if hasPerm(enterpriseId, 'pos');
+      allow update, delete: if hasPerm(enterpriseId, 'pos');
+      allow create: if false; // Cloud Functions / Admin SDK only
+    }
+
+    match /publicStoreIndex/{slug} {
+      allow read, write: if false; // Cloud Functions / Admin SDK only
+    }
+
     match /enterprises/{enterpriseId}/cashSessions/{id} {
       // OR: settlement from payables/receivables (spec §8.1)
       allow read: if hasPerm(enterpriseId, 'cash_close')

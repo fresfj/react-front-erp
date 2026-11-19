@@ -529,6 +529,9 @@ exports.upsertPlan = onCall(async (request) => {
   const features = Array.isArray(request.data?.features)
     ? request.data.features.map((f) => String(f))
     : [];
+  const entitlements = Array.isArray(request.data?.entitlements)
+    ? request.data.entitlements.map((e) => String(e))
+    : [];
 
   if (!PLAN_CODES.has(code)) {
     throw new HttpsError('invalid-argument', 'code must be free|pro|ultra');
@@ -564,6 +567,7 @@ exports.upsertPlan = onCall(async (request) => {
     priceMonthly,
     currency: 'BRL',
     features,
+    entitlements,
     sortOrder: Number.isFinite(sortOrder) ? sortOrder : 0,
     active,
     updatedAt: now,

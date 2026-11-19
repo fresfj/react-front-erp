@@ -230,6 +230,17 @@
     },
     "empty": "No se encontraron proveedores"
   },
+  "customers": {
+    "title": "Clientes",
+    "listHeading": "Clientes",
+    "createHeading": "Nuevo cliente",
+    "editHeading": "Editar cliente",
+    "newCustomer": "Nuevo cliente",
+    "customerInfo": "Cliente",
+    "delivery": "Entrega",
+    "payment_methods": "Formas de pago",
+    "selectOrCreate": "Vincular o registrar cliente"
+  },
   "billing": {
     "title": "Suscripción",
     "settingsTitle": "Cobro Asaas",
@@ -261,6 +272,8 @@
       "description": "Descripción",
       "priceMonthly": "Precio mensual (BRL)",
       "features": "Recursos (uno por línea)",
+      "entitlements": "Entitlements (uno por línea)",
+      "entitlementsHelp": "Ej.: online_orders",
       "sortOrder": "Orden",
       "active": "Activo",
       "graceDays": "Días de gracia",
@@ -271,7 +284,40 @@
       "pix": "PIX",
       "boleto": "Boleto",
       "credit_card": "Tarjeta de crédito"
-    }
+    },
+    "currentBadge": "Actual",
+    "planLabel": "Plan",
+    "billingName": "Nombre de facturación",
+    "billingAddress": "Dirección de facturación",
+    "billingPhone": "Teléfono de facturación",
+    "freePrice": "Gratis",
+    "perMonth": "/mes",
+    "newCard": "Nueva tarjeta",
+    "addNewCard": "Agregar nueva tarjeta",
+    "selectPaymentMethod": "Seleccionar método de pago",
+    "cardsTitle": "Tarjetas de crédito",
+    "noCardsRegistered": "Aún no hay tarjetas registradas.",
+    "cardNumber": "Número de tarjeta",
+    "cardHolder": "Titular de la tarjeta",
+    "expirationDate": "Fecha de vencimiento",
+    "cvv": "CVV/CVC",
+    "cvvHint": "Código de 3 o 4 dígitos al dorso de la tarjeta",
+    "sslSecured": "Su transacción está protegida con cifrado SSL",
+    "defaultBadge": "Predeterminado",
+    "setAsPrimary": "Establecer como principal",
+    "deleteCard": "Eliminar tarjeta",
+    "useCompanyAddress": "Usar dirección registrada de la empresa",
+    "changeBillingAddress": "Ingresar nueva dirección",
+    "keepCompanyAddress": "Mantener dirección de la empresa",
+    "companyAddressRegistered": "Dirección registrada de la empresa",
+    "customBillingAddress": "Nueva dirección de facturación",
+    "cancel": "Cancelar",
+    "add": "Agregar tarjeta",
+    "searchPlaceholder": "Buscar tarjeta...",
+    "showMore": "Mostrar más",
+    "showLess": "Mostrar menos",
+    "pixSubtitle": "Código QR / copiar y pegar (1 mes)",
+    "cardSubtitle": "Recurrencia mensual automática"
   },
   "account": {
     "title": "Cuenta",
@@ -517,6 +563,21 @@
     "filters": {
       "allStatus": "Todos los estados"
     },
+    "toolbar": {
+      "columns": "Columnas",
+      "filters": "Filtros",
+      "export": "Exportar",
+      "exportCsv": "Exportar CSV",
+      "print": "Imprimir",
+      "searchPlaceholder": "Buscar venta por número o cliente…",
+      "searchColumn": "Buscar columna...",
+      "resetColumns": "Restaurar columnas",
+      "advancedFilters": "Filtros Avanzados",
+      "clearAllFilters": "Limpiar todos los filtros",
+      "paymentFilterLabel": "Medio de Pago",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Búsqueda"
+    },
     "fields": {
       "code": "Código",
       "rawProduct": "Materia prima (Insumo)",
@@ -647,6 +708,21 @@
     },
     "filters": {
       "allStatus": "Todos los estados"
+    },
+    "toolbar": {
+      "columns": "Columnas",
+      "filters": "Filtros",
+      "export": "Exportar",
+      "exportCsv": "Exportar CSV",
+      "print": "Imprimir",
+      "searchPlaceholder": "Buscar venta por número o cliente…",
+      "searchColumn": "Buscar columna...",
+      "resetColumns": "Restaurar columnas",
+      "advancedFilters": "Filtros Avanzados",
+      "clearAllFilters": "Limpiar todos los filtros",
+      "paymentFilterLabel": "Medio de Pago",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Búsqueda"
     },
     "paymentMethods": {
       "cash": "Efectivo",

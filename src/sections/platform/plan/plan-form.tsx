@@ -31,6 +31,7 @@ export const PlanSchema = zod.object({
   description: zod.string().optional().or(zod.literal('')),
   priceMonthly: zod.coerce.number().min(0),
   featuresText: zod.string().optional().or(zod.literal('')),
+  entitlementsText: zod.string().optional().or(zod.literal('')),
   sortOrder: zod.coerce.number().int(),
   active: zod.boolean(),
 });
@@ -54,6 +55,7 @@ export function PlanForm({ currentPlan }: Props) {
       description: currentPlan?.description || '',
       priceMonthly: currentPlan?.priceMonthly ?? 0,
       featuresText: (currentPlan?.features || []).join('\n'),
+      entitlementsText: (currentPlan?.entitlements || []).join('\n'),
       sortOrder: currentPlan?.sortOrder ?? 0,
       active: currentPlan?.active ?? true,
     }),
@@ -81,6 +83,10 @@ export function PlanForm({ currentPlan }: Props) {
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean);
+      const entitlements = (data.entitlementsText || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
       await upsertPlan({
         ...(currentPlan?.id ? { id: currentPlan.id } : {}),
         code: data.code,
@@ -89,7 +95,7 @@ export function PlanForm({ currentPlan }: Props) {
         priceMonthly: data.priceMonthly,
         currency: 'BRL',
         features,
-        entitlements: currentPlan?.entitlements ?? [],
+        entitlements,
         sortOrder: data.sortOrder,
         active: data.active,
       });
@@ -140,6 +146,13 @@ export function PlanForm({ currentPlan }: Props) {
             label={t('billing.fields.features')}
             multiline
             rows={4}
+          />
+          <Field.Text
+            name="entitlementsText"
+            label={t('billing.fields.entitlements')}
+            helperText={t('billing.fields.entitlementsHelp')}
+            multiline
+            rows={3}
           />
           <Field.Text name="sortOrder" label={t('billing.fields.sortOrder')} type="number" />
           <Field.Switch name="active" label={t('billing.fields.active')} />

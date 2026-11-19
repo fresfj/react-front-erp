@@ -230,6 +230,17 @@
     },
     "empty": "Nenhum fornecedor encontrado"
   },
+  "customers": {
+    "title": "Clientes",
+    "listHeading": "Clientes",
+    "createHeading": "Novo cliente",
+    "editHeading": "Editar cliente",
+    "newCustomer": "Novo cliente",
+    "customerInfo": "Cliente",
+    "delivery": "Entrega",
+    "payment_methods": "Formas de pagamento",
+    "selectOrCreate": "Vincular ou cadastrar cliente"
+  },
   "billing": {
     "title": "Assinatura",
     "settingsTitle": "Cobrança Asaas",
@@ -261,6 +272,8 @@
       "description": "Descrição",
       "priceMonthly": "Preço mensal (R$)",
       "features": "Recursos (um por linha)",
+      "entitlements": "Entitlements (um por linha)",
+      "entitlementsHelp": "Ex.: online_orders",
       "sortOrder": "Ordem",
       "active": "Ativo",
       "graceDays": "Dias de grace",
@@ -270,8 +283,41 @@
       "creditCardToken": "Token cartão Asaas",
       "pix": "PIX",
       "boleto": "Boleto",
-      "credit_card": "Cartão de crédito"
-    }
+      "credit_card": "Crédito"
+    },
+    "currentBadge": "Atual",
+    "planLabel": "Plano",
+    "billingName": "Nome de cobrança",
+    "billingAddress": "Endereço de cobrança",
+    "billingPhone": "Telefone de cobrança",
+    "freePrice": "Grátis",
+    "perMonth": "/mês",
+    "newCard": "Novo cartão",
+    "addNewCard": "Adicionar novo cartão",
+    "selectPaymentMethod": "Selecionar forma de pagamento",
+    "cardsTitle": "Cartões de crédito",
+    "noCardsRegistered": "Nenhum cartão cadastrado ainda.",
+    "cardNumber": "Número do cartão",
+    "cardHolder": "Nome impresso no cartão",
+    "expirationDate": "Validade",
+    "cvv": "CVV/CVC",
+    "cvvHint": "Código de 3 ou 4 dígitos no verso do cartão",
+    "sslSecured": "Dados do cartão enviados com criptografia SSL direta ao Asaas.",
+    "defaultBadge": "Padrão",
+    "setAsPrimary": "Definir como principal",
+    "deleteCard": "Remover cartão",
+    "useCompanyAddress": "Usar endereço cadastrado na empresa",
+    "changeBillingAddress": "Informar novo endereço",
+    "keepCompanyAddress": "Manter endereço da empresa",
+    "companyAddressRegistered": "Endereço cadastrado na empresa",
+    "customBillingAddress": "Novo endereço de cobrança",
+    "cancel": "Cancelar",
+    "add": "Adicionar cartão",
+    "searchPlaceholder": "Buscar cartão...",
+    "showMore": "Mostrar mais",
+    "showLess": "Mostrar menos",
+    "pixSubtitle": "QR Code / copia e cola (1 mês)",
+    "cardSubtitle": "Recorrência mensal automática"
   },
   "account": {
     "title": "Conta",
@@ -517,6 +563,21 @@
     "filters": {
       "allStatus": "Todos os status"
     },
+    "toolbar": {
+      "columns": "Colunas",
+      "filters": "Filtros",
+      "export": "Exportar",
+      "exportCsv": "Exportar CSV",
+      "print": "Imprimir",
+      "searchPlaceholder": "Pesquisar venda por número ou cliente…",
+      "searchColumn": "Buscar coluna...",
+      "resetColumns": "Restaurar padrão",
+      "advancedFilters": "Filtros Avançados",
+      "clearAllFilters": "Limpar todos os filtros",
+      "paymentFilterLabel": "Forma Pgto",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Busca"
+    },
     "fields": {
       "code": "Código",
       "rawProduct": "Matéria-prima (Insumo)",
@@ -647,6 +708,21 @@
     },
     "filters": {
       "allStatus": "Todos os status"
+    },
+    "toolbar": {
+      "columns": "Colunas",
+      "filters": "Filtros",
+      "export": "Exportar",
+      "exportCsv": "Exportar CSV",
+      "print": "Imprimir",
+      "searchPlaceholder": "Pesquisar venda por número ou cliente…",
+      "searchColumn": "Buscar coluna...",
+      "resetColumns": "Restaurar padrão",
+      "advancedFilters": "Filtros Avançados",
+      "clearAllFilters": "Limpar todos os filtros",
+      "paymentFilterLabel": "Forma Pgto",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Busca"
     },
     "paymentMethods": {
       "cash": "Dinheiro",

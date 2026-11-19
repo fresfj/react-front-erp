@@ -230,6 +230,17 @@
     },
     "empty": "No suppliers found"
   },
+  "customers": {
+    "title": "Customers",
+    "listHeading": "Customers",
+    "createHeading": "New customer",
+    "editHeading": "Edit customer",
+    "newCustomer": "New customer",
+    "customerInfo": "Customer",
+    "delivery": "Delivery",
+    "payment_methods": "Payment methods",
+    "selectOrCreate": "Link or create customer"
+  },
   "billing": {
     "title": "Subscription",
     "settingsTitle": "Asaas billing",
@@ -261,6 +272,8 @@
       "description": "Description",
       "priceMonthly": "Monthly price (BRL)",
       "features": "Features (one per line)",
+      "entitlements": "Entitlements (one per line)",
+      "entitlementsHelp": "E.g. online_orders",
       "sortOrder": "Sort order",
       "active": "Active",
       "graceDays": "Grace days",
@@ -271,7 +284,40 @@
       "pix": "PIX",
       "boleto": "Boleto",
       "credit_card": "Credit card"
-    }
+    },
+    "currentBadge": "Current",
+    "planLabel": "Plan",
+    "billingName": "Billing name",
+    "billingAddress": "Billing address",
+    "billingPhone": "Billing phone",
+    "freePrice": "Free",
+    "perMonth": "/mo",
+    "newCard": "New card",
+    "addNewCard": "Add new card",
+    "selectPaymentMethod": "Select payment method",
+    "cardsTitle": "Credit cards",
+    "noCardsRegistered": "No cards registered yet.",
+    "cardNumber": "Card number",
+    "cardHolder": "Card holder",
+    "expirationDate": "Expiration date",
+    "cvv": "CVV/CVC",
+    "cvvHint": "3 or 4 digit code on the back of your card",
+    "sslSecured": "Your transaction is secured with SSL encryption",
+    "defaultBadge": "Default",
+    "setAsPrimary": "Set as primary",
+    "deleteCard": "Delete card",
+    "useCompanyAddress": "Use company registered address",
+    "changeBillingAddress": "Enter new address",
+    "keepCompanyAddress": "Keep company address",
+    "companyAddressRegistered": "Company registered address",
+    "customBillingAddress": "New billing address",
+    "cancel": "Cancel",
+    "add": "Add card",
+    "searchPlaceholder": "Search card...",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "pixSubtitle": "QR Code / copy & paste (1 month)",
+    "cardSubtitle": "Automatic monthly recurrence"
   },
   "account": {
     "title": "Account",
@@ -517,6 +563,21 @@
     "filters": {
       "allStatus": "All statuses"
     },
+    "toolbar": {
+      "columns": "Columns",
+      "filters": "Filters",
+      "export": "Export",
+      "exportCsv": "Export CSV",
+      "print": "Print",
+      "searchPlaceholder": "Search sale by number or customer…",
+      "searchColumn": "Search column...",
+      "resetColumns": "Reset columns",
+      "advancedFilters": "Advanced Filters",
+      "clearAllFilters": "Clear all filters",
+      "paymentFilterLabel": "Payment Method",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Search"
+    },
     "fields": {
       "code": "Code",
       "rawProduct": "Raw material",
@@ -647,6 +708,21 @@
     },
     "filters": {
       "allStatus": "All statuses"
+    },
+    "toolbar": {
+      "columns": "Columns",
+      "filters": "Filters",
+      "export": "Export",
+      "exportCsv": "Export CSV",
+      "print": "Print",
+      "searchPlaceholder": "Search sale by number or customer…",
+      "searchColumn": "Search column...",
+      "resetColumns": "Reset columns",
+      "advancedFilters": "Advanced Filters",
+      "clearAllFilters": "Clear all filters",
+      "paymentFilterLabel": "Payment Method",
+      "nfceFilterLabel": "NFC-e",
+      "searchChipLabel": "Search"
     },
     "paymentMethods": {
       "cash": "Cash",
