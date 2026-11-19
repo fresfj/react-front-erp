@@ -315,7 +315,18 @@ exports.inviteMember = onCall(async (request) => {
     created = true;
   }
 
-  if (displayName) {
+  let passwordReset = false;
+  // Se o Auth user já existia, tempPassword era ignorado → auth/wrong-password no login.
+  // Admin pode redefinir a senha ao (re)convidar com tempPassword.
+  if (!created && tempPassword && tempPassword.length >= 6) {
+    await auth.updateUser(user.uid, {
+      password: tempPassword,
+      disabled: false,
+      ...(displayName ? { displayName } : {}),
+    });
+    passwordReset = true;
+    user = await auth.getUser(user.uid);
+  } else if (displayName) {
     if (!created && user.displayName !== displayName) {
       await auth.updateUser(user.uid, { displayName });
       user = await auth.getUser(user.uid);
@@ -367,8 +378,69 @@ exports.inviteMember = onCall(async (request) => {
     enterpriseId,
     role,
     created,
+    passwordReset,
     claims: nextClaims,
   };
+});
+
+/**
+ * deleteMember({ enterpriseId, uid, deleteAuthUser? })
+ * Remove members/{uid}, limpa claims do tenant e (default) apaga o usuário no Auth
+ * para permitir recriar o acesso do zero.
+ */
+exports.deleteMember = onCall(async (request) => {
+  const uid = String(request.data?.uid || '').trim();
+  const enterpriseId = sanitizeId(request.data?.enterpriseId);
+  const deleteAuthUser = request.data?.deleteAuthUser !== false;
+
+  assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId);
+
+  if (!uid || !enterpriseId) {
+    throw new HttpsError('invalid-argument', 'uid and enterpriseId are required');
+  }
+
+  if (request.auth.uid === uid) {
+    throw new HttpsError('failed-precondition', 'Não é permitido excluir o próprio acesso');
+  }
+
+  const memberRef = db.doc(`enterprises/${enterpriseId}/members/${uid}`);
+  const memberSnap = await memberRef.get();
+  if (!memberSnap.exists) {
+    throw new HttpsError('not-found', 'Membro não encontrado nesta empresa');
+  }
+
+  await memberRef.delete();
+
+  let authDeleted = false;
+  try {
+    const user = await auth.getUser(uid);
+    const existingClaims = user.customClaims || {};
+    if (deleteAuthUser) {
+      await auth.deleteUser(uid);
+      authDeleted = true;
+    } else {
+      const nextClaims = { ...existingClaims };
+      if (nextClaims.enterpriseId === enterpriseId) {
+        delete nextClaims.enterpriseId;
+        delete nextClaims.role;
+      }
+      await auth.setCustomUserClaims(uid, nextClaims);
+    }
+  } catch (error) {
+    if (error.code !== 'auth/user-not-found') {
+      throw new HttpsError('internal', error.message || 'Falha ao atualizar Auth');
+    }
+  }
+
+  const enterpriseSnap = await db.doc(`enterprises/${enterpriseId}`).get();
+  if (enterpriseSnap.exists && enterpriseSnap.data()?.adminUid === uid) {
+    await db.doc(`enterprises/${enterpriseId}`).set(
+      { adminUid: null, adminEmail: null, updatedAt: nowIso() },
+      { merge: true }
+    );
+  }
+
+  return { uid, enterpriseId, deleted: true, authDeleted };
 });
 
 /**

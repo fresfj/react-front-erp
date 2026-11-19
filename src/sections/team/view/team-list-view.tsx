@@ -36,7 +36,11 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { inviteMember, setMemberClaims } from 'src/api/firestore/platform';
+import {
+  inviteMember,
+  deleteMember,
+  setMemberClaims,
+} from 'src/api/firestore/platform';
 import {
   listTeamMembers,
   ALL_MEMBER_PERMISSIONS,
@@ -49,6 +53,7 @@ import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 import { Form, Field } from 'src/components/hook-form';
 import { EmptyContent } from 'src/components/empty-content';
+import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 import {
   useTable,
@@ -93,6 +98,10 @@ export function TeamListView() {
 
   const openInviteCard = useBoolean(true);
   const permModal = useBoolean();
+  const deleteConfirm = useBoolean();
+
+  const [deleteTarget, setDeleteTarget] = useState<TeamMember | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const enterpriseId = user?.enterpriseId as string | undefined;
   const isAdmin =
@@ -178,7 +187,7 @@ export function TeamListView() {
   const onInviteSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) return;
     try {
-      await inviteMember({
+      const result = await inviteMember({
         enterpriseId,
         email: data.email,
         role: data.role,
@@ -187,7 +196,15 @@ export function TeamListView() {
         permissions: selectedPermissions,
       });
 
-      toast.success(`Colaborador ${data.displayName} cadastrado com sucesso!`);
+      if (result.passwordReset) {
+        toast.success(
+          `Acesso de ${data.displayName} atualizado e senha redefinida. Use a senha informada no login.`
+        );
+      } else if (result.created) {
+        toast.success(`Colaborador ${data.displayName} cadastrado com sucesso!`);
+      } else {
+        toast.success(`Acesso de ${data.displayName} vinculado à empresa.`);
+      }
       reset();
       setSelectedPermissions(DEFAULT_OPERATOR_PERMISSIONS);
       await loadMembers();
@@ -202,6 +219,34 @@ export function TeamListView() {
     setEditRole(member.role);
     setEditPerms(member.permissions);
     permModal.onTrue();
+  };
+
+  const handleOpenDeleteAccess = (member: TeamMember) => {
+    setDeleteTarget(member);
+    deleteConfirm.onTrue();
+  };
+
+  const handleConfirmDeleteAccess = async () => {
+    if (!enterpriseId || !deleteTarget) return;
+    setDeleting(true);
+    try {
+      await deleteMember({
+        enterpriseId,
+        uid: deleteTarget.uid,
+        deleteAuthUser: true,
+      });
+      toast.success(
+        `Acesso de ${deleteTarget.displayName || deleteTarget.email} excluído. Pode cadastrar de novo com nova senha.`
+      );
+      deleteConfirm.onFalse();
+      setDeleteTarget(null);
+      await loadMembers();
+    } catch (error) {
+      console.error(error);
+      toast.error(getFirebaseErrorMessage(error, 'Erro ao excluir acesso'));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleSaveMemberPermissions = async () => {
@@ -275,7 +320,7 @@ export function TeamListView() {
               <Card>
                 <CardHeader
                   title="Cadastrar Acesso para Colaborador (Operador de PDV / Gestor)"
-                  subheader="Por padrão, o Operador acessa apenas Emitir Venda (PDV), Clientes e Fechar Caixa (sem relatórios financeiros DRE). Marque abaixo caso queira liberar mais funcionalidades."
+                  subheader="Se o e-mail já existir no Auth, a senha inicial redefine a senha atual. Para apagar tudo e recriar, use Excluir acesso no menu da linha. Operador: PDV/Clientes/Caixa por padrão."
                   action={
                     <IconButton onClick={openInviteCard.onToggle}>
                       <Iconify
@@ -416,6 +461,7 @@ export function TeamListView() {
                                 row={row}
                                 isAdmin={isAdmin}
                                 onEditPermissions={() => handleOpenEditPermissions(row)}
+                                onDeleteAccess={() => handleOpenDeleteAccess(row)}
                               />
                             ))}
 
@@ -523,6 +569,36 @@ export function TeamListView() {
           </LoadingButton>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteConfirm.value}
+        onClose={deleteConfirm.onFalse}
+        title="Excluir acesso completamente?"
+        content={
+          <>
+            Isso remove o colaborador da empresa e <strong>apaga o usuário no Firebase Auth</strong>
+            {deleteTarget ? (
+              <>
+                {' '}
+                (<strong>{deleteTarget.email}</strong>).
+              </>
+            ) : (
+              '.'
+            )}{' '}
+            Depois você pode cadastrar de novo com uma nova senha inicial.
+          </>
+        }
+        action={
+          <LoadingButton
+            variant="contained"
+            color="error"
+            loading={deleting}
+            onClick={handleConfirmDeleteAccess}
+          >
+            Excluir acesso
+          </LoadingButton>
+        }
+      />
     </>
   );
 }

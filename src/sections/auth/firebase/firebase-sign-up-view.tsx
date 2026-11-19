@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
-import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
@@ -18,31 +17,29 @@ import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
-import { Form, Field } from 'src/components/hook-form';
-import { Iconify, SocialIcon } from 'src/components/iconify';
+import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
-import {
-  signUp,
-  signInWithGithub,
-  signInWithGoogle,
-  signInWithTwitter,
-} from 'src/auth/context/firebase';
+import { Iconify } from 'src/components/iconify';
+import { AnimateLogo2 } from 'src/components/animate';
+import { Form, Field } from 'src/components/hook-form';
+
+import { signUp } from 'src/auth/context/firebase';
 
 // ----------------------------------------------------------------------
 
 export type SignUpSchemaType = zod.infer<typeof SignUpSchema>;
 
 export const SignUpSchema = zod.object({
-  firstName: zod.string().min(1, { message: 'First name is required!' }),
-  lastName: zod.string().min(1, { message: 'Last name is required!' }),
+  firstName: zod.string().min(1, { message: 'Informe o nome' }),
+  lastName: zod.string().min(1, { message: 'Informe o sobrenome' }),
   email: zod
     .string()
-    .min(1, { message: 'Email is required!' })
-    .email({ message: 'Email must be a valid email address!' }),
+    .min(1, { message: 'Informe o e-mail' })
+    .email({ message: 'E-mail inválido' }),
   password: zod
     .string()
-    .min(1, { message: 'Password is required!' })
-    .min(6, { message: 'Password must be at least 6 characters!' }),
+    .min(1, { message: 'Informe a senha' })
+    .min(6, { message: 'A senha deve ter pelo menos 6 caracteres' }),
 });
 
 // ----------------------------------------------------------------------
@@ -73,59 +70,35 @@ export function FirebaseSignUpView() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
+      setErrorMsg('');
       await signUp({
-        email: data.email,
+        email: data.email.trim(),
         password: data.password,
         firstName: data.firstName,
         lastName: data.lastName,
       });
 
-      const searchParams = new URLSearchParams({ email: data.email }).toString();
-
-      const href = `${paths.auth.firebase.verify}?${searchParams}`;
-
-      router.push(href);
+      const searchParams = new URLSearchParams({ email: data.email.trim() }).toString();
+      router.push(`${paths.auth.firebase.verify}?${searchParams}`);
     } catch (error) {
       console.error(error);
-      setErrorMsg(error instanceof Error ? error.message : error);
+      setErrorMsg(getFirebaseErrorMessage(error, 'Não foi possível criar a conta'));
     }
   });
 
-  const handleSignInWithGoogle = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSignInWithGithub = async () => {
-    try {
-      await signInWithGithub();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSignInWithTwitter = async () => {
-    try {
-      await signInWithTwitter();
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const renderLogo = <AnimateLogo2 sx={{ mb: 3, mx: 'auto' }} />;
 
   const renderHead = (
-    <Stack spacing={1.5} sx={{ mb: 5 }}>
-      <Typography variant="h5">Get started absolutely free</Typography>
+    <Stack alignItems="center" spacing={1.5} sx={{ mb: 5 }}>
+      <Typography variant="h5">Criar conta da empresa</Typography>
 
       <Stack direction="row" spacing={0.5}>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          Already have an account?
+          Já tem acesso?
         </Typography>
 
         <Link component={RouterLink} href={paths.auth.firebase.signIn} variant="subtitle2">
-          Sign in
+          Entrar
         </Link>
       </Stack>
     </Stack>
@@ -134,16 +107,16 @@ export function FirebaseSignUpView() {
   const renderForm = (
     <Stack spacing={3}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-        <Field.Text name="firstName" label="First name" InputLabelProps={{ shrink: true }} />
-        <Field.Text name="lastName" label="Last name" InputLabelProps={{ shrink: true }} />
+        <Field.Text name="firstName" label="Nome" InputLabelProps={{ shrink: true }} />
+        <Field.Text name="lastName" label="Sobrenome" InputLabelProps={{ shrink: true }} />
       </Stack>
 
-      <Field.Text name="email" label="Email address" InputLabelProps={{ shrink: true }} />
+      <Field.Text name="email" label="E-mail" InputLabelProps={{ shrink: true }} />
 
       <Field.Text
         name="password"
-        label="Password"
-        placeholder="6+ characters"
+        label="Senha"
+        placeholder="6+ caracteres"
         type={password.value ? 'text' : 'password'}
         InputLabelProps={{ shrink: true }}
         InputProps={{
@@ -164,9 +137,9 @@ export function FirebaseSignUpView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Create account..."
+        loadingIndicator="Criando..."
       >
-        Create account
+        Criar conta
       </LoadingButton>
     </Stack>
   );
@@ -181,49 +154,14 @@ export function FirebaseSignUpView() {
         color: 'text.secondary',
       }}
     >
-      {'By signing up, I agree to '}
-      <Link underline="always" color="text.primary">
-        Terms of service
-      </Link>
-      {' and '}
-      <Link underline="always" color="text.primary">
-        Privacy policy
-      </Link>
-      .
+      Ao criar a conta, você concorda com os termos de uso e a política de privacidade.
     </Typography>
-  );
-
-  const renderSignInWithSocials = (
-    <>
-      <Divider
-        sx={{
-          my: 3,
-          typography: 'overline',
-          color: 'text.disabled',
-          '&::before, :after': { borderTopStyle: 'dashed' },
-        }}
-      >
-        OR
-      </Divider>
-
-      <Stack direction="row" justifyContent="center" spacing={1}>
-        <IconButton onClick={handleSignInWithGoogle}>
-          <SocialIcon icon="google" width={22} />
-        </IconButton>
-
-        <IconButton onClick={handleSignInWithGithub}>
-          <SocialIcon icon="github" width={22} />
-        </IconButton>
-
-        <IconButton onClick={handleSignInWithTwitter}>
-          <SocialIcon icon="twitter" width={22} />
-        </IconButton>
-      </Stack>
-    </>
   );
 
   return (
     <>
+      {renderLogo}
+
       {renderHead}
 
       {!!errorMsg && (
@@ -237,8 +175,6 @@ export function FirebaseSignUpView() {
       </Form>
 
       {renderTerms}
-
-      {renderSignInWithSocials}
     </>
   );
 }

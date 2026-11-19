@@ -53,12 +53,26 @@ export type OnlineStoreConfig = {
   minOrderAmount?: number;
 };
 
+/** Tema / layout da empresa (Settings Minimals por tenant). */
+export type EnterpriseUiSettings = {
+  colorScheme?: 'light' | 'dark';
+  primaryColor?: 'default' | 'cyan' | 'purple' | 'blue' | 'orange' | 'red';
+  contrast?: 'default' | 'hight';
+  navColor?: 'integrate' | 'apparent';
+  navLayout?: 'vertical' | 'horizontal' | 'mini';
+  compactLayout?: boolean;
+  fontFamily?: string;
+  fontSize?: number;
+};
+
 export type Enterprise = {
   id: string;
   name: string;
   active: boolean;
   adminEmail?: string | null;
   adminUid?: string | null;
+  /** Aparência exclusiva da empresa (claro/escuro, cor, nav…). */
+  uiSettings?: EnterpriseUiSettings;
   document?: string;
   tradeName?: string;
   phone?: string;
@@ -201,9 +215,45 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     onlineStore: mapOnlineStore(data.onlineStore),
     subscription: mapEnterpriseSubscription(data.subscription),
     billingCards: mapEnterpriseBillingCards(data.billingCards),
+    uiSettings: mapUiSettings(data.uiSettings),
     createdAt: data.createdAt != null ? String(data.createdAt) : undefined,
     updatedAt: data.updatedAt != null ? String(data.updatedAt) : undefined,
   };
+}
+
+function mapUiSettings(raw: unknown): EnterpriseUiSettings | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const data = raw as Record<string, unknown>;
+  const primaryColors = new Set(['default', 'cyan', 'purple', 'blue', 'orange', 'red']);
+  const navLayouts = new Set(['vertical', 'horizontal', 'mini']);
+  const out: EnterpriseUiSettings = {};
+
+  if (data.colorScheme === 'light' || data.colorScheme === 'dark') {
+    out.colorScheme = data.colorScheme;
+  }
+  if (typeof data.primaryColor === 'string' && primaryColors.has(data.primaryColor)) {
+    out.primaryColor = data.primaryColor as EnterpriseUiSettings['primaryColor'];
+  }
+  if (data.contrast === 'default' || data.contrast === 'hight') {
+    out.contrast = data.contrast;
+  }
+  if (data.navColor === 'integrate' || data.navColor === 'apparent') {
+    out.navColor = data.navColor;
+  }
+  if (typeof data.navLayout === 'string' && navLayouts.has(data.navLayout)) {
+    out.navLayout = data.navLayout as EnterpriseUiSettings['navLayout'];
+  }
+  if (typeof data.compactLayout === 'boolean') {
+    out.compactLayout = data.compactLayout;
+  }
+  if (typeof data.fontFamily === 'string' && data.fontFamily) {
+    out.fontFamily = data.fontFamily;
+  }
+  if (typeof data.fontSize === 'number' && Number.isFinite(data.fontSize)) {
+    out.fontSize = data.fontSize;
+  }
+
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 export type EnterpriseAddressInput = {
@@ -300,8 +350,27 @@ export function inviteMember(input: {
 }) {
   return call<
     typeof input,
-    { uid: string; email: string; enterpriseId: string; role: string; created: boolean }
+    {
+      uid: string;
+      email: string;
+      enterpriseId: string;
+      role: string;
+      created: boolean;
+      passwordReset?: boolean;
+    }
   >('inviteMember', input);
+}
+
+export function deleteMember(input: {
+  enterpriseId: string;
+  uid: string;
+  /** Default true: apaga Auth user para poder recriar do zero */
+  deleteAuthUser?: boolean;
+}) {
+  return call<
+    typeof input,
+    { uid: string; enterpriseId: string; deleted: boolean; authDeleted: boolean }
+  >('deleteMember', input);
 }
 
 export function setMemberClaims(input: {
@@ -320,6 +389,7 @@ export async function updateEnterpriseSettings(
   enterpriseId: string,
   data: Partial<EnterpriseAddressInput> & {
     name?: string;
+    uiSettings?: EnterpriseUiSettings;
   }
 ): Promise<void> {
   const ref = doc(FIRESTORE, 'enterprises', enterpriseId);

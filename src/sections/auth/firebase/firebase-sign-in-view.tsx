@@ -6,7 +6,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Link from '@mui/material/Link';
 import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
-import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
@@ -18,16 +17,14 @@ import { RouterLink } from 'src/routes/components';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
+import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+
+import { Iconify } from 'src/components/iconify';
+import { AnimateLogo2 } from 'src/components/animate';
 import { Form, Field } from 'src/components/hook-form';
-import { Iconify, SocialIcon } from 'src/components/iconify';
 
 import { useAuthContext } from 'src/auth/hooks';
-import {
-  signInWithGoogle,
-  signInWithGithub,
-  signInWithTwitter,
-  signInWithPassword,
-} from 'src/auth/context/firebase';
+import { signInWithPassword } from 'src/auth/context/firebase';
 
 // ----------------------------------------------------------------------
 
@@ -36,12 +33,12 @@ export type SignInSchemaType = zod.infer<typeof SignInSchema>;
 export const SignInSchema = zod.object({
   email: zod
     .string()
-    .min(1, { message: 'Email is required!' })
-    .email({ message: 'Email must be a valid email address!' }),
+    .min(1, { message: 'Informe o e-mail' })
+    .email({ message: 'E-mail inválido' }),
   password: zod
     .string()
-    .min(1, { message: 'Password is required!' })
-    .min(6, { message: 'Password must be at least 6 characters!' }),
+    .min(1, { message: 'Informe a senha' })
+    .min(6, { message: 'A senha deve ter pelo menos 6 caracteres' }),
 });
 
 // ----------------------------------------------------------------------
@@ -72,51 +69,32 @@ export function FirebaseSignInView() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      await signInWithPassword({ email: data.email, password: data.password });
+      setErrorMsg('');
+      await signInWithPassword({ email: data.email.trim(), password: data.password });
       await checkUserSession?.();
 
       router.refresh();
     } catch (error) {
       console.error(error);
-      setErrorMsg(error instanceof Error ? error.message : error);
+      setErrorMsg(
+        getFirebaseErrorMessage(error, 'Não foi possível entrar. Verifique e-mail e senha.')
+      );
     }
   });
 
-  const handleSignInWithGoogle = async () => {
-    try {
-      await signInWithGoogle();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSignInWithGithub = async () => {
-    try {
-      await signInWithGithub();
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleSignInWithTwitter = async () => {
-    try {
-      await signInWithTwitter();
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const renderLogo = <AnimateLogo2 sx={{ mb: 3, mx: 'auto' }} />;
 
   const renderHead = (
-    <Stack spacing={1.5} sx={{ mb: 5 }}>
-      <Typography variant="h5">Sign in to your account</Typography>
+    <Stack alignItems="center" spacing={1.5} sx={{ mb: 5 }}>
+      <Typography variant="h5">Entrar na sua conta</Typography>
 
       <Stack direction="row" spacing={0.5}>
         <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          {`Don't have an account?`}
+          Ainda não tem empresa?
         </Typography>
 
         <Link component={RouterLink} href={paths.auth.firebase.signUp} variant="subtitle2">
-          Get started
+          Criar conta
         </Link>
       </Stack>
     </Stack>
@@ -124,7 +102,12 @@ export function FirebaseSignInView() {
 
   const renderForm = (
     <Stack spacing={3}>
-      <Field.Text name="email" label="Email address" InputLabelProps={{ shrink: true }} />
+      <Field.Text
+        name="email"
+        label="E-mail"
+        InputLabelProps={{ shrink: true }}
+        autoComplete="username"
+      />
 
       <Stack spacing={1.5}>
         <Link
@@ -134,15 +117,16 @@ export function FirebaseSignInView() {
           color="inherit"
           sx={{ alignSelf: 'flex-end' }}
         >
-          Forgot password?
+          Esqueceu a senha?
         </Link>
 
         <Field.Text
           name="password"
-          label="Password"
-          placeholder="6+ characters"
+          label="Senha"
+          placeholder="6+ caracteres"
           type={password.value ? 'text' : 'password'}
           InputLabelProps={{ shrink: true }}
+          autoComplete="current-password"
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
@@ -162,44 +146,17 @@ export function FirebaseSignInView() {
         type="submit"
         variant="contained"
         loading={isSubmitting}
-        loadingIndicator="Sign in..."
+        loadingIndicator="Entrando..."
       >
-        Sign in
+        Entrar
       </LoadingButton>
     </Stack>
   );
 
-  const renderSignInWithSocials = (
-    <>
-      <Divider
-        sx={{
-          my: 3,
-          typography: 'overline',
-          color: 'text.disabled',
-          '&::before, :after': { borderTopStyle: 'dashed' },
-        }}
-      >
-        OR
-      </Divider>
-
-      <Stack direction="row" justifyContent="center" spacing={1}>
-        <IconButton onClick={handleSignInWithGoogle}>
-          <SocialIcon icon="google" width={22} />
-        </IconButton>
-
-        <IconButton onClick={handleSignInWithGithub}>
-          <SocialIcon icon="github" width={22} />
-        </IconButton>
-
-        <IconButton onClick={handleSignInWithTwitter}>
-          <SocialIcon icon="twitter" width={22} />
-        </IconButton>
-      </Stack>
-    </>
-  );
-
   return (
     <>
+      {renderLogo}
+
       {renderHead}
 
       {!!errorMsg && (
@@ -211,8 +168,6 @@ export function FirebaseSignInView() {
       <Form methods={methods} onSubmit={onSubmit}>
         {renderForm}
       </Form>
-
-      {renderSignInWithSocials}
     </>
   );
 }

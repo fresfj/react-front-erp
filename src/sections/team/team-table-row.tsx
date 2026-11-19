@@ -21,9 +21,10 @@ type Props = {
   row: TeamMember;
   isAdmin: boolean;
   onEditPermissions: () => void;
+  onDeleteAccess: () => void;
 };
 
-export function TeamTableRow({ row, isAdmin, onEditPermissions }: Props) {
+export function TeamTableRow({ row, isAdmin, onEditPermissions, onDeleteAccess }: Props) {
   const popover = usePopover();
 
   const getRoleLabel = () => {
@@ -93,6 +94,17 @@ export function TeamTableRow({ row, isAdmin, onEditPermissions }: Props) {
           >
             <Iconify icon="solar:settings-bold" />
             Configurar Permissões
+          </MenuItem>
+
+          <MenuItem
+            onClick={() => {
+              popover.onClose();
+              onDeleteAccess();
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <Iconify icon="solar:trash-bin-trash-bold" />
+            Excluir acesso (recriar)
           </MenuItem>
         </CustomPopover>
       )}
