@@ -18,13 +18,13 @@ describe('isWithinOpeningHours', () => {
   it('true when now inside weekday window', () => {
     // Wednesday 2026-11-18 14:00 America/Sao_Paulo
     const now = new Date('2026-11-18T17:00:00.000Z');
-    const hours = [{ day: 3, open: '10:00', close: '22:00' }];
+    const hours = [{ day: 3 as const, open: '10:00', close: '22:00' }];
     expect(isWithinOpeningHours(hours, now, 'America/Sao_Paulo')).toBe(true);
   });
 
   it('false when day marked closed', () => {
     const now = new Date('2026-11-18T17:00:00.000Z');
-    const hours = [{ day: 3, open: '10:00', close: '22:00', closed: true }];
+    const hours = [{ day: 3 as const, open: '10:00', close: '22:00', closed: true }];
     expect(isWithinOpeningHours(hours, now, 'America/Sao_Paulo')).toBe(false);
   });
 });

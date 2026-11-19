@@ -18,6 +18,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { upsertPlan, deactivatePlan } from 'src/api/firestore/billing';
+import { invalidateBillingCache } from 'src/api/firestore/billing-cache';
 
 import { toast } from 'src/components/snackbar';
 import { Form, Field } from 'src/components/hook-form';
@@ -81,16 +82,20 @@ export function PlanForm({ currentPlan }: Props) {
         .map((line) => line.trim())
         .filter(Boolean);
       await upsertPlan({
-        id: currentPlan?.id,
+        ...(currentPlan?.id ? { id: currentPlan.id } : {}),
         code: data.code,
         name: data.name,
         description: data.description || '',
         priceMonthly: data.priceMonthly,
         currency: 'BRL',
         features,
+        entitlements: currentPlan?.entitlements ?? [],
         sortOrder: data.sortOrder,
         active: data.active,
       });
+      invalidateBillingCache('plans-list');
+      invalidateBillingCache('enterprises-list');
+      invalidateBillingCache('billing-account:');
       toast.success(t('billing.saveSuccess'));
       router.push(paths.dashboard.plans.list);
     } catch (error) {
@@ -103,6 +108,9 @@ export function PlanForm({ currentPlan }: Props) {
     if (!currentPlan?.id) return;
     try {
       await deactivatePlan(currentPlan.id);
+      invalidateBillingCache('plans-list');
+      invalidateBillingCache('enterprises-list');
+      invalidateBillingCache('billing-account:');
       toast.success(t('billing.saveSuccess'));
       router.push(paths.dashboard.plans.list);
     } catch (error) {
