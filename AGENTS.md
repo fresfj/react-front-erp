@@ -54,7 +54,13 @@ Toda nova tela ou módulo do ERP deve seguir estritamente este fluxo:
    - Abertura de caixa, sangria, suprimento, **Fechamento Cego** (divergência calculada), validação de limite de desconto no backend (Cloud Functions) e DRE.
 5. **Fase 5 — Integração Fiscal (NFC-e):** Integração via Cloud Functions com API externa (Focus NFe / PlugNotas / NuvemFiscal).
 
-## 5. Regra de Ouro de Qualidade de Código (ESLint + TypeScript Zero Warnings)
+## 5. AWS Amplify (deploy `main`)
+
+- Build: `amplify.yml` (Yarn + Vite → `dist`). Node **≥24.12.0** (`.nvmrc`); Amplify default 22 quebra `@firebase/ai`.
+- Antes de commit/push que afete deploy: `yarn check:amplify` (regra Cursor `.cursor/rules/amplify-deploy.mdc`).
+- Env `VITE_FIREBASE_*` só no console Amplify; SPA rewrite `/<*>` → `/index.html` (200).
+
+## 6. Regra de Ouro de Qualidade de Código (ESLint + TypeScript Zero Warnings)
 O projeto roda `vite-plugin-checker` em tempo real no `vite dev`. Qualquer warning de ESLint polui o console e o overlay do navegador.
 - **Ordenação de Imports (`perfectionist/sort-imports` e `sort-named-imports`):**
   - Os imports são agrupados por categoria (`type`, `external`, `@mui/**`, `src/routes/**`, `src/hooks/**`, `src/utils/**`, `src/**`, `src/components/**`, `src/sections/**`, `src/auth/**`, `src/types/**`, relativos `../` e `./`, e por fim `parent-type`/`sibling-type`) separados por linha em branco.
@@ -65,7 +71,7 @@ O projeto roda `vite-plugin-checker` em tempo real no `vite dev`. Qualquer warni
   2. `./node_modules/.bin/eslint --max-warnings=0 <arquivos_alterados>` (deve retornar 0 erros e 0 warnings)
   3. `./node_modules/.bin/tsc --noEmit`
 
-## 6. Skills e regras em uso (obrigatório ler)
+## 7. Skills e regras em uso (obrigatório ler)
 
 ### No repositório
 | Skill / regra | Path | Quando usar |

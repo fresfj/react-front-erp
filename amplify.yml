@@ -3,6 +3,10 @@ frontend:
   phases:
     preBuild:
       commands:
+        # firebase@13 / @firebase/ai exige Node >= 24.12.0 (Amplify default = 22)
+        - nvm install 24.12.0
+        - nvm use 24.12.0
+        - node -v
         - yarn install --frozen-lockfile
     build:
       commands:

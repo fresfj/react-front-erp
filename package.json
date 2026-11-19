@@ -5,6 +5,9 @@
   "description": "Vite & TypeScript",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24.12.0"
+  },
   "scripts": {
     "dev": "vite",
     "start": "vite preview",
@@ -19,6 +22,7 @@
     "re:build-npm": "npm run rm:all && npm install && npm run build",
     "dev:host": "vite --host",
     "test": "vitest run",
+    "check:amplify": "node scripts/check-amplify-ready.mjs",
     "claims:set": "node scripts/set-firebase-claims.mjs",
     "claims:bootstrap": "node scripts/bootstrap-tenant-admin.mjs",
     "claims:platform-admin": "node scripts/set-platform-admin.mjs"

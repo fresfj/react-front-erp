@@ -1,0 +1,32 @@
+---
+description: Validar build AWS Amplify antes de commit/push (Node 24, yarn, dist)
+alwaysApply: true
+---
+
+# AWS Amplify Hosting — gate antes de commit/push
+
+O front é SPA Vite deployado no **AWS Amplify** a partir de `main` (`amplify.yml` + `yarn`).
+
+## Erro clássico (já ocorrido)
+
+`@firebase/ai` exige Node `>=24.12.0`. Amplify default = Node **22** → `yarn install` falha com *engine incompatible*.
+
+## Obrigatório antes de commit/push que afete deploy
+
+1. Rodar:
+   ```bash
+   yarn check:amplify
+   ```
+   (rápido sem build: `yarn check:amplify --skip-build` só se o diff **não** tocar deps/`amplify.yml`/Node.)
+2. Se o comando falhar: **não** commitar/pushar para `main` até corrigir.
+3. Manter alinhados:
+   - `.nvmrc` → `24.12.0` (ou superior 24.x)
+   - `package.json` → `"engines": { "node": ">=24.12.0" }`
+   - `amplify.yml` → `nvm install 24.12.0` + `nvm use 24.12.0` no `preBuild`
+   - lockfile canônico: **`yarn.lock`** (evitar depender de `package-lock.json` no Amplify)
+4. Artefato: `dist`. SSR desabilitado. Env `VITE_FIREBASE_*` só no console Amplify (nunca no git).
+5. SPA rewrite no Amplify: `/<*>` → `/index.html` (200).
+
+## Ao mudar Firebase / Node / amplify.yml
+
+Atualizar `.nvmrc`, `engines` e `amplify.yml` juntos, depois `yarn check:amplify` completo (com build).
