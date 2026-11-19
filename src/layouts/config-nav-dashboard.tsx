@@ -288,8 +288,16 @@ export function useNavData(): NavSectionProps['data'] {
           ...(user?.enterpriseId
             ? [
                 {
-                  title: 'Empresa & Fiscal',
+                  title: t('nav.accountCompany', { defaultValue: 'Empresa' }),
                   path: paths.dashboard.account.company,
+                },
+                {
+                  title: t('nav.accountFiscal', { defaultValue: 'Fiscal' }),
+                  path: paths.dashboard.account.fiscal,
+                },
+                {
+                  title: t('nav.accountOnlineStore', { defaultValue: 'Loja online' }),
+                  path: paths.dashboard.account.onlineStore,
                 },
               ]
             : []),

@@ -251,6 +251,8 @@ export const dashboardRoutes = [
           { path: 'general', element: <AccountPage /> },
           { path: 'change-password', element: <AccountPage /> },
           { path: 'company', element: <AccountPage /> },
+          { path: 'fiscal', element: <AccountPage /> },
+          { path: 'online-store', element: <AccountPage /> },
           {
             path: 'billing',
             element: (

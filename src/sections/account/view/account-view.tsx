@@ -12,9 +12,11 @@ import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 
 import { useAuthContext } from 'src/auth/hooks';
 
+import { AccountFiscalForm } from '../account-fiscal-form';
 import { AccountGeneralForm } from '../account-general-form';
 import { AccountCompanyForm } from '../account-company-form';
 import { AccountBillingView } from '../account-billing-view';
+import { AccountOnlineStoreForm } from '../account-online-store-form';
 import { AccountChangePasswordForm } from '../account-change-password-form';
 
 // ----------------------------------------------------------------------
@@ -22,6 +24,8 @@ import { AccountChangePasswordForm } from '../account-change-password-form';
 const TAB_GENERAL = 'general';
 const TAB_SECURITY = 'security';
 const TAB_COMPANY = 'company';
+const TAB_FISCAL = 'fiscal';
+const TAB_ONLINE_STORE = 'online-store';
 const TAB_BILLING = 'billing';
 
 // ----------------------------------------------------------------------
@@ -37,11 +41,15 @@ export function AccountView() {
 
   const currentTab = pathname.includes('/billing')
     ? TAB_BILLING
-    : pathname.includes('/company')
-      ? TAB_COMPANY
-      : pathname.includes('/change-password') || pathname.endsWith('/security')
-        ? TAB_SECURITY
-        : TAB_GENERAL;
+    : pathname.includes('/online-store')
+      ? TAB_ONLINE_STORE
+      : pathname.includes('/fiscal')
+        ? TAB_FISCAL
+        : pathname.includes('/company')
+          ? TAB_COMPANY
+          : pathname.includes('/change-password') || pathname.endsWith('/security')
+            ? TAB_SECURITY
+            : TAB_GENERAL;
 
   const tabs = [
     {
@@ -60,9 +68,21 @@ export function AccountView() {
       ? [
           {
             value: TAB_COMPANY,
-            label: 'Empresa & Fiscal',
+            label: t('account.tabs.company'),
             icon: <Iconify icon="solar:buildings-bold" width={24} />,
             href: paths.dashboard.account.company,
+          },
+          {
+            value: TAB_FISCAL,
+            label: t('account.tabs.fiscal'),
+            icon: <Iconify icon="solar:bill-list-bold" width={24} />,
+            href: paths.dashboard.account.fiscal,
+          },
+          {
+            value: TAB_ONLINE_STORE,
+            label: t('account.tabs.onlineStore'),
+            icon: <Iconify icon="solar:shop-bold" width={24} />,
+            href: paths.dashboard.account.onlineStore,
           },
         ]
       : []),
@@ -96,7 +116,13 @@ export function AccountView() {
         sx={{ mb: { xs: 3, md: 5 } }}
       />
 
-      <Tabs value={currentTab} onChange={handleTabChange} sx={{ mb: { xs: 3, md: 5 } }}>
+      <Tabs
+        value={currentTab}
+        onChange={handleTabChange}
+        variant="scrollable"
+        allowScrollButtonsMobile
+        sx={{ mb: { xs: 3, md: 5 } }}
+      >
         {tabs.map((tab) => (
           <Tab key={tab.value} label={tab.label} icon={tab.icon} value={tab.value} />
         ))}
@@ -105,6 +131,8 @@ export function AccountView() {
       {currentTab === TAB_GENERAL && <AccountGeneralForm />}
       {currentTab === TAB_SECURITY && <AccountChangePasswordForm />}
       {currentTab === TAB_COMPANY && <AccountCompanyForm />}
+      {currentTab === TAB_FISCAL && <AccountFiscalForm />}
+      {currentTab === TAB_ONLINE_STORE && <AccountOnlineStoreForm />}
       {currentTab === TAB_BILLING && <AccountBillingView />}
     </DashboardContent>
   );

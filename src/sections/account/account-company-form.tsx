@@ -1,4 +1,4 @@
-import type { Enterprise, ReceiptModelType } from 'src/api/firestore/platform';
+import type { Enterprise } from 'src/api/firestore/platform';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -9,13 +9,10 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
-import MenuItem from '@mui/material/MenuItem';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
-import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
-import InputAdornment from '@mui/material/InputAdornment';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { useBoolean } from 'src/hooks/use-boolean';
@@ -25,10 +22,8 @@ import { useCnpjLookup } from 'src/hooks/use-cnpj-lookup';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { formatCep, digitsOnly, formatCnpj } from 'src/utils/br-docs';
 
-import {
-  getEnterprise,
-  updateEnterpriseSettings,
-} from 'src/api/firestore/platform';
+import { useTranslate } from 'src/locales';
+import { getEnterprise, updateEnterpriseSettings } from 'src/api/firestore/platform';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
@@ -36,14 +31,7 @@ import { Form, Field } from 'src/components/hook-form';
 
 import { useAuthContext } from 'src/auth/hooks';
 
-import { AccountOnlineStoreForm } from './account-online-store-form';
-
 // ----------------------------------------------------------------------
-
-const numberOrZero = zod.preprocess(
-  (val) => (val === '' || val === null || val === undefined ? 0 : Number(val)),
-  zod.number().min(0).default(0)
-);
 
 export const AccountCompanySchema = zod.object({
   name: zod.string().min(1, { message: 'Razão social obrigatória' }),
@@ -61,23 +49,6 @@ export const AccountCompanySchema = zod.object({
   neighborhood: zod.string().optional().or(zod.literal('')),
   city: zod.string().optional().or(zod.literal('')),
   state: zod.string().optional().or(zod.literal('')),
-  // Fiscal / NFC-e / Cupom settings
-  nfceSeries: zod.string().min(1, { message: 'Série obrigatória' }),
-  nfceEnvironment: zod.enum(['homologation', 'production']),
-  receiptDefaultModel: zod.enum(['58mm', '80mm', 'a5']),
-  receiptFooterMessage: zod.string().optional().or(zod.literal('')),
-  receiptBold: zod.boolean(),
-  receiptShowLogo: zod.boolean(),
-  // Taxas e Custos de Pagamento e Entrega (DRE)
-  defaultDeliveryFee: numberOrZero,
-  passPaymentFeesToCustomer: zod.boolean().default(false),
-  creditCardFeeRate: numberOrZero,
-  creditCardInstallmentFeeRate: numberOrZero,
-  debitCardFeeRate: numberOrZero,
-  pixFeeRate: numberOrZero,
-  pixFeeFixed: numberOrZero,
-  creditTabFeeRate: numberOrZero,
-  minInstallmentAmount: numberOrZero,
 });
 
 export type AccountCompanySchemaType = zod.infer<typeof AccountCompanySchema>;
@@ -85,6 +56,7 @@ export type AccountCompanySchemaType = zod.infer<typeof AccountCompanySchema>;
 // ----------------------------------------------------------------------
 
 export function AccountCompanyForm() {
+  const { t } = useTranslate('common');
   const { user } = useAuthContext();
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -93,13 +65,9 @@ export function AccountCompanyForm() {
 
   const openGeneral = useBoolean(true);
   const openAddress = useBoolean(true);
-  const openFiscal = useBoolean(true);
-  const openFees = useBoolean(true);
 
   const canEdit =
-    Boolean(user?.platformAdmin) ||
-    user?.role === 'admin' ||
-    user?.role === 'gestor';
+    Boolean(user?.platformAdmin) || user?.role === 'admin' || user?.role === 'gestor';
 
   const defaultValues = useMemo<AccountCompanySchemaType>(
     () => ({
@@ -115,22 +83,6 @@ export function AccountCompanyForm() {
       neighborhood: enterprise?.neighborhood || '',
       city: enterprise?.city || '',
       state: enterprise?.state || '',
-      nfceSeries: enterprise?.nfceSeries || '1',
-      nfceEnvironment: enterprise?.nfceEnvironment || 'homologation',
-      receiptDefaultModel: enterprise?.receiptDefaultModel || '58mm',
-      receiptFooterMessage:
-        enterprise?.receiptFooterMessage || 'OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE',
-      receiptBold: enterprise?.receiptBold ?? true,
-      receiptShowLogo: enterprise?.receiptShowLogo ?? true,
-      defaultDeliveryFee: enterprise?.defaultDeliveryFee ?? 0,
-      passPaymentFeesToCustomer: enterprise?.passPaymentFeesToCustomer ?? false,
-      creditCardFeeRate: enterprise?.creditCardFeeRate ?? 2.15,
-      creditCardInstallmentFeeRate: enterprise?.creditCardInstallmentFeeRate ?? 1.5,
-      debitCardFeeRate: enterprise?.debitCardFeeRate ?? 1.29,
-      pixFeeRate: enterprise?.pixFeeRate ?? 0,
-      pixFeeFixed: enterprise?.pixFeeFixed ?? 0,
-      creditTabFeeRate: enterprise?.creditTabFeeRate ?? 0,
-      minInstallmentAmount: enterprise?.minInstallmentAmount ?? 15,
     }),
     [enterprise]
   );
@@ -152,14 +104,15 @@ export function AccountCompanyForm() {
   const zipCodeWatch = watch('zipCode') || '';
   const documentWatch = watch('document') || '';
 
-  // Load Enterprise data
   useEffect(() => {
     if (!enterpriseId) {
       setLoading(false);
-      return;
+      return undefined;
     }
+    let alive = true;
     getEnterprise(enterpriseId)
       .then((data) => {
+        if (!alive) return;
         setEnterprise(data);
         if (data) {
           reset({
@@ -175,33 +128,21 @@ export function AccountCompanyForm() {
             neighborhood: data.neighborhood || '',
             city: data.city || '',
             state: data.state || '',
-            nfceSeries: data.nfceSeries || '1',
-            nfceEnvironment: data.nfceEnvironment || 'homologation',
-            receiptDefaultModel: data.receiptDefaultModel || '58mm',
-            receiptFooterMessage:
-              data.receiptFooterMessage || 'OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE',
-            receiptBold: data.receiptBold ?? true,
-            receiptShowLogo: data.receiptShowLogo ?? true,
-            defaultDeliveryFee: data.defaultDeliveryFee ?? 0,
-            passPaymentFeesToCustomer: data.passPaymentFeesToCustomer ?? false,
-            creditCardFeeRate: data.creditCardFeeRate ?? 2.15,
-            creditCardInstallmentFeeRate: data.creditCardInstallmentFeeRate ?? 1.5,
-            debitCardFeeRate: data.debitCardFeeRate ?? 1.29,
-            pixFeeRate: data.pixFeeRate ?? 0,
-            pixFeeFixed: data.pixFeeFixed ?? 0,
-            creditTabFeeRate: data.creditTabFeeRate ?? 0,
-            minInstallmentAmount: data.minInstallmentAmount ?? 15,
           });
         }
       })
       .catch((err) => {
         console.error(err);
-        toast.error('Erro ao carregar dados da empresa');
+        toast.error(t('account.companyLoadError'));
       })
-      .finally(() => setLoading(false));
-  }, [enterpriseId, reset]);
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enterpriseId, reset, t]);
 
-  // Cep auto-lookup
   const { handleBlur: handleCepBlur } = useCepLookup({
     cep: zipCodeWatch,
     initialValue: enterprise?.zipCode,
@@ -214,7 +155,6 @@ export function AccountCompanyForm() {
     },
   });
 
-  // CNPJ auto-lookup
   const { handleBlur: handleCnpjBlur } = useCnpjLookup({
     document: documentWatch,
     initialValue: enterprise?.document,
@@ -224,7 +164,9 @@ export function AccountCompanyForm() {
       if (fields.phone) setValue('phone', fields.phone, { shouldDirty: true });
       if (fields.zipCode) setValue('zipCode', formatCep(fields.zipCode), { shouldDirty: true });
       if (fields.address) setValue('address', fields.address, { shouldDirty: true });
-      if (fields.addressNumber) setValue('addressNumber', fields.addressNumber, { shouldDirty: true });
+      if (fields.addressNumber) {
+        setValue('addressNumber', fields.addressNumber, { shouldDirty: true });
+      }
       if (fields.complement) setValue('complement', fields.complement, { shouldDirty: true });
       if (fields.neighborhood) setValue('neighborhood', fields.neighborhood, { shouldDirty: true });
       if (fields.city) setValue('city', fields.city, { shouldDirty: true });
@@ -233,8 +175,7 @@ export function AccountCompanyForm() {
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    if (!enterpriseId) return;
-
+    if (!enterpriseId || !canEdit) return;
     try {
       await updateEnterpriseSettings(enterpriseId, {
         name: data.name,
@@ -249,35 +190,13 @@ export function AccountCompanyForm() {
         neighborhood: data.neighborhood || undefined,
         city: data.city || undefined,
         state: data.state || undefined,
-        nfceSeries: data.nfceSeries,
-        nfceEnvironment: data.nfceEnvironment,
-        receiptDefaultModel: data.receiptDefaultModel as ReceiptModelType,
-        receiptFooterMessage: data.receiptFooterMessage || undefined,
-        receiptBold: data.receiptBold,
-        receiptShowLogo: data.receiptShowLogo,
-        defaultDeliveryFee: Number(data.defaultDeliveryFee ?? 0),
-        passPaymentFeesToCustomer: data.passPaymentFeesToCustomer,
-        creditCardFeeRate: Number(data.creditCardFeeRate ?? 0),
-        creditCardInstallmentFeeRate: Number(data.creditCardInstallmentFeeRate ?? 0),
-        debitCardFeeRate: Number(data.debitCardFeeRate ?? 0),
-        pixFeeRate: Number(data.pixFeeRate ?? 0),
-        pixFeeFixed: Number(data.pixFeeFixed ?? 0),
-        creditTabFeeRate: Number(data.creditTabFeeRate ?? 0),
-        minInstallmentAmount: Number(data.minInstallmentAmount ?? 15),
       });
-
-      toast.success('Configurações da empresa e taxas atualizadas com sucesso!');
+      toast.success(t('account.companySaveSuccess'));
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Erro ao atualizar dados da empresa'));
+      toast.error(getFirebaseErrorMessage(error, t('account.companySaveError')));
     }
   });
-
-  const renderCollapseAction = (open: boolean, onToggle: () => void) => (
-    <IconButton onClick={onToggle}>
-      <Iconify icon={open ? 'eva:arrow-ios-downward-fill' : 'eva:arrow-ios-forward-fill'} />
-    </IconButton>
-  );
 
   if (loading) {
     return (
@@ -288,15 +207,23 @@ export function AccountCompanyForm() {
   }
 
   return (
-    <Stack spacing={3} sx={{ mx: 'auto', maxWidth: { xs: 720, xl: 880 } }}>
     <Form methods={methods} onSubmit={onSubmit}>
-      <Stack spacing={3}>
-        {/* Card 1: Dados Principais da Empresa */}
+      <Stack spacing={3} sx={{ mx: 'auto', maxWidth: { xs: 720, xl: 880 } }}>
         <Card>
           <CardHeader
-            title="Dados da Empresa (Emissor Fiscal)"
-            subheader="Razão Social, Nome Fantasia e CNPJ que constam no Cupom Fiscal e NFC-e"
-            action={renderCollapseAction(openGeneral.value, openGeneral.onToggle)}
+            title={t('account.companyDataTitle')}
+            subheader={t('account.companyDataHint')}
+            action={
+              <IconButton onClick={openGeneral.onToggle}>
+                <Iconify
+                  icon={
+                    openGeneral.value
+                      ? 'eva:arrow-ios-upward-fill'
+                      : 'eva:arrow-ios-downward-fill'
+                  }
+                />
+              </IconButton>
+            }
             sx={{ mb: 3 }}
           />
           <Collapse in={openGeneral.value}>
@@ -310,7 +237,7 @@ export function AccountCompanyForm() {
               >
                 <Field.Text
                   name="document"
-                  label="CNPJ"
+                  label={t('account.fields.document')}
                   disabled={!canEdit}
                   placeholder="00.000.000/0000-00"
                   value={formatCnpj(documentWatch)}
@@ -318,33 +245,21 @@ export function AccountCompanyForm() {
                     setValue('document', formatCnpj(event.target.value), { shouldDirty: true });
                   }}
                   onBlur={handleCnpjBlur}
-                  helperText="Preenchimento automático de dados cadastrais via BrasilAPI ao sair do campo"
                 />
-
                 <Field.Text
                   name="stateRegistration"
-                  label="Inscrição Estadual (IE)"
+                  label={t('account.fields.stateRegistration')}
                   disabled={!canEdit}
-                  placeholder="Ex: 123456789 ou ISENTO"
                 />
-
-                <Field.Text
-                  name="name"
-                  label="Razão Social"
-                  disabled={!canEdit}
-                  helperText="Nome jurídico oficial registrado na Receita Federal"
-                />
-
+                <Field.Text name="name" label={t('account.fields.companyName')} disabled={!canEdit} />
                 <Field.Text
                   name="tradeName"
-                  label="Nome Fantasia"
+                  label={t('account.fields.tradeName')}
                   disabled={!canEdit}
-                  helperText="Nome comercial exibido no topo do Cupom / Recibo"
                 />
-
                 <Field.Phone
                   name="phone"
-                  label="Telefone de Contato"
+                  label={t('account.fields.phone')}
                   disabled={!canEdit}
                   country="BR"
                 />
@@ -353,12 +268,21 @@ export function AccountCompanyForm() {
           </Collapse>
         </Card>
 
-        {/* Card 2: Endereço Fiscal */}
         <Card>
           <CardHeader
-            title="Endereço da Empresa"
-            subheader="Endereço oficial que sai impresso no cabeçalho do Cupom Fiscal e da DANFE NFC-e"
-            action={renderCollapseAction(openAddress.value, openAddress.onToggle)}
+            title={t('account.companyAddressTitle')}
+            subheader={t('account.companyAddressHint')}
+            action={
+              <IconButton onClick={openAddress.onToggle}>
+                <Iconify
+                  icon={
+                    openAddress.value
+                      ? 'eva:arrow-ios-upward-fill'
+                      : 'eva:arrow-ios-downward-fill'
+                  }
+                />
+              </IconButton>
+            }
             sx={{ mb: 3 }}
           />
           <Collapse in={openAddress.value}>
@@ -372,273 +296,43 @@ export function AccountCompanyForm() {
               >
                 <Field.Text
                   name="zipCode"
-                  label="CEP"
+                  label={t('account.fields.zipCode')}
                   disabled={!canEdit}
-                  placeholder="00000-000"
                   value={formatCep(zipCodeWatch)}
                   onChange={(event) => {
                     setValue('zipCode', formatCep(event.target.value), { shouldDirty: true });
                   }}
                   onBlur={handleCepBlur}
                 />
-                <Field.Text name="address" label="Logradouro" disabled={!canEdit} />
-                <Field.Text name="addressNumber" label="Número" disabled={!canEdit} />
+                <Field.Text
+                  name="address"
+                  label={t('account.fields.address')}
+                  disabled={!canEdit}
+                />
+                <Field.Text
+                  name="addressNumber"
+                  label={t('account.fields.addressNumber')}
+                  disabled={!canEdit}
+                />
               </Box>
-
               <Box
                 columnGap={2}
                 rowGap={3}
                 display="grid"
                 gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(4, 1fr)' }}
               >
-                <Field.Text name="neighborhood" label="Bairro" disabled={!canEdit} />
-                <Field.Text name="complement" label="Complemento" disabled={!canEdit} />
-                <Field.Text name="city" label="Cidade" disabled={!canEdit} />
-                <Field.Text name="state" label="UF" disabled={!canEdit} />
-              </Box>
-            </Stack>
-          </Collapse>
-        </Card>
-
-        {/* Card 3: Configurações de Impressão e Cupom Fiscal / NFC-e */}
-        <Card>
-          <CardHeader
-            title="Configuração do Cupom Fiscal / NFC-e"
-            subheader="Definições da impressora padrão, ambiente fiscal SEFAZ e mensagem personalizada"
-            action={renderCollapseAction(openFiscal.value, openFiscal.onToggle)}
-            sx={{ mb: 3 }}
-          />
-          <Collapse in={openFiscal.value}>
-            <Divider />
-            <Stack spacing={3} sx={{ p: 3 }}>
-              <Box
-                columnGap={2}
-                rowGap={3}
-                display="grid"
-                gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(3, 1fr)' }}
-              >
-                <Field.Select
-                  name="receiptDefaultModel"
-                  label="Modelo de Impressão Padrão"
-                  disabled={!canEdit}
-                >
-                  <MenuItem value="58mm">🧾 Cupom Térmico (58mm)</MenuItem>
-                  <MenuItem value="80mm">🧾 Cupom Térmico (80mm)</MenuItem>
-                  <MenuItem value="a5">📄 Recibo A5 (Meia A4)</MenuItem>
-                </Field.Select>
-
                 <Field.Text
-                  name="nfceSeries"
-                  label="Série da NFC-e"
+                  name="neighborhood"
+                  label={t('account.fields.neighborhood')}
                   disabled={!canEdit}
-                  placeholder="Ex: 1"
-                  helperText="Série autorizada para emissão de NFC-e"
                 />
-
-                <Field.Select
-                  name="nfceEnvironment"
-                  label="Ambiente SEFAZ"
-                  disabled={!canEdit}
-                >
-                  <MenuItem value="homologation">Homologação (Testes)</MenuItem>
-                  <MenuItem value="production">Produção (Com valor fiscal)</MenuItem>
-                </Field.Select>
-              </Box>
-
-              <Field.Text
-                name="receiptFooterMessage"
-                label="Mensagem de Rodapé do Cupom"
-                disabled={!canEdit}
-                multiline
-                rows={2}
-                placeholder="Ex: OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE"
-                helperText="Texto que será impresso no final de todos os cupons e recibos"
-              />
-
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3}>
-                <Field.Switch
-                  name="receiptBold"
-                  label="Imprimir em Negrito Forte por padrão"
-                  disabled={!canEdit}
-                  helperText="Recomendado para melhor contraste em impressoras térmicas"
-                />
-                <Field.Switch
-                  name="receiptShowLogo"
-                  label="Exibir Logotipo no Cupom"
-                  disabled={!canEdit}
-                  helperText="Imprime o logotipo no cabeçalho do recibo"
-                />
-              </Stack>
-            </Stack>
-          </Collapse>
-        </Card>
-
-        {/* Card 4: Taxas de Pagamento (Maquininha) & Custos de Entrega (DRE) */}
-        <Card>
-          <CardHeader
-            title="Taxas de Pagamento (Maquininha) & Custos de Entrega"
-            subheader="Configure as taxas cobradas por operadoras de cartão/PIX para apuração automática de despesas no DRE"
-            action={renderCollapseAction(openFees.value, openFees.onToggle)}
-            sx={{ mb: 3 }}
-          />
-          <Collapse in={openFees.value}>
-            <Divider />
-            <Stack spacing={3} sx={{ p: 3 }}>
-              {/* Repassar ou Absorver no DRE */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 1.5,
-                  bgcolor: 'background.neutral',
-                  border: (theme) => `1px dashed ${theme.vars.palette.divider}`,
-                }}
-              >
-                <Field.Switch
-                  name="passPaymentFeesToCustomer"
-                  label="Repassar taxa de pagamento ao cliente (acrescentar no total)"
-                  disabled={!canEdit}
-                  helperText="Desmarcado: a taxa é uma despesa da loja e aparece deduzida no DRE. Marcado: a taxa é acrescentada no valor final pago pelo cliente."
-                />
-              </Box>
-
-              <Box
-                columnGap={2}
-                rowGap={3}
-                display="grid"
-                gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
-              >
                 <Field.Text
-                  type="number"
-                  name="defaultDeliveryFee"
-                  label="Taxa de Entrega Padrão (R$)"
+                  name="complement"
+                  label={t('account.fields.complement')}
                   disabled={!canEdit}
-                  placeholder="0.00"
-                  helperText="Valor fixo padrão para entregas"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-                  }}
                 />
-
-                <Field.Text
-                  type="number"
-                  name="creditCardFeeRate"
-                  label="Taxa Crédito à vista (%)"
-                  disabled={!canEdit}
-                  placeholder="2.15"
-                  helperText="Ex: 2.15% por transação"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="creditCardInstallmentFeeRate"
-                  label="Taxa Crédito Parcelado (+%/mês)"
-                  disabled={!canEdit}
-                  placeholder="1.50"
-                  helperText="Adicional por parcela"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="debitCardFeeRate"
-                  label="Taxa Débito (%)"
-                  disabled={!canEdit}
-                  placeholder="1.29"
-                  helperText="Ex: 1.29% por transação"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="pixFeeRate"
-                  label="Taxa PIX (%)"
-                  disabled={!canEdit}
-                  placeholder="0.00"
-                  helperText="Percentual sobre o PIX"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="pixFeeFixed"
-                  label="Taxa Fixa PIX (R$)"
-                  disabled={!canEdit}
-                  placeholder="0.00"
-                  helperText="Tarifa fixa por PIX recebido"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="creditTabFeeRate"
-                  label="Taxa Crediário / Fiado (%)"
-                  disabled={!canEdit}
-                  placeholder="0.00"
-                  helperText="Custo de cobrança / risco"
-                  inputProps={{ min: 0, step: 'any' }}
-                  InputProps={{
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                />
-
-                <Field.Text
-                  type="number"
-                  name="minInstallmentAmount"
-                  label="Parcela Mínima (R$)"
-                  disabled={!canEdit}
-                  placeholder="15.00"
-                  helperText="Valor mínimo permitido"
-                  inputProps={{ min: 1, step: 'any' }}
-                  InputProps={{
-                    startAdornment: <InputAdornment position="start">R$</InputAdornment>,
-                  }}
-                />
-              </Box>
-
-              {/* Informative explanation matching user example */}
-              <Box
-                sx={{
-                  p: 2,
-                  borderRadius: 1,
-                  bgcolor: 'info.lighter',
-                  color: 'info.darker',
-                  typography: 'body2',
-                }}
-              >
-                <Stack direction="row" spacing={1} alignItems="flex-start">
-                  <Iconify icon="solar:info-circle-bold" width={20} sx={{ mt: 0.25, flexShrink: 0 }} />
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ mb: 0.5, color: 'inherit' }}>
-                      Como as taxas influenciam o PDV e o DRE:
-                    </Typography>
-                    <div>
-                      • <strong>Desmarcado (Padrão):</strong> O cliente paga o valor normal dos produtos. As taxas de maquininha são absorvidas pela loja e registradas no DRE como despesa operacional de intermediação de vendas.
-                    </div>
-                    <div>
-                      • <strong>Marcado (Repassar taxa):</strong> O percentual da maquininha é acrescido diretamente no valor total da venda a ser pago pelo cliente.
-                    </div>
-                    <div>
-                      • <strong>Valor Fixo de Entrega:</strong> Quando a modalidade &quot;Entrega&quot; for escolhida no PDV, o valor acima será sugerido automaticamente.
-                    </div>
-                  </Box>
-                </Stack>
+                <Field.Text name="city" label={t('account.fields.city')} disabled={!canEdit} />
+                <Field.Text name="state" label={t('account.fields.state')} disabled={!canEdit} />
               </Box>
             </Stack>
           </Collapse>
@@ -646,28 +340,12 @@ export function AccountCompanyForm() {
 
         {canEdit && (
           <Stack direction="row" justifyContent="flex-end">
-            <LoadingButton
-              type="submit"
-              variant="contained"
-              size="large"
-              loading={isSubmitting}
-            >
-              Salvar Configurações da Empresa
+            <LoadingButton type="submit" variant="contained" size="large" loading={isSubmitting}>
+              {t('account.saveSubmit')}
             </LoadingButton>
           </Stack>
         )}
       </Stack>
     </Form>
-
-      <AccountOnlineStoreForm
-        enterprise={enterprise}
-        canEdit={canEdit}
-        onSaved={async () => {
-          if (!enterpriseId) return;
-          const next = await getEnterprise(enterpriseId);
-          setEnterprise(next);
-        }}
-      />
-    </Stack>
   );
 }

@@ -2,7 +2,7 @@ import type { Enterprise, OnlineStoreConfig } from 'src/api/firestore/platform';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 
 import Box from '@mui/material/Box';
@@ -10,21 +10,18 @@ import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
-import Collapse from '@mui/material/Collapse';
-import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
+import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
-
-import { useBoolean } from 'src/hooks/use-boolean';
+import CircularProgress from '@mui/material/CircularProgress';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
+import { getEnterprise } from 'src/api/firestore/platform';
 import { upsertOnlineStoreConfigCf } from 'src/api/firestore/online-orders';
 
 import { toast } from 'src/components/snackbar';
-import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 
 import { normalizeStoreSlug } from 'src/sections/online-store/online-store-domain';
@@ -56,13 +53,7 @@ const OnlineStoreSchema = zod.object({
 
 type OnlineStoreSchemaType = zod.infer<typeof OnlineStoreSchema>;
 
-type Props = {
-  enterprise: Enterprise | null;
-  canEdit: boolean;
-  onSaved?: () => void;
-};
-
-function defaultHours() {
+function defaultHours(): OnlineStoreSchemaType['openingHours'] {
   return Array.from({ length: 7 }, (_, day) => ({
     day,
     open: '09:00',
@@ -71,38 +62,44 @@ function defaultHours() {
   }));
 }
 
+function mapEnterpriseToForm(enterprise: Enterprise | null): OnlineStoreSchemaType {
+  const store = enterprise?.onlineStore;
+  return {
+    enabled: store?.enabled === true,
+    slug: store?.slug || normalizeStoreSlug(enterprise?.tradeName || enterprise?.name || ''),
+    estimatedMinutes: store?.estimatedMinutes ?? 40,
+    acceptDelivery: store?.acceptDelivery !== false,
+    acceptPickup: store?.acceptPickup !== false,
+    defaultDeliveryFee: store?.defaultDeliveryFee ?? enterprise?.defaultDeliveryFee ?? 0,
+    whatsapp: store?.whatsapp || '',
+    paymentMethodsOnDelivery: store?.paymentMethodsOnDelivery?.length
+      ? store.paymentMethodsOnDelivery
+      : ['cash', 'pix', 'debit_card', 'credit_card'],
+    openingHours: store?.openingHours?.length
+      ? store.openingHours.map((h) => ({
+          day: Number(h.day),
+          open: h.open,
+          close: h.close,
+          closed: h.closed === true,
+        }))
+      : defaultHours(),
+  };
+}
+
 // ----------------------------------------------------------------------
 
-export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) {
+export function AccountOnlineStoreForm() {
   const { t } = useTranslate('common');
   const { user } = useAuthContext();
   const enterpriseId = user?.enterpriseId as string | undefined;
-  const openBlock = useBoolean(true);
 
-  const defaultValues = useMemo<OnlineStoreSchemaType>(() => {
-    const store = enterprise?.onlineStore;
-    return {
-      enabled: store?.enabled === true,
-      slug: store?.slug || normalizeStoreSlug(enterprise?.tradeName || enterprise?.name || ''),
-      estimatedMinutes: store?.estimatedMinutes ?? 40,
-      acceptDelivery: store?.acceptDelivery !== false,
-      acceptPickup: store?.acceptPickup !== false,
-      defaultDeliveryFee:
-        store?.defaultDeliveryFee ?? enterprise?.defaultDeliveryFee ?? 0,
-      whatsapp: store?.whatsapp || '',
-      paymentMethodsOnDelivery: store?.paymentMethodsOnDelivery?.length
-        ? store.paymentMethodsOnDelivery
-        : ['cash', 'pix', 'debit_card', 'credit_card'],
-      openingHours: store?.openingHours?.length
-        ? store.openingHours.map((h) => ({
-            day: h.day,
-            open: h.open,
-            close: h.close,
-            closed: h.closed === true,
-          }))
-        : defaultHours(),
-    };
-  }, [enterprise]);
+  const [loading, setLoading] = useState(true);
+  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
+
+  const canEdit =
+    Boolean(user?.platformAdmin) || user?.role === 'admin' || user?.role === 'gestor';
+
+  const defaultValues = useMemo(() => mapEnterpriseToForm(enterprise), [enterprise]);
 
   const methods = useForm<OnlineStoreSchemaType>({
     resolver: zodResolver(OnlineStoreSchema),
@@ -119,6 +116,29 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
   useEffect(() => {
     reset(defaultValues);
   }, [defaultValues, reset]);
+
+  useEffect(() => {
+    if (!enterpriseId) {
+      setLoading(false);
+      return undefined;
+    }
+    let alive = true;
+    getEnterprise(enterpriseId)
+      .then((data) => {
+        if (!alive) return;
+        setEnterprise(data);
+      })
+      .catch((err) => {
+        console.error(err);
+        toast.error(t('onlineStore.loadError'));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [enterpriseId, t]);
 
   const slug = watch('slug');
   const publicUrl =
@@ -150,7 +170,8 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
       };
       await upsertOnlineStoreConfigCf(enterpriseId, config);
       toast.success(t('onlineStore.saveSuccess'));
-      onSaved?.();
+      const next = await getEnterprise(enterpriseId);
+      setEnterprise(next);
     } catch (error) {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, t('onlineStore.saveError')));
@@ -166,22 +187,26 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
     }
   };
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 10 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
     <Form methods={methods} onSubmit={onSubmit}>
-      <Card>
-        <CardHeader
-          title={t('onlineStore.title')}
-          subheader={t('onlineStore.hint')}
-          action={
-            <IconButton onClick={openBlock.onToggle}>
-              <Iconify icon={openBlock.value ? 'eva:arrow-ios-upward-fill' : 'eva:arrow-ios-downward-fill'} />
-            </IconButton>
-          }
-        />
-        <Collapse in={openBlock.value} unmountOnExit>
+      <Stack spacing={3} sx={{ mx: 'auto', maxWidth: { xs: 720, xl: 880 } }}>
+        <Card>
+          <CardHeader title={t('onlineStore.title')} subheader={t('onlineStore.hint')} />
           <Divider />
           <Stack spacing={3} sx={{ p: 3 }}>
-            <Field.Switch name="enabled" label={t('onlineStore.fields.enabled')} disabled={!canEdit} />
+            <Field.Switch
+              name="enabled"
+              label={t('onlineStore.fields.enabled')}
+              disabled={!canEdit}
+            />
             <Field.Text name="slug" label={t('onlineStore.fields.slug')} disabled={!canEdit} />
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
               <Typography variant="body2" sx={{ flexGrow: 1, wordBreak: 'break-all' }}>
@@ -237,23 +262,28 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
             />
             <Typography variant="subtitle2">{t('onlineStore.fields.openingHours')}</Typography>
             {DAY_LABELS.map((label, index) => (
-              <Stack key={label} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
+              <Stack
+                key={label}
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1}
+                alignItems="center"
+              >
                 <Box sx={{ width: 48 }}>
                   <Typography variant="body2">{label}</Typography>
                 </Box>
                 <Field.Switch
                   name={`openingHours.${index}.closed`}
-                  label="Fechado"
+                  label={t('onlineStore.dayClosed')}
                   disabled={!canEdit}
                 />
                 <Field.Text
                   name={`openingHours.${index}.open`}
-                  label="Abre"
+                  label={t('onlineStore.dayOpen')}
                   disabled={!canEdit}
                 />
                 <Field.Text
                   name={`openingHours.${index}.close`}
-                  label="Fecha"
+                  label={t('onlineStore.dayClose')}
                   disabled={!canEdit}
                 />
               </Stack>
@@ -266,8 +296,8 @@ export function AccountOnlineStoreForm({ enterprise, canEdit, onSaved }: Props) 
               </Stack>
             )}
           </Stack>
-        </Collapse>
-      </Card>
+        </Card>
+      </Stack>
     </Form>
   );
 }

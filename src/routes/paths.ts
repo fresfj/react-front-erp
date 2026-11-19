@@ -128,6 +128,8 @@ export const paths = {
       billing: `${ROOTS.DASHBOARD}/account/billing`,
       changePassword: `${ROOTS.DASHBOARD}/account/change-password`,
       company: `${ROOTS.DASHBOARD}/account/company`,
+      fiscal: `${ROOTS.DASHBOARD}/account/fiscal`,
+      onlineStore: `${ROOTS.DASHBOARD}/account/online-store`,
     },
     plans: {
       root: `${ROOTS.DASHBOARD}/plans`,
