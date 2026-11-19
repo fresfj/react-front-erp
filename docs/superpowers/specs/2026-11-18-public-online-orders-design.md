@@ -1,7 +1,7 @@
 # Design: App Público de Pedidos Online (Vitrine Anota AI) + Fila Admin + Caixa
 
 **Date:** 2026-11-18  
-**Status:** Draft for user review  
+**Status:** Approved — implementation plan at `docs/superpowers/plans/2026-11-18-public-online-orders.md`  
 **Depends on:** PDV sales (`2026-11-16-pdv-offline-fifo-design.md`), cash sessions, SaaS plans/billing (`2026-11-17-saas-billing-asaas-design.md`)  
 **Briefing legado (adaptado):** `docs/prompt_agente_app_publico.md` — o briefing assume PDV legado + middleware + `ID_Externo`; neste projeto o PDV **já é** Firestore no mesmo app. Não há sync externo de catálogo.
 
