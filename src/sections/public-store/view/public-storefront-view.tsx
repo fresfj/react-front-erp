@@ -678,7 +678,7 @@ export function PublicStorefrontView() {
           >
             <Stack direction="row" spacing={1} sx={{ pb: 0.5, flexWrap: 'nowrap' }}>
               <Chip
-                label={`Todos (${store.products.length})`}
+                label="Todos"
                 color={activeCategory === 'all' ? 'primary' : 'default'}
                 variant={activeCategory === 'all' ? 'filled' : 'soft'}
                 onClick={() => handleCategoryClick('all')}
@@ -686,7 +686,6 @@ export function PublicStorefrontView() {
                 sx={{ fontWeight: activeCategory === 'all' ? 700 : 500, flexShrink: 0 }}
               />
               {allCategories.map((cat) => {
-                const count = store.products.filter((p) => (p.category || 'Outros') === cat).length;
                 const isActive = activeCategory === cat;
                 return (
                   <Chip
@@ -694,7 +693,7 @@ export function PublicStorefrontView() {
                     ref={(el) => {
                       chipRefs.current[cat] = el as HTMLDivElement | null;
                     }}
-                    label={`${cat} (${count})`}
+                    label={cat}
                     color={isActive ? 'primary' : 'default'}
                     variant={isActive ? 'filled' : 'soft'}
                     onClick={() => handleCategoryClick(cat)}
@@ -754,15 +753,9 @@ export function PublicStorefrontView() {
                   sx={{
                     mb: 1.5,
                     fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
                   }}
                 >
                   {categoryName}
-                  <Typography component="span" variant="caption" color="text.secondary">
-                    ({products.length})
-                  </Typography>
                 </Typography>
 
                 <Box

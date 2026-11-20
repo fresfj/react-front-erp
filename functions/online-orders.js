@@ -386,11 +386,16 @@ exports.placeOnlineOrder = onCall(async (request) => {
   await ref.set(docData);
 
   // Disparo automático não-bloqueante via WhatsApp (Plano Ultra ativo)
+  const PUBLIC_APP_ORIGIN = 'https://app.ds3i.com.br';
   const storeName = String(ctx.enterprise.tradeName || ctx.enterprise.name || slug);
-  const clientOrigin =
+  const rawOrigin =
     typeof request.data?.origin === 'string' && /^https?:\/\//i.test(request.data.origin)
       ? request.data.origin.replace(/\/+$/, '')
-      : 'https://checkout-shop-b5bb3.web.app';
+      : '';
+  const clientOrigin =
+    rawOrigin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(rawOrigin)
+      ? rawOrigin
+      : PUBLIC_APP_ORIGIN;
   const trackLink = `${clientOrigin}/p/${slug}/order/${ref.id}`;
   const modeLabel = deliveryType === 'delivery' ? 'Entrega' : 'Retirada no balcão';
   const itemsText = formatOrderItemsText(validatedItems);
@@ -636,7 +641,7 @@ exports.acceptOnlineOrder = onCall(async (request) => {
     const storeSlug = store.slug || '';
     const storeName = String(enterprise.tradeName || enterprise.name || '');
     const trackLink = storeSlug
-      ? `https://checkout-shop-b5bb3.web.app/p/${storeSlug}/order/${orderId}`
+      ? `https://app.ds3i.com.br/p/${storeSlug}/order/${orderId}`
       : '';
     await dispatchEnterpriseWhatsappEvent({
       enterpriseId,
