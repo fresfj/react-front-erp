@@ -26,8 +26,11 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { listProducts, deactivateProduct } from 'src/api/firestore/products';
+import {
+  seedDemoErpCatalog,
+  seedDemoOnlineCatalogOffers,
+} from 'src/api/firestore/seed-demo';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -312,6 +315,25 @@ export function ProductListView() {
           ]}
           action={
             <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="soft"
+                color="warning"
+                startIcon={<Iconify icon="solar:flame-bold-duotone" />}
+                onClick={async () => {
+                  if (!enterpriseId) return;
+                  try {
+                    await seedDemoOnlineCatalogOffers(enterpriseId);
+                    toast.success(
+                      '6 produtos demo (Combos, Descontos, Gelado e Quente) cadastrados na vitrine!'
+                    );
+                    await loadProducts();
+                  } catch (error) {
+                    toast.error(getFirebaseErrorMessage(error, 'Erro ao gerar combos demo'));
+                  }
+                }}
+              >
+                Combos & Promoções Demo
+              </Button>
               <Button
                 variant="soft"
                 color="info"

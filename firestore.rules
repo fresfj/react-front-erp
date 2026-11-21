@@ -54,6 +54,21 @@ service cloud.firestore {
       );
     }
 
+    function isValidWaiterTableOrder(data) {
+      return data.orderSource == 'waiter'
+        && data.deliveryType == 'table'
+        && data.items is list
+        && data.items.size() > 0
+        && data.items.size() <= 100
+        && data.subtotal is number
+        && data.subtotal >= 0
+        && data.total is number
+        && data.total >= 0
+        && (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 120))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('internalNotes' in data) || (data.internalNotes is string && data.internalNotes.size() <= 500));
+    }
+
     match /enterprises/{enterpriseId} {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
@@ -92,8 +107,10 @@ service cloud.firestore {
     }
 
     match /enterprises/{enterpriseId}/products/{id} {
-      // PDV (pos) precisa ler o catálogo para vender; escrita só com 'products'
-      allow read: if hasPerm(enterpriseId, 'products') || hasPerm(enterpriseId, 'pos');
+      // PDV (pos) e Garçom/Mesas (tables) precisam ler o catálogo para vender/lançar pedidos; escrita só com 'products'
+      allow read: if hasPerm(enterpriseId, 'products')
+        || hasPerm(enterpriseId, 'pos')
+        || hasPerm(enterpriseId, 'tables');
       allow write: if hasPerm(enterpriseId, 'products');
     }
 
@@ -110,13 +127,27 @@ service cloud.firestore {
     }
 
     match /enterprises/{enterpriseId}/sales/{id} {
-      allow read, write: if hasPerm(enterpriseId, 'pos');
+      allow read: if hasPerm(enterpriseId, 'pos');
+      allow create: if hasPerm(enterpriseId, 'pos') || hasPerm(enterpriseId, 'tables');
+      allow update, delete: if hasPerm(enterpriseId, 'pos');
     }
 
     match /enterprises/{enterpriseId}/onlineOrders/{id} {
-      allow read: if hasPerm(enterpriseId, 'pos');
-      allow update, delete: if hasPerm(enterpriseId, 'pos');
-      allow create: if false; // Cloud Functions / Admin SDK only
+      allow read: if hasPerm(enterpriseId, 'pos') || hasPerm(enterpriseId, 'tables');
+      allow create: if (hasPerm(enterpriseId, 'tables') || hasPerm(enterpriseId, 'pos'))
+        && isValidWaiterTableOrder(request.resource.data);
+      allow update: if hasPerm(enterpriseId, 'pos') || hasPerm(enterpriseId, 'tables');
+      allow delete: if hasPerm(enterpriseId, 'pos');
+    }
+
+    match /enterprises/{enterpriseId}/tables/{id} {
+      allow read: if hasPerm(enterpriseId, 'tables') || hasPerm(enterpriseId, 'pos');
+      allow write: if hasPerm(enterpriseId, 'tables') || hasPerm(enterpriseId, 'pos');
+    }
+
+    match /enterprises/{enterpriseId}/tableSessions/{id} {
+      allow read: if hasPerm(enterpriseId, 'tables') || hasPerm(enterpriseId, 'pos');
+      allow write: if hasPerm(enterpriseId, 'tables') || hasPerm(enterpriseId, 'pos');
     }
 
     match /publicStoreIndex/{slug} {
@@ -124,9 +155,10 @@ service cloud.firestore {
     }
 
     match /enterprises/{enterpriseId}/cashSessions/{id} {
-      // OR: settlement from payables/receivables (spec §8.1)
+      // OR: settlement from payables/receivables (spec §8.1) + waiter read open session
       allow read: if hasPerm(enterpriseId, 'cash_close')
-        || hasPerm(enterpriseId, 'dre');
+        || hasPerm(enterpriseId, 'dre')
+        || hasPerm(enterpriseId, 'tables');
       allow write: if hasPerm(enterpriseId, 'cash_close')
         || hasPerm(enterpriseId, 'dre');
     }

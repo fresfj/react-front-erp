@@ -1,6 +1,7 @@
 import type {
   PublicStorefront,
   PublicStorefrontProduct,
+  PublicTableSessionStatus,
 } from 'src/api/firestore/online-orders';
 
 import { useParams, useNavigate } from 'react-router-dom';
@@ -38,21 +39,29 @@ import { paths } from 'src/routes/paths';
 import { formatCep } from 'src/utils/br-docs';
 import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
 import { AvatarShape } from 'src/assets/illustrations';
-import { getPublicStorefrontCf } from 'src/api/firestore/online-orders';
+import {
+  placeOnlineOrderCf,
+  getPublicStorefrontCf,
+  getPublicTableSessionStatusCf,
+} from 'src/api/firestore/online-orders';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
+import { ProductImageBadges } from 'src/components/product-badges/product-image-badges';
 import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
 import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
 
 import { usePublicCart } from '../public-cart-context';
 import { StorefrontSkeleton } from '../public-store-skeletons';
+import { PublicTableOrderDialog } from '../public-table-order-dialog';
+import { PublicTableTrackerDrawer } from '../public-table-tracker-drawer';
 import { PublicStoreSeoHead, buildStoreSharePayload } from '../public-store-seo-head';
 import {
   CLOSED_REASON_KEY,
@@ -63,7 +72,7 @@ import {
 // ----------------------------------------------------------------------
 
 export function PublicStorefrontView() {
-  const { slug = '' } = useParams();
+  const { slug = '', tableCode = '' } = useParams();
   const navigate = useNavigate();
   const { t } = useTranslate('common');
   const cart = usePublicCart();
@@ -76,6 +85,62 @@ export function PublicStorefrontView() {
   // Perfil da Loja Drawer & Popover de Compartilhamento
   const [profileOpen, setProfileOpen] = useState(false);
   const sharePopover = usePopover();
+
+  // Modo Mesa (QR Code exclusivo — sem checkout, envia direto para Em Preparo no Kanban)
+  const isTableMode = Boolean(tableCode);
+  const tableDisplayNumber = tableCode.replace(/^mesa-/i, '') || tableCode;
+  const [tableStatus, setTableStatus] = useState<PublicTableSessionStatus | null>(null);
+  const [tableRefreshing, setTableRefreshing] = useState(false);
+  const [tableOrderDialogOpen, setTableOrderDialogOpen] = useState(false);
+  const [tableTrackerOpen, setTableTrackerOpen] = useState(false);
+  const [tableSubmitting, setTableSubmitting] = useState(false);
+
+  const tableRequesterStorageKey = `erp.publicTableRequester.${slug}.${tableCode}`;
+  const [savedTableRequester, setSavedTableRequester] = useState<{
+    firstName: string;
+    phone: string;
+  }>(() => {
+    try {
+      const raw = window.localStorage.getItem(`erp.publicTableRequester.${slug}.${tableCode}`);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return { firstName: String(parsed.firstName || ''), phone: String(parsed.phone || '') };
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return { firstName: '', phone: '' };
+  });
+
+  const loadTableStatus = useCallback(
+    async (silent = false, phoneOverride?: string) => {
+      if (!slug || !tableCode) return;
+      if (!silent) setTableRefreshing(true);
+      try {
+        const phoneToUse = phoneOverride ?? savedTableRequester.phone;
+        const res = await getPublicTableSessionStatusCf(
+          slug,
+          tableCode,
+          phoneToUse || undefined
+        );
+        setTableStatus(res);
+      } catch {
+        // table may not exist yet or function not deployed
+      } finally {
+        setTableRefreshing(false);
+      }
+    },
+    [slug, tableCode, savedTableRequester.phone]
+  );
+
+  useEffect(() => {
+    if (!isTableMode) return undefined;
+    loadTableStatus(true);
+    const interval = window.setInterval(() => {
+      loadTableStatus(true);
+    }, 12000);
+    return () => window.clearInterval(interval);
+  }, [isTableMode, loadTableStatus]);
 
   // Modal de detalhe / personalização de produto
   const [selectedProduct, setSelectedProduct] = useState<PublicStorefrontProduct | null>(null);
@@ -217,8 +282,76 @@ export function PublicStorefrontView() {
     setItemNotes('');
   };
 
+  const isTableBlocked =
+    isTableMode &&
+    (!store?.isOpen ||
+      store?.acceptTableOrders === false ||
+      tableStatus?.table?.acceptTableOrders === false ||
+      tableStatus?.table?.acceptingOrders === false);
+
   const handleGoToCheckout = () => {
+    if (isTableMode) {
+      if (isTableBlocked) {
+        toast.warning('Esta mesa não está recebendo pedidos neste momento.');
+        return;
+      }
+      setTableOrderDialogOpen(true);
+      return;
+    }
     navigate(paths.publicStore.checkout(slug), { state: { store } });
+  };
+
+  const handleConfirmTableOrder = async (data: {
+    firstName: string;
+    phone: string;
+    notes?: string;
+  }) => {
+    if (!store?.isOpen) {
+      toast.error('A loja está fechada no momento.');
+      return;
+    }
+    setTableSubmitting(true);
+    try {
+      const result = await placeOnlineOrderCf({
+        slug,
+        items: cart.lines.map((l) => ({
+          productId: l.productId,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          notes: l.notes,
+        })),
+        customerName: data.firstName,
+        customerPhone: data.phone,
+        deliveryType: 'table',
+        tableCode,
+        paymentMethod: 'cash',
+        paymentChannel: 'on_delivery',
+        notes: data.notes,
+        origin: window.location.origin,
+      });
+
+      try {
+        window.localStorage.setItem(
+          tableRequesterStorageKey,
+          JSON.stringify({ firstName: data.firstName, phone: data.phone })
+        );
+      } catch {
+        // ignore storage errors
+      }
+      setSavedTableRequester({ firstName: data.firstName, phone: data.phone });
+
+      cart.clear();
+      setTableOrderDialogOpen(false);
+      toast.success(
+        `Pedido ${result.code} enviado para a cozinha (Em Preparo)! Sua comanda individual segue aberta.`
+      );
+      await loadTableStatus(true, data.phone);
+      setTableTrackerOpen(true);
+    } catch (error) {
+      toast.error(getFirebaseErrorMessage(error, 'Erro ao enviar pedido da mesa'));
+    } finally {
+      setTableSubmitting(false);
+    }
   };
 
   const sharePayload = useMemo(
@@ -517,6 +650,67 @@ export function PublicStorefrontView() {
               </Typography>
             )}
 
+            {/* Banner Exclusivo da Mesa (QR Code) */}
+            {isTableMode && (
+              <Box
+                sx={{
+                  mt: 2,
+                  p: 1.5,
+                  borderRadius: 1.5,
+                  bgcolor: (theme) => varAlpha(theme.vars.palette.primary.mainChannel, 0.08),
+                  border: (theme) =>
+                    `1.5px solid ${varAlpha(theme.vars.palette.primary.mainChannel, 0.32)}`,
+                }}
+              >
+                <Stack
+                  direction={{ xs: 'column', sm: 'row' }}
+                  spacing={1.25}
+                  alignItems={{ xs: 'flex-start', sm: 'center' }}
+                  justifyContent="space-between"
+                >
+                  <Stack direction="row" spacing={1.25} alignItems="center">
+                    <Iconify
+                      icon="solar:plate-bold-duotone"
+                      width={26}
+                      sx={{ color: 'primary.main', flexShrink: 0 }}
+                    />
+                    <Box sx={{ textAlign: 'left' }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                        Você está na Mesa {tableStatus?.table?.number || tableDisplayNumber}
+                        {isTableBlocked
+                          ? ' · Pedidos Pausados'
+                          : tableStatus?.session
+                            ? ' · Comanda Aberta'
+                            : ''}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {isTableBlocked
+                          ? 'Esta mesa não está recebendo pedidos neste momento. Procure o garçom ou aguarde o horário de funcionamento.'
+                          : tableStatus?.session?.customerName
+                            ? `Solicitante: ${tableStatus.session.customerName} · Parcial: ${fCurrency(tableStatus.session.total)}`
+                            : 'Seus pedidos vão direto para a cozinha (Em Preparo) e a mesa permanece aberta.'}
+                      </Typography>
+                    </Box>
+                  </Stack>
+
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="primary"
+                    onClick={() => {
+                      loadTableStatus(false);
+                      setTableTrackerOpen(true);
+                    }}
+                    startIcon={<Iconify icon="solar:clipboard-list-bold" width={16} />}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Acompanhar Mesa
+                    {tableStatus?.orders?.length ? ` (${tableStatus.orders.length})` : ''}
+                  </Button>
+                </Stack>
+              </Box>
+            )}
+
             {/* Linha de Status: Aberto até 23h59 • Pedido mín. R$ ... • Mais informações */}
             <Stack
               direction="row"
@@ -557,16 +751,20 @@ export function PublicStorefrontView() {
                 </Typography>
               </Stack>
 
-              <Box component="span" sx={{ color: 'text.disabled' }}>
-                •
-              </Box>
+              {!isTableMode && (
+                <>
+                  <Box component="span" sx={{ color: 'text.disabled' }}>
+                    •
+                  </Box>
 
-              {/* Pedido mínimo */}
-              <Typography component="span" variant="caption">
-                {store.minOrderAmount && store.minOrderAmount > 0
-                  ? `Pedido mín. ${fCurrency(store.minOrderAmount)}`
-                  : 'Sem pedido mín.'}
-              </Typography>
+                  {/* Pedido mínimo (apenas para catálogo online / delivery) */}
+                  <Typography component="span" variant="caption">
+                    {store.minOrderAmount && store.minOrderAmount > 0
+                      ? `Pedido mín. ${fCurrency(store.minOrderAmount)}`
+                      : 'Sem pedido mín.'}
+                  </Typography>
+                </>
+              )}
 
               <Box component="span" sx={{ color: 'text.disabled' }}>
                 •
@@ -593,30 +791,39 @@ export function PublicStorefrontView() {
             <Stack
               direction="row"
               alignItems="center"
-              justifyContent="space-between"
+              justifyContent={isTableMode ? 'center' : 'space-between'}
               flexWrap="wrap"
-              sx={{ gap: 1, typography: 'caption', color: 'text.secondary' }}
+              sx={{ gap: isTableMode ? 2 : 1, typography: 'caption', color: 'text.secondary' }}
             >
               <Stack direction="row" spacing={0.5} alignItems="center">
                 <Iconify icon="solar:clock-circle-bold" width={16} sx={{ color: 'info.main' }} />
                 <span>~{store.estimatedMinutes} min</span>
               </Stack>
 
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <Iconify icon="solar:solar:scooter-bold" width={16} sx={{ color: 'primary.main' }} />
-                <span>
-                  Entrega:{' '}
-                  <strong>
-                    {store.deliveryFee > 0 ? fCurrency(store.deliveryFee) : 'Grátis'}
-                  </strong>
-                </span>
-              </Stack>
-
-              {store.acceptPickup && (
+              {isTableMode ? (
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                  <Iconify icon="solar:shop-bold" width={16} sx={{ color: 'success.main' }} />
-                  <span>Retirada no balcão</span>
+                  <Iconify icon="solar:plate-bold" width={16} sx={{ color: 'primary.main' }} />
+                  <span>Consumo na mesa · Sem taxa de entrega</span>
                 </Stack>
+              ) : (
+                <>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Iconify icon="solar:scooter-bold" width={16} sx={{ color: 'primary.main' }} />
+                    <span>
+                      Entrega:{' '}
+                      <strong>
+                        {store.deliveryFee > 0 ? fCurrency(store.deliveryFee) : 'Grátis'}
+                      </strong>
+                    </span>
+                  </Stack>
+
+                  {store.acceptPickup && (
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <Iconify icon="solar:shop-bold" width={16} sx={{ color: 'success.main' }} />
+                      <span>Retirada no balcão</span>
+                    </Stack>
+                  )}
+                </>
               )}
             </Stack>
 
@@ -788,50 +995,89 @@ export function PublicStorefrontView() {
                         }}
                       >
                         <Stack direction="row" spacing={1.5} sx={{ flex: 1 }}>
-                          {/* Foto do Produto (lazy loading + async decode para alta performance) */}
-                          {product.imageUrl ? (
-                            <Box
-                              component="img"
-                              src={product.imageUrl}
-                              alt={product.name}
-                              loading="lazy"
-                              decoding="async"
-                              sx={{
-                                width: 84,
-                                height: 84,
-                                borderRadius: 1,
-                                objectFit: 'cover',
-                                flexShrink: 0,
-                                bgcolor: 'background.neutral',
-                              }}
-                            />
-                          ) : (
-                            <Box
-                              sx={{
-                                width: 84,
-                                height: 84,
-                                borderRadius: 1,
-                                bgcolor: 'background.neutral',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                flexShrink: 0,
-                              }}
-                            >
-                              <Iconify
-                                icon="solar:cup-paper-bold-duotone"
-                                width={36}
-                                sx={{ color: 'text.disabled' }}
+                          {/* Foto do Produto com Badges Flutuantes (Gelado/Quente + Desconto) */}
+                          <Box
+                            sx={{
+                              position: 'relative',
+                              width: 92,
+                              height: 92,
+                              borderRadius: 1.25,
+                              overflow: 'hidden',
+                              flexShrink: 0,
+                              bgcolor: 'background.neutral',
+                            }}
+                          >
+                            {product.imageUrl ? (
+                              <Box
+                                component="img"
+                                src={product.imageUrl}
+                                alt={product.name}
+                                loading="lazy"
+                                decoding="async"
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                }}
                               />
-                            </Box>
-                          )}
+                            ) : (
+                              <Box
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                }}
+                              >
+                                <Iconify
+                                  icon="solar:cup-paper-bold-duotone"
+                                  width={36}
+                                  sx={{ color: 'text.disabled' }}
+                                />
+                              </Box>
+                            )}
+
+                            <ProductImageBadges
+                              compact
+                              servingTemperature={product.servingTemperature}
+                              discountBadge={
+                                getEffectiveProductPrice({
+                                  salePrice: product.originalPrice ?? product.salePrice,
+                                  promoActive: product.promoActive,
+                                  discountType: product.discountType,
+                                  discountValue: product.discountValue,
+                                }).discountBadge
+                              }
+                            />
+                          </Box>
 
                           {/* Detalhes do Produto */}
                           <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
+                              {product.isCombo && (
+                                <Chip
+                                  size="small"
+                                  color="primary"
+                                  label="Combo"
+                                  sx={{ height: 18, fontSize: 10, fontWeight: 700 }}
+                                />
+                              )}
+                              {product.featured && (
+                                <Chip
+                                  size="small"
+                                  color="warning"
+                                  label="Mais pedido"
+                                  sx={{ height: 18, fontSize: 10, fontWeight: 700 }}
+                                />
+                              )}
+                            </Stack>
+
                             <Typography
                               variant="subtitle2"
                               sx={{
                                 fontWeight: 700,
+                                mt: product.isCombo || product.featured ? 0.5 : 0,
                                 display: '-webkit-box',
                                 WebkitLineClamp: 2,
                                 WebkitBoxOrient: 'vertical',
@@ -857,13 +1103,42 @@ export function PublicStorefrontView() {
                               </Typography>
                             )}
 
-                            <Typography
-                              variant="subtitle2"
-                              color="primary.main"
-                              sx={{ fontWeight: 800, mt: 1 }}
-                            >
-                              {fCurrency(product.salePrice)}
-                            </Typography>
+                            {product.servesCount && product.servesCount > 0 && (
+                              <Typography
+                                variant="caption"
+                                color="text.disabled"
+                                sx={{ display: 'block', mt: 0.25 }}
+                              >
+                                Serve {product.servesCount}{' '}
+                                {product.servesCount === 1 ? 'pessoa' : 'pessoas'}
+                              </Typography>
+                            )}
+
+                            <Stack direction="row" spacing={0.75} alignItems="baseline" sx={{ mt: 1 }}>
+                              <Typography
+                                variant="subtitle2"
+                                color={
+                                  product.promoActive &&
+                                  product.originalPrice &&
+                                  product.originalPrice > product.salePrice
+                                    ? 'success.main'
+                                    : 'primary.main'
+                                }
+                                sx={{ fontWeight: 800 }}
+                              >
+                                {fCurrency(product.salePrice)}
+                              </Typography>
+                              {product.promoActive &&
+                                product.originalPrice &&
+                                product.originalPrice > product.salePrice && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                                  >
+                                    {fCurrency(product.originalPrice)}
+                                  </Typography>
+                                )}
+                            </Stack>
                           </Box>
                         </Stack>
 
@@ -894,7 +1169,7 @@ export function PublicStorefrontView() {
                               size="small"
                               variant="soft"
                               color="primary"
-                              disabled={!store.isOpen}
+                              disabled={!store.isOpen || isTableBlocked}
                               onClick={() => handleOpenProduct(product)}
                               startIcon={<Iconify icon="mingcute:add-line" />}
                               sx={{ borderRadius: 1, fontWeight: 700 }}
@@ -934,12 +1209,21 @@ export function PublicStorefrontView() {
               if (newValue === 'home') {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               } else if (newValue === 'orders') {
-                navigate(paths.publicStore.orders(slug));
+                if (isTableMode) {
+                  loadTableStatus(false);
+                  setTableTrackerOpen(true);
+                } else {
+                  navigate(paths.publicStore.orders(slug));
+                }
               } else if (newValue === 'cart') {
                 if (cart.itemCount > 0) {
                   handleGoToCheckout();
                 } else {
-                  toast.info('Seu carrinho está vazio. Adicione itens para finalizar.');
+                  toast.info(
+                    isTableMode
+                      ? 'Adicione itens do cardápio para enviar à cozinha.'
+                      : 'Seu carrinho está vazio. Adicione itens para finalizar.'
+                  );
                 }
               }
             }}
@@ -952,12 +1236,28 @@ export function PublicStorefrontView() {
             />
             <BottomNavigationAction
               value="orders"
-              label="Meus Pedidos"
-              icon={<Iconify icon="solar:clipboard-list-bold" width={22} />}
+              label={isTableMode ? 'Comanda Mesa' : 'Meus Pedidos'}
+              icon={
+                isTableMode && tableStatus?.orders?.length ? (
+                  <Badge badgeContent={tableStatus.orders.length} color="primary">
+                    <Iconify icon="solar:clipboard-list-bold" width={22} />
+                  </Badge>
+                ) : (
+                  <Iconify icon="solar:clipboard-list-bold" width={22} />
+                )
+              }
             />
             <BottomNavigationAction
               value="cart"
-              label={cart.itemCount > 0 ? fCurrency(cart.subtotal) : 'Carrinho'}
+              label={
+                cart.itemCount > 0
+                  ? isTableMode
+                    ? `Enviar • ${fCurrency(cart.subtotal)}`
+                    : fCurrency(cart.subtotal)
+                  : isTableMode
+                    ? 'Enviar Pedido'
+                    : 'Carrinho'
+              }
               icon={
                 <Badge badgeContent={cart.itemCount} color="error">
                   <Iconify icon="solar:bag-3-bold" width={22} />
@@ -974,6 +1274,35 @@ export function PublicStorefrontView() {
         </Box>
       </Paper>
 
+      {/* Modal de Envio Direto na Mesa (sem checkout) */}
+      {isTableMode && (
+        <PublicTableOrderDialog
+          open={tableOrderDialogOpen}
+          tableNumber={tableStatus?.table?.number || tableDisplayNumber}
+          linkedCustomerName={tableStatus?.session?.customerName}
+          linkedCustomerPhone={tableStatus?.session?.customerPhone}
+          initialName={savedTableRequester.firstName}
+          initialPhone={savedTableRequester.phone}
+          lines={cart.lines}
+          subtotal={cart.subtotal}
+          submitting={tableSubmitting}
+          onClose={() => setTableOrderDialogOpen(false)}
+          onConfirm={handleConfirmTableOrder}
+        />
+      )}
+
+      {/* Drawer de Acompanhamento da Comanda da Mesa */}
+      {isTableMode && (
+        <PublicTableTrackerDrawer
+          open={tableTrackerOpen}
+          tableStatus={tableStatus}
+          fallbackTableNumber={tableDisplayNumber}
+          refreshing={tableRefreshing}
+          onRefresh={() => loadTableStatus(false)}
+          onClose={() => setTableTrackerOpen(false)}
+        />
+      )}
+
       {/* 5. Modal de Personalização e Quantidade do Item */}
       <Dialog
         open={Boolean(selectedProduct)}
@@ -986,16 +1315,47 @@ export function PublicStorefrontView() {
         <DialogContent>
           {selectedProduct?.imageUrl && (
             <Box
-              component="img"
-              src={selectedProduct.imageUrl}
-              alt={selectedProduct.name}
               sx={{
+                position: 'relative',
                 width: '100%',
-                height: 180,
-                objectFit: 'cover',
+                height: 200,
                 borderRadius: 1.5,
+                overflow: 'hidden',
                 mb: 2,
               }}
+            >
+              <Box
+                component="img"
+                src={selectedProduct.imageUrl}
+                alt={selectedProduct.name}
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+              <ProductImageBadges
+                servingTemperature={selectedProduct.servingTemperature}
+                isCombo={selectedProduct.isCombo}
+                discountBadge={
+                  getEffectiveProductPrice({
+                    salePrice: selectedProduct.originalPrice ?? selectedProduct.salePrice,
+                    promoActive: selectedProduct.promoActive,
+                    discountType: selectedProduct.discountType,
+                    discountValue: selectedProduct.discountValue,
+                  }).discountBadge
+                }
+              />
+            </Box>
+          )}
+
+          {selectedProduct?.servesCount && selectedProduct.servesCount > 0 && (
+            <Chip
+              size="small"
+              variant="outlined"
+              icon={<Iconify icon="solar:users-group-rounded-bold-duotone" width={15} />}
+              label={`Serve ${selectedProduct.servesCount} ${selectedProduct.servesCount === 1 ? 'pessoa' : 'pessoas'}`}
+              sx={{ mb: 1.5 }}
             />
           )}
 
@@ -1005,9 +1365,55 @@ export function PublicStorefrontView() {
             </Typography>
           )}
 
-          <Typography variant="h6" color="primary.main" sx={{ mb: 2, fontWeight: 700 }}>
-            {fCurrency(selectedProduct?.salePrice || 0)}
-          </Typography>
+          {selectedProduct?.isCombo &&
+            selectedProduct.comboItems &&
+            selectedProduct.comboItems.length > 0 && (
+              <Box
+                sx={{
+                  p: 1.5,
+                  mb: 2,
+                  borderRadius: 1.25,
+                  bgcolor: 'background.neutral',
+                }}
+              >
+                <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.75 }}>
+                  Itens inclusos neste Combo:
+                </Typography>
+                <Stack spacing={0.5}>
+                  {selectedProduct.comboItems.map((ci) => (
+                    <Typography key={ci.productId} variant="caption" color="text.secondary">
+                      • <strong>{ci.qty}x</strong> {ci.productName}
+                    </Typography>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+          <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mb: 2 }}>
+            <Typography
+              variant="h6"
+              color={
+                selectedProduct?.promoActive &&
+                selectedProduct?.originalPrice &&
+                selectedProduct.originalPrice > selectedProduct.salePrice
+                  ? 'success.main'
+                  : 'primary.main'
+              }
+              sx={{ fontWeight: 700 }}
+            >
+              {fCurrency(selectedProduct?.salePrice || 0)}
+            </Typography>
+            {selectedProduct?.promoActive &&
+              selectedProduct?.originalPrice &&
+              selectedProduct.originalPrice > selectedProduct.salePrice && (
+                <Typography
+                  variant="body2"
+                  sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                >
+                  {fCurrency(selectedProduct.originalPrice)}
+                </Typography>
+              )}
+          </Stack>
 
           <Divider sx={{ my: 2 }} />
 

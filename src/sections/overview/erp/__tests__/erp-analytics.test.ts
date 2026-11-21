@@ -72,25 +72,28 @@ describe('erp-analytics', () => {
     expect(resolvePreviousPeriodBounds('all', { start: null, end: null })).toBeNull();
   });
 
-  it('computes channel breakdown (POS vs Online) and fiscal compliance', () => {
+  it('computes channel breakdown (POS vs Online vs Table) and fiscal compliance', () => {
     const sales: Sale[] = [
       makeSale({ id: '1', total: 200, channel: 'pos', nfceStatus: 'authorized' }),
       makeSale({ id: '2', total: 100, channel: 'online', nfceStatus: 'pending' }),
+      makeSale({ id: '4', total: 100, channel: 'table', nfceStatus: 'pending' }),
       makeSale({ id: '3', total: 50, channel: 'pos', status: 'cancelled' }),
     ];
 
     const channels = computeChannelBreakdown(sales, BOUNDS_NOV);
     expect(channels.posRevenue).toBe(200);
     expect(channels.onlineRevenue).toBe(100);
-    expect(channels.totalRevenue).toBe(300);
-    expect(channels.posSharePercent).toBeCloseTo(66.67, 1);
-    expect(channels.onlineSharePercent).toBeCloseTo(33.33, 1);
+    expect(channels.tableRevenue).toBe(100);
+    expect(channels.totalRevenue).toBe(400);
+    expect(channels.posSharePercent).toBeCloseTo(50, 1);
+    expect(channels.onlineSharePercent).toBeCloseTo(25, 1);
+    expect(channels.tableSharePercent).toBeCloseTo(25, 1);
 
     const fiscal = computeFiscalSummary(sales, BOUNDS_NOV);
     expect(fiscal.authorizedCount).toBe(1);
-    expect(fiscal.pendingCount).toBe(1);
+    expect(fiscal.pendingCount).toBe(2);
     expect(fiscal.cancelledCount).toBe(1);
-    expect(fiscal.compliancePercent).toBe(50);
+    expect(fiscal.compliancePercent).toBeCloseTo(33.3, 0);
   });
 
   it('computes top products and identified customers (excluding anonymous walk-ins)', () => {

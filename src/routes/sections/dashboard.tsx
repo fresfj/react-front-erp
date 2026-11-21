@@ -36,6 +36,7 @@ const PosCheckoutPage = lazy(() => import('src/pages/pos/checkout'));
 const SaleListPage = lazy(() => import('src/pages/pos/list'));
 const SaleDetailsPage = lazy(() => import('src/pages/pos/details'));
 const OnlineOrdersPage = lazy(() => import('src/pages/pos/online-orders'));
+const TablesManagementPage = lazy(() => import('src/pages/pos/tables'));
 const CashSessionPage = lazy(() => import('src/pages/cash'));
 const DrePage = lazy(() => import('src/pages/cash/dre'));
 const CashLedgerPage = lazy(() => import('src/pages/cash/ledger'));
@@ -184,6 +185,7 @@ export const dashboardRoutes = [
           { path: 'sales', element: <SaleListPage /> },
           { path: 'sales/:id', element: <SaleDetailsPage /> },
           { path: 'online-orders', element: <OnlineOrdersPage /> },
+          { path: 'tables', element: <TablesManagementPage /> },
         ],
       },
       {

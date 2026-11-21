@@ -21,7 +21,9 @@ export type EnterpriseCollectionName =
   | 'payables'
   | 'receivables'
   | 'subscriptionInvoices'
-  | 'onlineOrders';
+  | 'onlineOrders'
+  | 'tables'
+  | 'tableSessions';
 
 export function enterpriseDoc(enterpriseId: string): DocumentReference {
   return doc(FIRESTORE, ENTERPRISES, enterpriseId);

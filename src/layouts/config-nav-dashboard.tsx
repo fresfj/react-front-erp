@@ -107,6 +107,10 @@ export function useNavData(options?: { onlineOrdersCount?: number }): NavSection
                   path: paths.dashboard.pos.onlineOrders,
                   ...(onlineOrdersBadge ? { info: onlineOrdersBadge } : {}),
                 },
+                {
+                  title: t('nav.tables', { defaultValue: 'Mesas & Garçom' }),
+                  path: paths.dashboard.pos.tables,
+                },
               ],
             },
           ]

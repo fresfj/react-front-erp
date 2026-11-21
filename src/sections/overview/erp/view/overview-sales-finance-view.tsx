@@ -221,33 +221,43 @@ export function OverviewSalesFinanceView() {
     if (channelMetric === 'Pedidos (Qtd)') {
       return [
         {
-          name: 'Loja Física (PDV)',
+          name: 'PDV (Venda Direta)',
           data: channels.dailySeries.length ? channels.dailySeries.map((d) => d.posCount) : [0],
         },
         {
-          name: 'Catálogo Online',
+          name: 'Online / Delivery',
           data: channels.dailySeries.length ? channels.dailySeries.map((d) => d.onlineCount) : [0],
+        },
+        {
+          name: 'Mesas / Salão',
+          data: channels.dailySeries.length ? channels.dailySeries.map((d) => d.tableCount) : [0],
         },
       ];
     }
     return [
       {
-        name: 'Loja Física (PDV)',
+        name: 'PDV (Venda Direta)',
         data: channels.dailySeries.length
           ? channels.dailySeries.map((d) => Math.round(d.posRevenue))
           : [0],
       },
       {
-        name: 'Catálogo Online',
+        name: 'Online / Delivery',
         data: channels.dailySeries.length
           ? channels.dailySeries.map((d) => Math.round(d.onlineRevenue))
+          : [0],
+      },
+      {
+        name: 'Mesas / Salão',
+        data: channels.dailySeries.length
+          ? channels.dailySeries.map((d) => Math.round(d.tableRevenue))
           : [0],
       },
     ];
   }, [channelMetric, channels.dailySeries]);
 
   const channelChartOptions = useChart({
-    colors: [theme.palette.primary.main, theme.palette.info.main],
+    colors: [theme.palette.primary.main, theme.palette.info.main, theme.palette.warning.main],
     xaxis: { categories: channelChartCategories },
     tooltip: {
       y: {
@@ -590,12 +600,12 @@ export function OverviewSalesFinanceView() {
             />
           </Grid>
 
-          {/* Faixa 3: Comparativo Loja Física (PDV) vs Pedidos Online + Formas de Pagamento */}
+          {/* Faixa 3: Comparativo PDV vs Online/Delivery vs Mesas + Formas de Pagamento */}
           <Grid xs={12} lg={8}>
             <Card sx={{ height: 1, display: 'flex', flexDirection: 'column' }}>
               <CardHeader
-                title="Vendas por Canal — Loja Física (PDV) vs Pedidos Online"
-                subheader={`PDV: ${fPercent(channels.posSharePercent)} • Online: ${fPercent(channels.onlineSharePercent)}`}
+                title="Vendas por Canal — PDV, Online/Delivery e Mesas"
+                subheader={`PDV: ${fPercent(channels.posSharePercent)} • Online: ${fPercent(channels.onlineSharePercent)} • Mesas: ${fPercent(channels.tableSharePercent)}`}
                 action={
                   <ChartSelect
                     options={['Receita (R$)', 'Pedidos (Qtd)']}
@@ -608,11 +618,19 @@ export function OverviewSalesFinanceView() {
 
               <ChartLegends
                 colors={channelChartOptions?.colors}
-                labels={['Loja Física (PDV)', 'Catálogo Online']}
+                labels={['PDV (Venda Direta)', 'Online / Delivery', 'Mesas / Salão']}
                 values={
                   channelMetric === 'Pedidos (Qtd)'
-                    ? [`${channels.posCount} vendas`, `${channels.onlineCount} pedidos`]
-                    : [fCurrency(channels.posRevenue), fCurrency(channels.onlineRevenue)]
+                    ? [
+                        `${channels.posCount} vendas`,
+                        `${channels.onlineCount} pedidos`,
+                        `${channels.tableCount} mesas`,
+                      ]
+                    : [
+                        fCurrency(channels.posRevenue),
+                        fCurrency(channels.onlineRevenue),
+                        fCurrency(channels.tableRevenue),
+                      ]
                 }
                 sx={{ px: 3, gap: 3 }}
               />

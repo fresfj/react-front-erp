@@ -61,6 +61,10 @@ const OnlineStoreSchema = zod.object({
   instagramUrl: zod.string().optional().or(zod.literal('')),
   googleReviewUrl: zod.string().optional().or(zod.literal('')),
   paymentMethodsOnDelivery: zod.array(zod.string()).min(1),
+  acceptOnlinePix: zod.boolean().default(true),
+  pixKey: zod.string().optional().or(zod.literal('')),
+  pixMerchantName: zod.string().optional().or(zod.literal('')),
+  pixMerchantCity: zod.string().optional().or(zod.literal('')),
   openingHours: zod.array(
     zod.object({
       day: zod.number().min(0).max(6),
@@ -104,6 +108,10 @@ function mapEnterpriseToForm(enterprise: Enterprise | null): OnlineStoreSchemaTy
     paymentMethodsOnDelivery: store?.paymentMethodsOnDelivery?.length
       ? store.paymentMethodsOnDelivery
       : ['cash', 'pix', 'debit_card', 'credit_card'],
+    acceptOnlinePix: store?.acceptOnlinePix !== false,
+    pixKey: store?.pixKey || '',
+    pixMerchantName: store?.pixMerchantName || enterprise?.tradeName || enterprise?.name || '',
+    pixMerchantCity: store?.pixMerchantCity || enterprise?.city || '',
     openingHours: store?.openingHours?.length
       ? store.openingHours.map((h) => ({
           day: Number(h.day),
@@ -248,6 +256,10 @@ export function AccountOnlineStoreForm() {
           (m): m is 'cash' | 'pix' | 'debit_card' | 'credit_card' =>
             m === 'cash' || m === 'pix' || m === 'debit_card' || m === 'credit_card'
         ),
+        acceptOnlinePix: data.acceptOnlinePix,
+        pixKey: data.pixKey?.trim() || undefined,
+        pixMerchantName: data.pixMerchantName?.trim() || undefined,
+        pixMerchantCity: data.pixMerchantCity?.trim() || undefined,
         openingHours: data.openingHours.map((h, index) => ({
           day: index as 0 | 1 | 2 | 3 | 4 | 5 | 6,
           open: h.open,
@@ -675,6 +687,39 @@ export function AccountOnlineStoreForm() {
                 ]}
                 disabled={!canEdit}
               />
+
+              <Stack
+                spacing={2}
+                sx={{ p: 2, borderRadius: 1.5, bgcolor: 'background.neutral' }}
+              >
+                <Field.Switch
+                  name="acceptOnlinePix"
+                  label="Habilitar PIX Online no Checkout (gera QR Code e aguarda confirmação da loja)"
+                  disabled={!canEdit}
+                />
+
+                <Field.Text
+                  name="pixKey"
+                  label="Chave PIX da loja (CPF, CNPJ, E-mail, Telefone ou Aleatória)"
+                  placeholder="Ex.: 12.345.678/0001-99 ou pix@sualoja.com.br"
+                  disabled={!canEdit}
+                />
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                  <Field.Text
+                    name="pixMerchantName"
+                    label="Nome do recebedor (PIX)"
+                    placeholder="Ex.: Acai da Praca"
+                    disabled={!canEdit}
+                  />
+                  <Field.Text
+                    name="pixMerchantCity"
+                    label="Cidade do recebedor (PIX)"
+                    placeholder="Ex.: Sao Paulo"
+                    disabled={!canEdit}
+                  />
+                </Stack>
+              </Stack>
               <Typography variant="subtitle2">{t('onlineStore.fields.openingHours')}</Typography>
               {DAY_LABELS.map((label, index) => (
                 <Stack

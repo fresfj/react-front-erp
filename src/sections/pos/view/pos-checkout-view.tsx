@@ -2,6 +2,7 @@ import type { Batch } from 'src/api/firestore/batches';
 import type { Product } from 'src/api/firestore/products';
 import type { Customer } from 'src/api/firestore/customers';
 import type { Enterprise } from 'src/api/firestore/platform';
+import type { CashSession } from 'src/api/firestore/cash-sessions';
 import type { SaleItem, SalePayment, DeliveryType, PaymentMethod } from 'src/api/firestore/sales';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
@@ -33,6 +34,7 @@ import { useBoolean } from 'src/hooks/use-boolean';
 
 import { fPercent, fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { useTranslate } from 'src/locales';
 import { createSale } from 'src/api/firestore/sales';
@@ -40,6 +42,7 @@ import { DashboardContent } from 'src/layouts/dashboard';
 import { listProducts } from 'src/api/firestore/products';
 import { getEnterprise } from 'src/api/firestore/platform';
 import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
+import { listCashSessions } from 'src/api/firestore/cash-sessions';
 import { listAvailableBatchesFIFO } from 'src/api/firestore/batches';
 import { listCustomers, formatCustomerFullAddress } from 'src/api/firestore/customers';
 
@@ -117,25 +120,29 @@ export function PosCheckoutView() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryFee, setDeliveryFee] = useState<number>(0);
   const [notes, setNotes] = useState('');
+  const [openCashSession, setOpenCashSession] = useState<CashSession | null>(null);
+  const [cashChecked, setCashChecked] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      let [prods, availBatches, custs, ent] = await Promise.all([
+      let [prods, availBatches, custs, ent, cashList] = await Promise.all([
         listProducts(enterpriseId),
         listAvailableBatchesFIFO(enterpriseId),
         listCustomers(enterpriseId),
         getEnterprise(enterpriseId),
+        listCashSessions(enterpriseId),
       ]);
 
       if (prods.length === 0) {
         try {
           await seedDemoErpCatalog(enterpriseId);
-          [prods, availBatches, custs, ent] = await Promise.all([
+          [prods, availBatches, custs, ent, cashList] = await Promise.all([
             listProducts(enterpriseId),
             listAvailableBatchesFIFO(enterpriseId),
             listCustomers(enterpriseId),
             getEnterprise(enterpriseId),
+            listCashSessions(enterpriseId),
           ]);
         } catch (seedError) {
           // Operador PDV não tem write em products — seed é best-effort (admin/gestor).
@@ -147,6 +154,8 @@ export function PosCheckoutView() {
       setBatches(availBatches);
       setCustomers(custs.filter((c) => c.active));
       setEnterprise(ent);
+      setOpenCashSession(cashList.find((s) => s.status === 'open') || null);
+      setCashChecked(true);
       if (ent?.defaultDeliveryFee) {
         setDeliveryFee(Number(ent.defaultDeliveryFee));
       }
@@ -181,7 +190,7 @@ export function PosCheckoutView() {
   const handleAddProduct = useCallback(
     (product: Product) => {
       const fifoBatch = pickFifoBatch(batches, product.id);
-      const unitPrice = typeof product.salePrice === 'number' ? product.salePrice : 0;
+      const unitPrice = getEffectiveProductPrice(product).effectivePrice;
       const unitCost = fifoBatch
         ? fifoBatch.unitCost
         : typeof product.costPrice === 'number'
@@ -397,6 +406,11 @@ export function PosCheckoutView() {
       }
     }
 
+    if (!openCashSession) {
+      toast.error('Caixa fechado! Abra o caixa em Financeiro → Caixa antes de realizar vendas.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const saleItems: SaleItem[] = cart.map((c) => {
@@ -447,6 +461,8 @@ export function PosCheckoutView() {
         paymentFeeAmount: totalPaymentFees,
         feesPassedToCustomer: passFeesToCustomer,
         surchargeAmount,
+        channel: 'pos',
+        cashSessionId: openCashSession.id,
         notes: notes.trim() || undefined,
       });
 
@@ -468,6 +484,7 @@ export function PosCheckoutView() {
     enterpriseId,
     enrichedPayments,
     notes,
+    openCashSession,
     passFeesToCustomer,
     router,
     selectedCustomer,
@@ -583,6 +600,27 @@ export function PosCheckoutView() {
           }
           sx={{ mb: { xs: 3, md: 5 } }}
         />
+
+        {cashChecked && !openCashSession && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 3 }}
+            action={
+              <Button
+                component={RouterLink}
+                href={paths.dashboard.cash.root}
+                color="inherit"
+                size="small"
+                variant="outlined"
+              >
+                Abrir Caixa
+              </Button>
+            }
+          >
+            <strong>Caixa fechado!</strong> Abra uma sessão de caixa em{' '}
+            <strong>Financeiro → Caixa</strong> antes de realizar qualquer venda no PDV.
+          </Alert>
+        )}
 
         {!enterpriseId && (
           <EmptyContent filled title={t('pos.errorMissingEnterprise')} sx={{ py: 10 }} />

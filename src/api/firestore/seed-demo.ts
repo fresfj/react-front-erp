@@ -933,3 +933,195 @@ export async function seedDemoReceivables(enterpriseId: string): Promise<void> {
 
   await wb.commit();
 }
+
+/**
+ * Cadastra produtos de demonstração para o Cardápio Online e PDV:
+ * - Produtos Gelados (cold) e Quentes (hot) com imagens
+ * - Desconto percentual (%) e valor fixo (R$)
+ * - Combos com composição detalhada (comboItems) e "Serve X pessoas"
+ */
+export async function seedDemoOnlineCatalogOffers(enterpriseId: string): Promise<void> {
+  const now = new Date().toISOString();
+  const wb = writeBatch(FIRESTORE);
+  const productsCol = enterpriseCollection(enterpriseId, 'products');
+
+  const demoOffers = [
+    {
+      id: 'demo-acai-turbinado-500',
+      name: 'Açaí Cremoso Turbinado 500ml',
+      sku: 'DEMO-ACA-500',
+      type: 'finished',
+      category: 'Potes & Copos Prontos',
+      description:
+        'Açaí batido bem gelado com guaraná natural, leite em pó, morango fresco, banana e granola crocante.',
+      unit: 'un',
+      costPrice: 9.5,
+      salePrice: 26.0,
+      promoActive: true,
+      discountType: 'percent',
+      discountValue: 15,
+      servingTemperature: 'cold',
+      servesCount: 1,
+      featured: true,
+      isCombo: false,
+      imageUrl:
+        'https://pecadodagula.lojadigitalds.com.br/_core/_uploads/331/2025/04/1619130425b2c7edd5dc.png',
+      showOnline: true,
+      active: true,
+    },
+    {
+      id: 'demo-milkshake-ovaltine-400',
+      name: 'Milkshake Crocante de Ovomaltine 400ml',
+      sku: 'DEMO-MLK-400',
+      type: 'finished',
+      category: 'Bebidas Geladas',
+      description:
+        'Sorvete artesanal de baunilha batido com calda de chocolate meio amargo e flocos crocantes de Ovomaltine.',
+      unit: 'un',
+      costPrice: 7.0,
+      salePrice: 22.0,
+      promoActive: true,
+      discountType: 'fixed',
+      discountValue: 4.0,
+      servingTemperature: 'cold',
+      servesCount: 1,
+      featured: false,
+      isCombo: false,
+      imageUrl:
+        'https://images.unsplash.com/photo-1572490122747-3968b75cc699?auto=format&fit=crop&w=800&q=80',
+      showOnline: true,
+      active: true,
+    },
+    {
+      id: 'demo-burger-artesanal-bacon',
+      name: 'Smash Burger Artesanal Duplo Bacon',
+      sku: 'DEMO-BRG-01',
+      type: 'finished',
+      category: 'Lanches & Quentes',
+      description:
+        'Pão brioche selado na manteiga, 2 blends bovinos 90g, queijo cheddar cremoso, bacon crocante e maionese defumada da casa.',
+      unit: 'un',
+      costPrice: 13.0,
+      salePrice: 34.0,
+      promoActive: true,
+      discountType: 'percent',
+      discountValue: 10,
+      servingTemperature: 'hot',
+      servesCount: 1,
+      featured: true,
+      isCombo: false,
+      imageUrl:
+        'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=800&q=80',
+      showOnline: true,
+      active: true,
+    },
+    {
+      id: 'demo-batata-cheddar-bacon',
+      name: 'Batata Rústica com Cheddar e Bacon',
+      sku: 'DEMO-BAT-01',
+      type: 'finished',
+      category: 'Lanches & Quentes',
+      description:
+        'Porção generosa de batatas crocantes temperadas com páprica defumada, cobertura de cheddar quente e bacon em cubos.',
+      unit: 'un',
+      costPrice: 8.0,
+      salePrice: 24.0,
+      promoActive: false,
+      servingTemperature: 'hot',
+      servesCount: 2,
+      featured: false,
+      isCombo: false,
+      imageUrl:
+        'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?auto=format&fit=crop&w=800&q=80',
+      showOnline: true,
+      active: true,
+    },
+    {
+      id: 'demo-combo-casal-acai',
+      name: 'Combo Casal Açaí + Milkshake',
+      sku: 'DEMO-CMB-01',
+      type: 'finished',
+      category: 'Combos & Promoções',
+      description:
+        'Perfeito para dividir! 2 Açaís Cremosos Turbinados 500ml + 1 Milkshake Crocante com preço especial de combo.',
+      unit: 'un',
+      costPrice: 25.0,
+      salePrice: 68.0,
+      promoActive: true,
+      discountType: 'percent',
+      discountValue: 20,
+      servingTemperature: 'cold',
+      servesCount: 2,
+      featured: true,
+      isCombo: true,
+      comboItems: [
+        { productId: 'demo-acai-turbinado-500', productName: 'Açaí Cremoso Turbinado 500ml', qty: 2 },
+        {
+          productId: 'demo-milkshake-ovaltine-400',
+          productName: 'Milkshake Crocante de Ovomaltine 400ml',
+          qty: 1,
+        },
+      ],
+      imageUrl:
+        'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+      showOnline: true,
+      active: true,
+    },
+    {
+      id: 'demo-combo-burger-fome',
+      name: 'Combo Smash Duplo + Batata + Milkshake',
+      sku: 'DEMO-CMB-02',
+      type: 'finished',
+      category: 'Combos & Promoções',
+      description:
+        'Combo completo na chapa quente: 1 Smash Burger Duplo Bacon + 1 Batata com Cheddar e Bacon + 1 Milkshake 400ml.',
+      unit: 'un',
+      costPrice: 27.0,
+      salePrice: 74.0,
+      promoActive: true,
+      discountType: 'fixed',
+      discountValue: 12.0,
+      servingTemperature: 'hot',
+      servesCount: 2,
+      featured: true,
+      isCombo: true,
+      comboItems: [
+        {
+          productId: 'demo-burger-artesanal-bacon',
+          productName: 'Smash Burger Artesanal Duplo Bacon',
+          qty: 1,
+        },
+        {
+          productId: 'demo-batata-cheddar-bacon',
+          productName: 'Batata Rústica com Cheddar e Bacon',
+          qty: 1,
+        },
+        {
+          productId: 'demo-milkshake-ovaltine-400',
+          productName: 'Milkshake Crocante de Ovomaltine 400ml',
+          qty: 1,
+        },
+      ],
+      imageUrl:
+        'https://images.unsplash.com/photo-1550547660-d9450f859349?auto=format&fit=crop&w=800&q=80',
+      showOnline: true,
+      active: true,
+    },
+  ];
+
+  demoOffers.forEach((item) => {
+    const { id, ...data } = item;
+    wb.set(
+      doc(productsCol, id),
+      {
+        ...data,
+        minStock: 10,
+        createdAt: now,
+        updatedAt: now,
+      },
+      { merge: true }
+    );
+  });
+
+  await wb.commit();
+}

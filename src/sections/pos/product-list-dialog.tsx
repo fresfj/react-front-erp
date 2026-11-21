@@ -14,11 +14,13 @@ import Typography from '@mui/material/Typography';
 import InputAdornment from '@mui/material/InputAdornment';
 
 import { fNumber, fCurrency } from 'src/utils/format-number';
+import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 import { SearchNotFound } from 'src/components/search-not-found';
+import { ProductImageBadges } from 'src/components/product-badges/product-image-badges';
 
 import { pickFifoBatch } from './pos-calculator';
 
@@ -133,24 +135,35 @@ export function ProductListDialog({
                   }}
                 >
                   <Stack direction="row" spacing={2} alignItems="center" sx={{ textAlign: 'left' }}>
-                    <Avatar
-                      src={prod.imageUrl}
-                      variant="rounded"
-                      sx={{
-                        width: 48,
-                        height: 48,
-                        bgcolor: 'background.neutral',
-                        color: 'text.secondary',
-                      }}
-                    >
-                      <Iconify icon="solar:box-minimalistic-bold" width={24} />
-                    </Avatar>
+                    <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                      <Avatar
+                        src={prod.imageUrl}
+                        variant="rounded"
+                        sx={{
+                          width: 52,
+                          height: 52,
+                          bgcolor: 'background.neutral',
+                          color: 'text.secondary',
+                        }}
+                      >
+                        <Iconify icon="solar:box-minimalistic-bold" width={24} />
+                      </Avatar>
+                      <ProductImageBadges
+                        compact
+                        servingTemperature={prod.servingTemperature}
+                      />
+                    </Box>
 
                     <Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
+                      <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
                         <Typography variant="subtitle2">
                           {prod.name} {prod.variant ? `(${prod.variant})` : ''}
                         </Typography>
+                        {prod.isCombo && (
+                          <Label color="primary" variant="soft">
+                            Combo
+                          </Label>
+                        )}
                         <Label
                           color={prod.type === 'finished' ? 'success' : 'warning'}
                           variant="soft"
@@ -158,6 +171,21 @@ export function ProductListDialog({
                           {prod.type === 'finished' ? 'Acabado' : 'Insumo'}
                         </Label>
                       </Stack>
+
+                      {prod.description && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 1,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {prod.description}
+                        </Typography>
+                      )}
 
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
                         SKU: <strong>{prod.sku}</strong>
@@ -173,14 +201,33 @@ export function ProductListDialog({
                     </Box>
                   </Stack>
 
-                  <Stack alignItems="flex-end" spacing={0.5} sx={{ pl: 2 }}>
-                    <Typography variant="subtitle1" color="primary.main">
-                      {fCurrency(prod.salePrice ?? 0)}
-                    </Typography>
-                    <Label color="primary" variant="soft">
-                      + Adicionar
-                    </Label>
-                  </Stack>
+                  {(() => {
+                    const pricing = getEffectiveProductPrice(prod);
+                    return (
+                      <Stack alignItems="flex-end" spacing={0.5} sx={{ pl: 2 }}>
+                        {pricing.hasDiscount ? (
+                          <>
+                            <Typography
+                              variant="caption"
+                              sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                            >
+                              {fCurrency(pricing.basePrice)}
+                            </Typography>
+                            <Typography variant="subtitle1" color="success.main" sx={{ fontWeight: 700 }}>
+                              {fCurrency(pricing.effectivePrice)}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography variant="subtitle1" color="primary.main">
+                            {fCurrency(prod.salePrice ?? 0)}
+                          </Typography>
+                        )}
+                        <Label color={pricing.hasDiscount ? 'success' : 'primary'} variant="soft">
+                          {pricing.discountBadge ? `${pricing.discountBadge} • +` : '+ Adicionar'}
+                        </Label>
+                      </Stack>
+                    );
+                  })()}
                 </ButtonBase>
               );
             })}

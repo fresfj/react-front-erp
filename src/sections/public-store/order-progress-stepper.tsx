@@ -1,4 +1,7 @@
-import type { OnlineOrderFulfillmentStatus } from 'src/api/firestore/online-orders';
+import type {
+  OnlineOrderDeliveryType,
+  OnlineOrderFulfillmentStatus,
+} from 'src/api/firestore/online-orders';
 
 import { Fragment } from 'react';
 
@@ -19,8 +22,10 @@ import { Iconify } from 'src/components/iconify';
 
 type Props = {
   status: OnlineOrderFulfillmentStatus;
-  deliveryType: 'pickup' | 'delivery';
+  deliveryType: OnlineOrderDeliveryType;
   rejectedReason?: string;
+  /** Quando true, exibe sempre o modo compacto (somente etapa atual e próxima com rótulo). */
+  compact?: boolean;
 };
 
 type StepDef = {
@@ -41,7 +46,7 @@ const STEP_INDEX: Record<OnlineOrderFulfillmentStatus, number> = {
 
 export function getFulfillmentLabel(
   status: OnlineOrderFulfillmentStatus,
-  deliveryType: 'pickup' | 'delivery'
+  deliveryType: OnlineOrderDeliveryType
 ): { label: string; color: 'warning' | 'info' | 'primary' | 'success' | 'error' } {
   switch (status) {
     case 'accepted':
@@ -50,7 +55,12 @@ export function getFulfillmentLabel(
       return { label: 'Em preparação', color: 'primary' };
     case 'out_for_delivery':
       return {
-        label: deliveryType === 'delivery' ? 'Saiu para entrega' : 'Pronto para retirada',
+        label:
+          deliveryType === 'delivery'
+            ? 'Saiu para entrega'
+            : deliveryType === 'table'
+              ? 'Pronto p/ servir'
+              : 'Pronto para retirada',
         color: 'primary',
       };
     case 'delivered':
@@ -64,7 +74,7 @@ export function getFulfillmentLabel(
   }
 }
 
-export function OrderProgressStepper({ status, deliveryType, rejectedReason }: Props) {
+export function OrderProgressStepper({ status, deliveryType, rejectedReason, compact }: Props) {
   if (status === 'rejected' || status === 'cancelled') {
     return (
       <Alert severity="error" sx={{ textAlign: 'left', borderRadius: 1.5 }}>
@@ -86,8 +96,18 @@ export function OrderProgressStepper({ status, deliveryType, rejectedReason }: P
     { key: 'preparing', label: 'Em preparação', icon: 'solar:box-bold' },
     {
       key: 'out_for_delivery',
-      label: deliveryType === 'delivery' ? 'Saiu p/ entrega' : 'Pronto p/ retirada',
-      icon: deliveryType === 'delivery' ? 'solar:scooter-bold' : 'solar:shop-bold',
+      label:
+        deliveryType === 'delivery'
+          ? 'Saiu p/ entrega'
+          : deliveryType === 'table'
+            ? 'Pronto p/ servir'
+            : 'Pronto p/ retirada',
+      icon:
+        deliveryType === 'delivery'
+          ? 'solar:scooter-bold'
+          : deliveryType === 'table'
+            ? 'solar:plate-bold'
+            : 'solar:shop-bold',
     },
     { key: 'delivered', label: 'Finalizado', icon: 'solar:verified-check-bold' },
   ];
@@ -125,77 +145,81 @@ export function OrderProgressStepper({ status, deliveryType, rejectedReason }: P
         }}
       />
 
-      {/* DESKTOP (>= 768px): Todos os 5 passos visíveis (ícone + texto) */}
-      <Box
-        sx={{
-          display: 'none',
-          '@media (min-width: 768px)': {
-            display: 'block',
-          },
-        }}
-      >
-        <Stepper activeStep={activeStep} alternativeLabel>
-          {steps.map((step, index) => {
-            const isCompleted = index < activeStep || isDelivered;
-            const isCurrent = index === activeStep && !isDelivered;
+      {/* DESKTOP (>= 768px): Todos os 5 passos visíveis (oculto quando compact=true) */}
+      {!compact && (
+        <Box
+          sx={{
+            display: 'none',
+            '@media (min-width: 768px)': {
+              display: 'block',
+            },
+          }}
+        >
+          <Stepper activeStep={activeStep} alternativeLabel>
+            {steps.map((step, index) => {
+              const isCompleted = index < activeStep || isDelivered;
+              const isCurrent = index === activeStep && !isDelivered;
 
-            return (
-              <Step key={step.key} completed={isCompleted}>
-                <StepLabel
-                  StepIconComponent={() => (
-                    <Box
+              return (
+                <Step key={step.key} completed={isCompleted}>
+                  <StepLabel
+                    StepIconComponent={() => (
+                      <Box
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: isCompleted
+                            ? 'success.main'
+                            : isCurrent
+                              ? 'primary.main'
+                              : (theme) => varAlpha(theme.vars.palette.grey['500Channel'], 0.16),
+                          color: isCompleted || isCurrent ? 'common.white' : 'text.disabled',
+                          boxShadow: isCurrent
+                            ? (theme) =>
+                                `0 0 0 4px ${varAlpha(theme.vars.palette.primary.mainChannel, 0.2)}`
+                            : undefined,
+                          transition: 'all 0.25s',
+                        }}
+                      >
+                        <Iconify icon={step.icon} width={17} />
+                      </Box>
+                    )}
+                  >
+                    <Typography
+                      variant="caption"
                       sx={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: isCompleted
-                          ? 'success.main'
-                          : isCurrent
-                            ? 'primary.main'
-                            : (theme) => varAlpha(theme.vars.palette.grey['500Channel'], 0.16),
-                        color: isCompleted || isCurrent ? 'common.white' : 'text.disabled',
-                        boxShadow: isCurrent
-                          ? (theme) =>
-                              `0 0 0 4px ${varAlpha(theme.vars.palette.primary.mainChannel, 0.2)}`
-                          : undefined,
-                        transition: 'all 0.25s',
+                        fontWeight: isCurrent || isCompleted ? 700 : 400,
+                        color: isCurrent
+                          ? 'primary.main'
+                          : isCompleted
+                            ? 'text.primary'
+                            : 'text.disabled',
+                        fontSize: 12,
                       }}
                     >
-                      <Iconify icon={step.icon} width={17} />
-                    </Box>
-                  )}
-                >
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: isCurrent || isCompleted ? 700 : 400,
-                      color: isCurrent
-                        ? 'primary.main'
-                        : isCompleted
-                          ? 'text.primary'
-                          : 'text.disabled',
-                      fontSize: 12,
-                    }}
-                  >
-                    {step.label}
-                  </Typography>
-                </StepLabel>
-              </Step>
-            );
-          })}
-        </Stepper>
-      </Box>
+                      {step.label}
+                    </Typography>
+                  </StepLabel>
+                </Step>
+              );
+            })}
+          </Stepper>
+        </Box>
+      )}
 
-      {/* MOBILE (< 768px): Foco no Atual e Próximo — sem quebra nem scroll horizontal */}
+      {/* COMPACTO (Mobile < 768px ou sempre quando compact=true): Foco no Atual e Próximo */}
       <Box
         sx={{
           display: 'block',
-          '@media (min-width: 768px)': {
-            display: 'none',
-          },
+          ...(!compact && {
+            '@media (min-width: 768px)': {
+              display: 'none',
+            },
+          }),
         }}
       >
         <Box

@@ -172,8 +172,29 @@ export function CashSessionView() {
 
   const sessionSales = useMemo(() => {
     if (!activeSession) return [];
-    return sales.filter((s) => s.createdAt >= activeSession.openedAt);
+    return sales.filter(
+      (s) =>
+        s.status === 'completed' &&
+        (s.cashSessionId === activeSession.id ||
+          (!s.cashSessionId && s.createdAt >= activeSession.openedAt))
+    );
   }, [activeSession, sales]);
+
+  const sessionChannelTotals = useMemo(() => {
+    let posCount = 0;
+    let onlineCount = 0;
+    let tableCount = 0;
+    sessionSales.forEach((s) => {
+      if (s.channel === 'table' || s.tableId || s.tableSessionId) {
+        tableCount += 1;
+      } else if (s.channel === 'online' || s.onlineOrderId) {
+        onlineCount += 1;
+      } else {
+        posCount += 1;
+      }
+    });
+    return { posCount, onlineCount, tableCount };
+  }, [sessionSales]);
 
   const expectedCalc = useMemo(() => {
     if (!activeSession) return null;
@@ -498,9 +519,13 @@ export function CashSessionView() {
               </Box>
               <Box>
                 <Typography variant="caption" color="text.secondary">
-                  Vendas Realizadas na Sessão
+                  Vendas Realizadas na Sessão (PDV + Online + Mesa)
                 </Typography>
                 <Typography variant="h6">{sessionSales.length} vendas</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  PDV: {sessionChannelTotals.posCount} • Online: {sessionChannelTotals.onlineCount} •
+                  Mesas: {sessionChannelTotals.tableCount}
+                </Typography>
               </Box>
             </Stack>
           </Card>

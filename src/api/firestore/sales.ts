@@ -76,8 +76,11 @@ export type Sale = {
   feesPassedToCustomer?: boolean;
   surchargeAmount?: number;
   notes?: string;
-  channel?: 'pos' | 'online';
+  channel?: 'pos' | 'online' | 'table';
   onlineOrderId?: string;
+  tableId?: string;
+  tableNumber?: string;
+  tableSessionId?: string;
   cashSessionId?: string;
   nfceStatus?: 'pending' | 'authorized' | 'cancelled';
   nfceNumber?: string;
@@ -162,8 +165,16 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     feesPassedToCustomer: Boolean(data.feesPassedToCustomer),
     surchargeAmount: data.surchargeAmount != null ? Number(data.surchargeAmount) : 0,
     notes: optStr(data.notes),
-    channel: data.channel === 'online' ? 'online' : 'pos',
+    channel:
+      data.channel === 'online'
+        ? 'online'
+        : data.channel === 'table'
+          ? 'table'
+          : 'pos',
     onlineOrderId: optStr(data.onlineOrderId),
+    tableId: optStr(data.tableId),
+    tableNumber: optStr(data.tableNumber),
+    tableSessionId: optStr(data.tableSessionId),
     cashSessionId: optStr(data.cashSessionId),
     nfceStatus:
       data.nfceStatus === 'authorized' || data.nfceStatus === 'cancelled'
@@ -225,8 +236,11 @@ export type CreateSaleInput = {
   feesPassedToCustomer?: boolean;
   surchargeAmount?: number;
   notes?: string;
-  channel?: 'pos' | 'online';
+  channel?: 'pos' | 'online' | 'table';
   onlineOrderId?: string;
+  tableId?: string;
+  tableNumber?: string;
+  tableSessionId?: string;
   cashSessionId?: string;
 };
 

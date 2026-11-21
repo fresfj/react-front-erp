@@ -31,6 +31,23 @@ function roundMoney(n) {
   return Math.round(Number(n || 0) * 100) / 100;
 }
 
+function computeEffectiveProductPrice(product) {
+  const basePrice = Math.max(0, roundMoney(Number(product?.salePrice || 0)));
+  const rawDiscount = Math.max(0, Number(product?.discountValue || 0));
+  if (product?.promoActive !== true || rawDiscount <= 0 || basePrice <= 0) {
+    return { basePrice, effectivePrice: basePrice };
+  }
+  const type = product?.discountType === 'fixed' ? 'fixed' : 'percent';
+  const discountAmount =
+    type === 'percent'
+      ? roundMoney((basePrice * Math.min(100, rawDiscount)) / 100)
+      : roundMoney(Math.min(basePrice, rawDiscount));
+  return {
+    basePrice,
+    effectivePrice: Math.max(0, roundMoney(basePrice - discountAmount)),
+  };
+}
+
 function normalizeStoreSlug(raw) {
   return String(raw || '')
     .normalize('NFD')
@@ -220,14 +237,29 @@ exports.getPublicStorefront = onCall(async (request) => {
         p.showOnline === true &&
         (p.type === 'finished' || p.type !== 'raw' || Number(p.salePrice || 0) > 0)
     )
-    .map((p) => ({
-      id: p.id,
-      name: String(p.name || ''),
-      category: p.category != null ? String(p.category) : undefined,
-      description: p.description != null ? String(p.description) : undefined,
-      salePrice: Number(p.salePrice || 0),
-      imageUrl: p.imageUrl != null ? String(p.imageUrl) : undefined,
-    }));
+    .map((p) => {
+      const { basePrice, effectivePrice } = computeEffectiveProductPrice(p);
+      return {
+        id: p.id,
+        name: String(p.name || ''),
+        category: p.category != null ? String(p.category) : undefined,
+        description: p.description != null ? String(p.description) : undefined,
+        salePrice: effectivePrice,
+        originalPrice: basePrice,
+        promoActive: p.promoActive === true,
+        discountType: p.discountType === 'fixed' ? 'fixed' : p.discountType === 'percent' ? 'percent' : undefined,
+        discountValue: typeof p.discountValue === 'number' ? Number(p.discountValue) : undefined,
+        servingTemperature:
+          p.servingTemperature === 'cold' || p.servingTemperature === 'hot'
+            ? p.servingTemperature
+            : undefined,
+        isCombo: p.isCombo === true,
+        comboItems: Array.isArray(p.comboItems) ? p.comboItems : undefined,
+        servesCount: typeof p.servesCount === 'number' ? Number(p.servesCount) : undefined,
+        featured: p.featured === true,
+        imageUrl: p.imageUrl != null ? String(p.imageUrl) : undefined,
+      };
+    });
 
   const store = ctx.onlineStore || {};
   return {
@@ -247,9 +279,20 @@ exports.getPublicStorefront = onCall(async (request) => {
     deliveryFee: Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0),
     acceptDelivery: store.acceptDelivery !== false,
     acceptPickup: store.acceptPickup !== false,
+    acceptTableOrders: store.acceptTableOrders !== false,
     paymentMethodsOnDelivery: Array.isArray(store.paymentMethodsOnDelivery)
       ? store.paymentMethodsOnDelivery
       : ['cash', 'pix', 'debit_card', 'credit_card'],
+    acceptOnlinePix: store.acceptOnlinePix !== false && Boolean(store.pixKey || store.acceptOnlinePix),
+    pixKey: store.pixKey != null ? String(store.pixKey) : undefined,
+    pixMerchantName:
+      store.pixMerchantName != null
+        ? String(store.pixMerchantName)
+        : String(ctx.enterprise.tradeName || ctx.enterprise.name || ''),
+    pixMerchantCity:
+      store.pixMerchantCity != null
+        ? String(store.pixMerchantCity)
+        : String(ctx.enterprise.city || 'BRASIL'),
     whatsapp: store.whatsapp != null ? String(store.whatsapp) : undefined,
     instagramUrl: store.instagramUrl != null ? String(store.instagramUrl) : undefined,
     googleReviewUrl: store.googleReviewUrl != null ? String(store.googleReviewUrl) : undefined,
@@ -273,15 +316,27 @@ exports.placeOnlineOrder = onCall(async (request) => {
     throw new HttpsError('failed-precondition', ctx.closedReason || 'store_closed');
   }
 
-  const deliveryType = request.data?.deliveryType === 'delivery' ? 'delivery' : 'pickup';
+  const rawDeliveryType = request.data?.deliveryType;
+  const deliveryType =
+    rawDeliveryType === 'delivery'
+      ? 'delivery'
+      : rawDeliveryType === 'table'
+        ? 'table'
+        : 'pickup';
   const paymentMethod = String(request.data?.paymentMethod || 'cash');
   if (!['cash', 'pix', 'debit_card', 'credit_card'].includes(paymentMethod)) {
     throw new HttpsError('invalid-argument', 'Invalid paymentMethod');
   }
+  const paymentChannel =
+    deliveryType !== 'table' && (request.data?.paymentChannel === 'online' || paymentMethod === 'pix')
+      ? 'online'
+      : 'on_delivery';
+  const paymentStatus =
+    paymentChannel === 'online' ? 'awaiting_confirmation' : 'pay_on_delivery';
 
   const customerName = String(request.data?.customerName || '').trim();
   const customerPhone = String(request.data?.customerPhone || '').trim();
-  if (!customerName || !customerPhone) {
+  if (!customerName || (deliveryType !== 'table' && !customerPhone)) {
     throw new HttpsError('invalid-argument', 'customerName and customerPhone required');
   }
 
@@ -296,6 +351,9 @@ exports.placeOnlineOrder = onCall(async (request) => {
   }
   if (deliveryType === 'pickup' && store.acceptPickup === false) {
     throw new HttpsError('failed-precondition', 'pickup_disabled');
+  }
+  if (deliveryType === 'table' && store.acceptTableOrders === false) {
+    throw new HttpsError('failed-precondition', 'table_orders_disabled');
   }
 
   const deliveryFee =
@@ -322,7 +380,7 @@ exports.placeOnlineOrder = onCall(async (request) => {
     ) {
       throw new HttpsError('failed-precondition', 'product_unavailable');
     }
-    const serverPrice = Number(product.salePrice || 0);
+    const { effectivePrice: serverPrice } = computeEffectiveProductPrice(product);
     const clientPrice = Number(line.unitPrice);
     if (Number.isFinite(clientPrice) && Math.abs(clientPrice - serverPrice) > 0.009) {
       throw new HttpsError('failed-precondition', 'price_changed');
@@ -360,23 +418,121 @@ exports.placeOnlineOrder = onCall(async (request) => {
         }
       : null;
 
+  let tableContext = null;
+  if (deliveryType === 'table') {
+    const rawTableCode = normalizeStoreSlug(request.data?.tableCode || '');
+    const tablesSnap = await db()
+      .collection(`enterprises/${ctx.enterpriseId}/tables`)
+      .where('active', '==', true)
+      .get();
+    const matchedTableDoc = tablesSnap.docs.find((d) => {
+      const td = d.data() || {};
+      return (
+        normalizeStoreSlug(td.qrCodeSlug || '') === rawTableCode ||
+        normalizeStoreSlug(`mesa-${td.number || ''}`) === rawTableCode ||
+        normalizeStoreSlug(td.number || '') === rawTableCode
+      );
+    });
+    if (matchedTableDoc) {
+      tableContext = { id: matchedTableDoc.id, ...(matchedTableDoc.data() || {}) };
+      if (tableContext.acceptingOrders === false) {
+        throw new HttpsError('failed-precondition', 'table_disabled');
+      }
+    }
+  }
+
+  let tableSessionId = null;
+  let linkedCustomerName = customerName;
+  let linkedCustomerPhone = customerPhone;
+  if (tableContext) {
+    const openSessionsSnap = await db()
+      .collection(`enterprises/${ctx.enterpriseId}/tableSessions`)
+      .where('tableId', '==', tableContext.id)
+      .get();
+
+    const openSessions = openSessionsSnap.docs
+      .map((d) => ({ id: d.id, ref: d.ref, ...(d.data() || {}) }))
+      .filter((s) => s.status === 'open');
+
+    const incomingDigits = phoneDigits(customerPhone);
+    const matchedSession = openSessions.find((s) => {
+      if (incomingDigits.length >= 10 && s.customerPhone) {
+        return phonesMatch(s.customerPhone, customerPhone);
+      }
+      return (
+        String(s.customerName || '').trim().toLowerCase() ===
+        String(customerName || '').trim().toLowerCase()
+      );
+    });
+
+    if (matchedSession) {
+      tableSessionId = matchedSession.id;
+      linkedCustomerName = String(matchedSession.customerName || customerName);
+      linkedCustomerPhone = String(matchedSession.customerPhone || customerPhone);
+      const nextSub = roundMoney(Number(matchedSession.subtotal || 0) + subtotal);
+      await matchedSession.ref.update({
+        orderIds: [...(Array.isArray(matchedSession.orderIds) ? matchedSession.orderIds : []), ref.id],
+        subtotal: nextSub,
+        total: nextSub,
+        customerName: linkedCustomerName,
+        customerPhone: linkedCustomerPhone,
+        updatedAt: timestamp,
+      });
+    } else {
+      const newSessRef = db().collection(`enterprises/${ctx.enterpriseId}/tableSessions`).doc();
+      tableSessionId = newSessRef.id;
+      await newSessRef.set({
+        tableId: tableContext.id,
+        tableNumber: String(tableContext.number || ''),
+        status: 'open',
+        openedByType: 'customer',
+        customerName: linkedCustomerName,
+        customerPhone: linkedCustomerPhone,
+        orderIds: [ref.id],
+        subtotal,
+        total,
+        openedAt: timestamp,
+        updatedAt: timestamp,
+      });
+    }
+
+    await db().doc(`enterprises/${ctx.enterpriseId}/tables/${tableContext.id}`).update({
+      status: 'occupied',
+      activeSessionId: tableContext.activeSessionId || tableSessionId,
+      customerName: tableContext.customerName || linkedCustomerName,
+      customerPhone: tableContext.customerPhone || linkedCustomerPhone,
+      updatedAt: timestamp,
+    });
+  }
+
+  const isTableQrOrder = deliveryType === 'table';
   const docData = {
     code,
-    status: 'pending',
-    fulfillmentStatus: 'pending',
-    customerName,
-    customerPhone,
-    customerPhoneDigits: String(customerPhone).replace(/\D/g, ''),
+    status: isTableQrOrder ? 'accepted' : 'pending',
+    fulfillmentStatus: isTableQrOrder ? 'preparing' : 'pending',
+    customerName: tableContext
+      ? `Mesa ${tableContext.number} · ${linkedCustomerName}`
+      : customerName,
+    customerPhone: linkedCustomerPhone,
+    customerPhoneDigits: String(linkedCustomerPhone).replace(/\D/g, ''),
     customerAddress:
       request.data?.customerAddress != null ? String(request.data.customerAddress) : null,
     customerAddressFields,
     deliveryType,
     deliveryFee,
     paymentMethod,
+    paymentChannel,
+    paymentStatus,
+    orderSource: isTableQrOrder ? 'table_qr' : 'online_catalog',
+    requestedByType: 'customer',
+    tableId: tableContext ? tableContext.id : null,
+    tableNumber: tableContext ? String(tableContext.number || '') : null,
+    tableSessionId,
     items: validatedItems,
     subtotal,
     total,
     notes: request.data?.notes != null ? String(request.data.notes) : null,
+    ...(isTableQrOrder ? { acceptedAt: timestamp, preparingAt: timestamp } : {}),
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -467,11 +623,21 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
     estimatedMinutes: Number(onlineStore.estimatedMinutes || 40),
     acceptDelivery: onlineStore.acceptDelivery !== false,
     acceptPickup: onlineStore.acceptPickup !== false,
+    acceptTableOrders:
+      onlineStore.acceptTableOrders !== undefined
+        ? onlineStore.acceptTableOrders !== false
+        : entSnap.data()?.onlineStore?.acceptTableOrders !== false,
     defaultDeliveryFee: Number(onlineStore.defaultDeliveryFee || 0),
     minOrderAmount: Number(onlineStore.minOrderAmount || 0),
     paymentMethodsOnDelivery: Array.isArray(onlineStore.paymentMethodsOnDelivery)
       ? onlineStore.paymentMethodsOnDelivery
       : ['cash', 'pix'],
+    acceptOnlinePix: onlineStore.acceptOnlinePix !== false,
+    pixKey: onlineStore.pixKey != null ? String(onlineStore.pixKey).trim() : null,
+    pixMerchantName:
+      onlineStore.pixMerchantName != null ? String(onlineStore.pixMerchantName).trim() : null,
+    pixMerchantCity:
+      onlineStore.pixMerchantCity != null ? String(onlineStore.pixMerchantCity).trim() : null,
     whatsapp: onlineStore.whatsapp != null ? String(onlineStore.whatsapp) : null,
     description: onlineStore.description != null ? String(onlineStore.description).trim() : null,
     instagramUrl: onlineStore.instagramUrl != null ? String(onlineStore.instagramUrl) : null,
@@ -486,7 +652,17 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
         : 50,
     logoFit: onlineStore.logoFit === 'contain' ? 'contain' : 'cover',
   };
-  ['whatsapp', 'description', 'instagramUrl', 'googleReviewUrl', 'logoUrl', 'bannerUrl'].forEach((k) => {
+  [
+    'pixKey',
+    'pixMerchantName',
+    'pixMerchantCity',
+    'whatsapp',
+    'description',
+    'instagramUrl',
+    'googleReviewUrl',
+    'logoUrl',
+    'bannerUrl',
+  ].forEach((k) => {
     if (payload[k] === null || payload[k] === undefined || payload[k] === '') {
       delete payload[k];
     }
@@ -622,14 +798,21 @@ exports.acceptOnlineOrder = onCall(async (request) => {
     updatedAt: timestamp,
   });
 
-  batch.update(orderRef, {
+  const acceptUpdate = {
     status: 'accepted',
     fulfillmentStatus: 'accepted',
     saleId: saleRef.id,
     cashSessionId: openCash.id,
     acceptedByUid: request.auth.uid,
+    acceptedAt: timestamp,
     updatedAt: timestamp,
-  });
+  };
+  if (order.paymentChannel === 'online' || order.paymentStatus === 'awaiting_confirmation') {
+    acceptUpdate.paymentStatus = 'confirmed';
+    acceptUpdate.pixConfirmedAt = timestamp;
+    acceptUpdate.pixConfirmedByUid = request.auth.uid;
+  }
+  batch.update(orderRef, acceptUpdate);
 
   await batch.commit();
 
@@ -679,10 +862,12 @@ exports.rejectOnlineOrder = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'Order is not pending');
   }
 
+  const rejectedTs = nowIso();
   const update = {
     status: 'rejected',
     fulfillmentStatus: 'rejected',
-    updatedAt: nowIso(),
+    rejectedAt: rejectedTs,
+    updatedAt: rejectedTs,
   };
   if (request.data?.reason != null) {
     update.rejectedReason = String(request.data.reason);
@@ -755,6 +940,19 @@ function mapPublicOrderSummary(id, data, enterprise) {
     deliveryType: data.deliveryType === 'delivery' ? 'delivery' : 'pickup',
     deliveryFee: Number(data.deliveryFee || 0),
     paymentMethod: String(data.paymentMethod || 'cash'),
+    paymentChannel: data.paymentChannel === 'online' ? 'online' : 'on_delivery',
+    paymentStatus: String(
+      data.paymentStatus || (data.paymentChannel === 'online' ? 'awaiting_confirmation' : 'pay_on_delivery')
+    ),
+    pixKey: store.pixKey != null ? String(store.pixKey) : undefined,
+    pixMerchantName:
+      store.pixMerchantName != null
+        ? String(store.pixMerchantName)
+        : String(enterprise.tradeName || enterprise.name || ''),
+    pixMerchantCity:
+      store.pixMerchantCity != null
+        ? String(store.pixMerchantCity)
+        : String(enterprise.city || 'BRASIL'),
     items: Array.isArray(data.items) ? data.items : [],
     subtotal: Number(data.subtotal || 0),
     total: Number(data.total || 0),
@@ -858,10 +1056,123 @@ exports.listPublicOrdersByPhone = onCall(async (request) => {
   return { orders };
 });
 
+async function loadPublicTableStatus(enterpriseId, enterprise, rawTableCodeInput, rawCustomerPhone) {
+  const rawTableCode = normalizeStoreSlug(rawTableCodeInput || '');
+  if (!rawTableCode) {
+    throw new HttpsError('invalid-argument', 'tableCode required');
+  }
+
+  const tablesSnap = await db()
+    .collection(`enterprises/${enterpriseId}/tables`)
+    .where('active', '==', true)
+    .get();
+
+  const matchedTableDoc = tablesSnap.docs.find((d) => {
+    const td = d.data() || {};
+    return (
+      normalizeStoreSlug(td.qrCodeSlug || '') === rawTableCode ||
+      normalizeStoreSlug(`mesa-${td.number || ''}`) === rawTableCode ||
+      normalizeStoreSlug(td.number || '') === rawTableCode
+    );
+  });
+
+  if (!matchedTableDoc) {
+    throw new HttpsError('not-found', 'Table not found');
+  }
+
+  const tableData = matchedTableDoc.data() || {};
+  const store = enterprise?.onlineStore || {};
+  const tableInfo = {
+    id: matchedTableDoc.id,
+    number: String(tableData.number || ''),
+    label: tableData.label ? String(tableData.label) : undefined,
+    area: tableData.area ? String(tableData.area) : undefined,
+    qrCodeSlug: String(tableData.qrCodeSlug || rawTableCode),
+    status: String(tableData.status || 'available'),
+    acceptingOrders: tableData.acceptingOrders !== false,
+    acceptTableOrders: store.acceptTableOrders !== false,
+  };
+
+  const callerDigits = phoneDigits(rawCustomerPhone || '');
+  if (callerDigits.length < 10) {
+    return { table: tableInfo, session: null, orders: [] };
+  }
+
+  const openSessionsSnap = await db()
+    .collection(`enterprises/${enterpriseId}/tableSessions`)
+    .where('tableId', '==', matchedTableDoc.id)
+    .get();
+
+  const matchedSessDoc = openSessionsSnap.docs.find((d) => {
+    const s = d.data() || {};
+    return s.status === 'open' && phonesMatch(s.customerPhone, rawCustomerPhone);
+  });
+
+  if (!matchedSessDoc) {
+    return { table: tableInfo, session: null, orders: [] };
+  }
+
+  const sess = matchedSessDoc.data() || {};
+  const ordersSnap = await db()
+    .collection(`enterprises/${enterpriseId}/onlineOrders`)
+    .where('tableSessionId', '==', matchedSessDoc.id)
+    .get();
+
+  const orders = ordersSnap.docs
+    .map((d) => {
+      const o = d.data() || {};
+      return {
+        id: d.id,
+        code: String(o.code || ''),
+        status: String(o.status || 'accepted'),
+        fulfillmentStatus: String(o.fulfillmentStatus || 'preparing'),
+        requestedByType: o.requestedByType === 'waiter' ? 'waiter' : 'customer',
+        waiterName: o.waiterName ? String(o.waiterName) : undefined,
+        items: Array.isArray(o.items) ? o.items : [],
+        subtotal: Number(o.subtotal || 0),
+        total: Number(o.total || 0),
+        notes: o.notes ? String(o.notes) : undefined,
+        createdAt: String(o.createdAt || ''),
+        updatedAt: String(o.updatedAt || ''),
+      };
+    })
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+
+  const computedTotal = roundMoney(
+    orders.length > 0 ? orders.reduce((acc, o) => acc + o.total, 0) : Number(sess.total || 0)
+  );
+
+  return {
+    table: tableInfo,
+    session: {
+      id: matchedSessDoc.id,
+      status: 'open',
+      customerName: sess.customerName ? String(sess.customerName) : undefined,
+      customerPhone: sess.customerPhone ? String(sess.customerPhone) : undefined,
+      waiterName: sess.waiterName ? String(sess.waiterName) : undefined,
+      subtotal: computedTotal,
+      total: computedTotal,
+      openedAt: String(sess.openedAt || ''),
+    },
+    orders,
+  };
+}
+
 exports.getPublicOrderStatus = onCall(async (request) => {
   const { enterpriseId, enterprise } = await resolveEnterpriseBySlug(request.data?.slug);
+
+  if (request.data?.tableCode) {
+    const tableStatus = await loadPublicTableStatus(
+      enterpriseId,
+      enterprise,
+      request.data.tableCode,
+      request.data.customerPhone
+    );
+    return { tableStatus };
+  }
+
   const orderId = String(request.data?.orderId || '').trim();
-  if (!orderId) throw new HttpsError('invalid-argument', 'orderId required');
+  if (!orderId) throw new HttpsError('invalid-argument', 'orderId or tableCode required');
 
   const snap = await db().doc(`enterprises/${enterpriseId}/onlineOrders/${orderId}`).get();
   if (!snap.exists) throw new HttpsError('not-found', 'Order not found');
@@ -894,10 +1205,23 @@ exports.updateOnlineOrderStatus = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'Only accepted orders can progress');
   }
 
-  await orderRef.update({
+  const stageTimestamp = nowIso();
+  const stageFieldMap = {
+    accepted: 'acceptedAt',
+    preparing: 'preparingAt',
+    out_for_delivery: 'dispatchedAt',
+    delivered: 'deliveredAt',
+  };
+  const stageField = stageFieldMap[fulfillmentStatus];
+  const statusUpdate = {
     fulfillmentStatus,
-    updatedAt: nowIso(),
-  });
+    updatedAt: stageTimestamp,
+  };
+  if (stageField && !orderData[stageField]) {
+    statusUpdate[stageField] = stageTimestamp;
+  }
+
+  await orderRef.update(statusUpdate);
 
   // Notificação automática WhatsApp de avanço de etapa (Plano Ultra ativo)
   const eventMap = {

@@ -542,6 +542,81 @@
       "customer": "Customer",
       "total": "Total",
       "status": "Status"
+    },
+    "kanban": {
+      "viewKanban": "Kanban Board",
+      "viewList": "List",
+      "columnFixed": "Fixed columns",
+      "autoPrintOnAccept": "Print on accept",
+      "periodToday": "Today",
+      "period7d": "7 days",
+      "periodAll": "All",
+      "delivery": "Delivery",
+      "pickup": "Pickup",
+      "columns": {
+        "pending": "New",
+        "accepted": "Accepted",
+        "preparing": "Preparing",
+        "out_for_delivery": "Dispatch / Pickup",
+        "delivered": "Completed"
+      },
+      "actions": {
+        "accept": "Accept",
+        "reject": "Reject",
+        "startPreparing": "Start preparing",
+        "dispatchDelivery": "Out for delivery",
+        "readyPickup": "Ready for pickup",
+        "finish": "Complete",
+        "printReceipt": "Receipt",
+        "viewSale": "View sale",
+        "whatsapp": "WhatsApp",
+        "copyAddress": "Copy address",
+        "addressCopied": "Address copied!"
+      },
+      "emptyColumn": "No orders in this stage",
+      "cannotRevertPending": "Accepted orders cannot be moved back to New.",
+      "mustAcceptFirst": "Accept the order before dispatching it.",
+      "rejectDialog": {
+        "title": "Reject order",
+        "subtitle": "Provide a reason for rejecting (optional). It will be sent to the customer if WhatsApp is active.",
+        "reasonLabel": "Rejection reason",
+        "reasonPlaceholder": "E.g. Item out of stock, outside delivery area...",
+        "confirm": "Confirm rejection",
+        "quickReasons": {
+          "outOfStock": "Item out of stock",
+          "outsideArea": "Outside delivery area",
+          "highDemand": "High demand right now",
+          "storeClosing": "Store closing soon"
+        }
+      },
+      "drawer": {
+        "orderDetails": "Order details",
+        "customer": "Customer",
+        "address": "Delivery address",
+        "items": "Order items",
+        "notes": "Order notes",
+        "subtotal": "Subtotal",
+        "deliveryFee": "Delivery fee",
+        "total": "Total",
+        "payment": "Payment",
+        "rejectedReason": "Rejection reason",
+        "internalNotes": "Internal notes (company control)",
+        "internalNotesHint": "Visible only to staff in the ERP (hidden from the customer).",
+        "internalNotesPlaceholder": "E.g. Driver John, change for $50, kitchen priority...",
+        "saveInternalNotes": "Save note",
+        "internalNotesSaved": "Internal note saved!",
+        "internalNotesError": "Could not save internal note",
+        "journeyTitle": "Order journey",
+        "totalWaitTime": "Total time",
+        "journey": {
+          "created": "Requested",
+          "accepted": "Accepted",
+          "preparing": "Preparing",
+          "dispatched": "Dispatched / Ready",
+          "delivered": "Completed",
+          "rejected": "Rejected"
+        }
+      }
     }
   },
   "onlineStore": {

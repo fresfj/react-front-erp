@@ -1,4 +1,9 @@
-import type { OnlineOrder } from 'src/api/firestore/online-orders';
+import type { Sale } from 'src/api/firestore/sales';
+import type { Enterprise } from 'src/api/firestore/platform';
+import type {
+  OnlineOrder,
+  OnlineOrderFulfillmentStatus,
+} from 'src/api/firestore/online-orders';
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
 
@@ -8,15 +13,20 @@ import Card from '@mui/material/Card';
 import Table from '@mui/material/Table';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import Switch from '@mui/material/Switch';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import TableBody from '@mui/material/TableBody';
+import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
 import IconButton from '@mui/material/IconButton';
+import ToggleButton from '@mui/material/ToggleButton';
+import InputAdornment from '@mui/material/InputAdornment';
 import TableContainer from '@mui/material/TableContainer';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { paths } from 'src/routes/paths';
-import { useRouter } from 'src/routes/hooks';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
@@ -26,12 +36,15 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
+import { getSale } from 'src/api/firestore/sales';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { getEnterprise } from 'src/api/firestore/platform';
 import {
   acceptOnlineOrderCf,
   rejectOnlineOrderCf,
   subscribeOnlineOrders,
   updateOnlineOrderStatusCf,
+  updateOnlineOrderInternalNotes,
 } from 'src/api/firestore/online-orders';
 
 import { Label } from 'src/components/label';
@@ -58,11 +71,22 @@ import { getFulfillmentLabel } from 'src/sections/public-store/order-progress-st
 
 import { useAuthContext } from 'src/auth/hooks';
 
+import { ReceiptDialog } from '../receipt-dialog';
 import { OnlineOrderTableRow } from '../online-order-table-row';
+import { OnlineOrderKanbanBoard } from '../online-order-kanban/online-order-kanban-board';
+import { OnlineOrderRejectDialog } from '../online-order-kanban/online-order-reject-dialog';
+import { OnlineOrderDetailsDrawer } from '../online-order-kanban/online-order-details-drawer';
+import { filterOrdersByKanbanPeriod } from '../online-order-kanban/online-order-kanban-utils';
+
+import type { KanbanPeriodFilter } from '../online-order-kanban/online-order-kanban-utils';
 
 // ----------------------------------------------------------------------
 
 type StatusTab = 'all' | 'pending' | 'accepted' | 'rejected';
+type ViewMode = 'kanban' | 'list';
+
+const VIEW_MODE_STORAGE_KEY = 'erp.onlineOrders.viewMode';
+const AUTO_PRINT_STORAGE_KEY = 'erp.onlineOrders.autoPrintOnAccept';
 
 const TABLE_HEAD = [
   { id: 'createdAt', label: 'Pedido / Data', minWidth: 180, hideable: false },
@@ -85,6 +109,7 @@ const DEFAULT_VISIBLE_COLUMNS: Record<string, boolean> = {
 const DELIVERY_OPTIONS = [
   { value: 'delivery', label: 'Entrega' },
   { value: 'pickup', label: 'Retirada' },
+  { value: 'table', label: 'Mesa' },
 ];
 
 const PAYMENT_OPTIONS = [
@@ -94,18 +119,41 @@ const PAYMENT_OPTIONS = [
   { value: 'debit_card', label: 'Cartão de Débito' },
 ];
 
+function readInitialViewMode(): ViewMode {
+  try {
+    const saved = window.localStorage.getItem(VIEW_MODE_STORAGE_KEY);
+    if (saved === 'list' || saved === 'kanban') return saved;
+  } catch {
+    // ignore storage errors
+  }
+  return 'kanban';
+}
+
+function readInitialAutoPrint(): boolean {
+  try {
+    return window.localStorage.getItem(AUTO_PRINT_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 // ----------------------------------------------------------------------
 
 export function OnlineOrderListView() {
   const { t } = useTranslate('common');
   const theme = useTheme();
-  const router = useRouter();
   const table = useTable({ defaultOrderBy: 'createdAt', defaultOrder: 'desc' });
   const { user } = useAuthContext();
   const confirmBulkReject = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
+  const [viewMode, setViewMode] = useState<ViewMode>(readInitialViewMode);
+  const [columnFixed, setColumnFixed] = useState(true);
+  const [autoPrintOnAccept, setAutoPrintOnAccept] = useState<boolean>(readInitialAutoPrint);
+  const [kanbanPeriod, setKanbanPeriod] = useState<KanbanPeriodFilter>('today');
+
+  const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<OnlineOrder[]>([]);
   const [statusTab, setStatusTab] = useState<StatusTab>('all');
@@ -115,6 +163,33 @@ export function OnlineOrderListView() {
   const [visibleColumns, setVisibleColumns] =
     useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [optimisticMap, setOptimisticMap] = useState<Record<string, OnlineOrderFulfillmentStatus>>(
+    {}
+  );
+
+  // Live SLA clock (updates every 30s)
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+
+  // Details Drawer & Reject Dialog & Receipt Dialog
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<OnlineOrder | null>(null);
+  const [receiptSale, setReceiptSale] = useState<Sale | null>(null);
+  const [receiptAutoPrint, setReceiptAutoPrint] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!enterpriseId) {
+      setEnterprise(null);
+      return;
+    }
+    getEnterprise(enterpriseId)
+      .then((ent) => setEnterprise(ent))
+      .catch(() => {});
+  }, [enterpriseId]);
 
   useEffect(() => {
     if (!enterpriseId) {
@@ -128,6 +203,79 @@ export function OnlineOrderListView() {
     });
     return unsub;
   }, [enterpriseId]);
+
+  // Clear optimistic entries once Firestore reflects the target status
+  useEffect(() => {
+    setOptimisticMap((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+      let changed = false;
+      const next = { ...prev };
+      keys.forEach((id) => {
+        const live = rows.find((r) => r.id === id);
+        if (!live || live.fulfillmentStatus === prev[id]) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [rows]);
+
+  const estimatedMinutes = Number(enterprise?.onlineStore?.estimatedMinutes || 40);
+
+  const selectedOrder = useMemo(
+    () => (selectedOrderId ? rows.find((r) => r.id === selectedOrderId) ?? null : null),
+    [rows, selectedOrderId]
+  );
+
+  const handleChangeViewMode = useCallback(
+    (_: React.MouseEvent<HTMLElement>, nextMode: ViewMode | null) => {
+      if (!nextMode) return;
+      setViewMode(nextMode);
+      try {
+        window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, nextMode);
+      } catch {
+        // ignore storage errors
+      }
+    },
+    []
+  );
+
+  const handleToggleAutoPrint = useCallback((checked: boolean) => {
+    setAutoPrintOnAccept(checked);
+    try {
+      window.localStorage.setItem(AUTO_PRINT_STORAGE_KEY, String(checked));
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const openReceiptForSaleId = useCallback(
+    async (saleId: string, autoPrint: boolean) => {
+      if (!enterpriseId) return;
+      try {
+        const sale = await getSale(enterpriseId, saleId);
+        if (!sale) {
+          toast.error('Venda vinculada não encontrada para impressão.');
+          return;
+        }
+        setReceiptAutoPrint(autoPrint);
+        setReceiptSale(sale);
+      } catch (error) {
+        toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar comanda para impressão'));
+      }
+    },
+    [enterpriseId]
+  );
+
+  const handlePrintReceipt = useCallback(
+    (order: OnlineOrder) => {
+      if (!order.saleId) return;
+      openReceiptForSaleId(order.saleId, false);
+    },
+    [openReceiptForSaleId]
+  );
 
   // 4 Indicadores Analíticos (Padrão /dashboard/pos/sales)
   const pendingRows = useMemo(() => rows.filter((r) => r.status === 'pending'), [rows]);
@@ -150,17 +298,9 @@ export function OnlineOrderListView() {
 
   const getPercent = (count: number) => (rows.length ? (count / rows.length) * 100 : 0);
 
-  // Filtragem e ordenação
-  const dataFiltered = useMemo(() => {
+  // Shared search + delivery + payment filters
+  const baseFiltered = useMemo(() => {
     let filtered = rows;
-
-    if (statusTab !== 'all') {
-      filtered = filtered.filter((r) =>
-        statusTab === 'rejected'
-          ? r.status === 'rejected' || r.status === 'cancelled'
-          : r.status === statusTab
-      );
-    }
 
     if (deliveryFilters.length > 0) {
       filtered = filtered.filter((r) => deliveryFilters.includes(r.deliveryType));
@@ -180,6 +320,27 @@ export function OnlineOrderListView() {
       );
     }
 
+    return filtered;
+  }, [rows, deliveryFilters, paymentFilters, searchQuery]);
+
+  // Orders for Kanban (period filter keeps active orders always visible)
+  const kanbanOrders = useMemo(
+    () => filterOrdersByKanbanPeriod(baseFiltered, kanbanPeriod),
+    [baseFiltered, kanbanPeriod]
+  );
+
+  // Orders for List table (status tab + sorting)
+  const dataFiltered = useMemo(() => {
+    let filtered = baseFiltered;
+
+    if (statusTab !== 'all') {
+      filtered = filtered.filter((r) =>
+        statusTab === 'rejected'
+          ? r.status === 'rejected' || r.status === 'cancelled'
+          : r.status === statusTab
+      );
+    }
+
     const comparator = getComparator(table.order, table.orderBy);
     const stabilized = filtered.map((el, idx) => [el, idx] as const);
     stabilized.sort((a, b) => {
@@ -190,7 +351,7 @@ export function OnlineOrderListView() {
       return order !== 0 ? order : a[1] - b[1];
     });
     return stabilized.map((el) => el[0]);
-  }, [rows, statusTab, deliveryFilters, paymentFilters, searchQuery, table.order, table.orderBy]);
+  }, [baseFiltered, statusTab, table.order, table.orderBy]);
 
   const pageRows = useMemo(
     () =>
@@ -218,7 +379,16 @@ export function OnlineOrderListView() {
   }, []);
 
   const handleExportCsv = useCallback(() => {
-    const headers = ['Pedido', 'Data', 'Cliente', 'Telefone', 'Modalidade', 'Pagamento', 'Total', 'Status'];
+    const headers = [
+      'Pedido',
+      'Data',
+      'Cliente',
+      'Telefone',
+      'Modalidade',
+      'Pagamento',
+      'Total',
+      'Status',
+    ];
     const csvRows = [
       headers.join(';'),
       ...dataFiltered.map((r) => {
@@ -244,37 +414,77 @@ export function OnlineOrderListView() {
     URL.revokeObjectURL(url);
   }, [dataFiltered]);
 
+  const clearOptimistic = useCallback((orderId: string) => {
+    setOptimisticMap((prev) => {
+      if (!(orderId in prev)) return prev;
+      const next = { ...prev };
+      delete next[orderId];
+      return next;
+    });
+  }, []);
+
   const handleAccept = useCallback(
     async (orderId: string) => {
       if (!enterpriseId) return;
       setBusyId(orderId);
+      setOptimisticMap((prev) => ({ ...prev, [orderId]: 'accepted' }));
       try {
         const { saleId } = await acceptOnlineOrderCf(enterpriseId, orderId);
         toast.success(t('onlineOrders.acceptSuccess'));
-        router.push(paths.dashboard.pos.saleDetails(saleId));
+        if (autoPrintOnAccept && saleId) {
+          openReceiptForSaleId(saleId, true);
+        }
       } catch (error) {
+        clearOptimistic(orderId);
         toast.error(getFirebaseErrorMessage(error, t('onlineOrders.acceptError')));
       } finally {
         setBusyId(null);
       }
     },
-    [enterpriseId, router, t]
+    [autoPrintOnAccept, clearOptimistic, enterpriseId, openReceiptForSaleId, t]
   );
 
-  const handleReject = useCallback(
+  const handleAcceptAndPrepare = useCallback(
     async (orderId: string) => {
       if (!enterpriseId) return;
       setBusyId(orderId);
+      setOptimisticMap((prev) => ({ ...prev, [orderId]: 'preparing' }));
       try {
-        await rejectOnlineOrderCf(enterpriseId, orderId);
+        const { saleId } = await acceptOnlineOrderCf(enterpriseId, orderId);
+        await updateOnlineOrderStatusCf(enterpriseId, orderId, 'preparing');
+        toast.success(t('onlineOrders.acceptSuccess'));
+        if (autoPrintOnAccept && saleId) {
+          openReceiptForSaleId(saleId, true);
+        }
+      } catch (error) {
+        clearOptimistic(orderId);
+        toast.error(getFirebaseErrorMessage(error, t('onlineOrders.acceptError')));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [autoPrintOnAccept, clearOptimistic, enterpriseId, openReceiptForSaleId, t]
+  );
+
+  const handleConfirmReject = useCallback(
+    async (reason?: string) => {
+      if (!enterpriseId || !rejectTarget) return;
+      const orderId = rejectTarget.id;
+      setBusyId(orderId);
+      try {
+        await rejectOnlineOrderCf(enterpriseId, orderId, reason);
         toast.success(t('onlineOrders.rejectSuccess'));
+        setRejectTarget(null);
+        if (selectedOrderId === orderId) {
+          setSelectedOrderId(null);
+        }
       } catch (error) {
         toast.error(getFirebaseErrorMessage(error, t('onlineOrders.rejectError')));
       } finally {
         setBusyId(null);
       }
     },
-    [enterpriseId, t]
+    [enterpriseId, rejectTarget, selectedOrderId, t]
   );
 
   const handleChangeStatus = useCallback(
@@ -284,16 +494,33 @@ export function OnlineOrderListView() {
     ) => {
       if (!enterpriseId) return;
       setBusyId(orderId);
+      setOptimisticMap((prev) => ({ ...prev, [orderId]: nextStatus }));
       try {
         await updateOnlineOrderStatusCf(enterpriseId, orderId, nextStatus);
         toast.success('Status do pedido atualizado!');
       } catch (error) {
+        clearOptimistic(orderId);
         toast.error(getFirebaseErrorMessage(error, 'Erro ao atualizar status do pedido'));
       } finally {
         setBusyId(null);
       }
     },
-    [enterpriseId]
+    [clearOptimistic, enterpriseId]
+  );
+
+  const handleSaveInternalNotes = useCallback(
+    async (orderId: string, notes: string) => {
+      if (!enterpriseId) return;
+      try {
+        await updateOnlineOrderInternalNotes(enterpriseId, orderId, notes);
+        toast.success(t('onlineOrders.kanban.drawer.internalNotesSaved'));
+      } catch (error) {
+        toast.error(
+          getFirebaseErrorMessage(error, t('onlineOrders.kanban.drawer.internalNotesError'))
+        );
+      }
+    },
+    [enterpriseId, t]
   );
 
   const selectedPendingIds = useMemo(
@@ -347,7 +574,7 @@ export function OnlineOrderListView() {
   const notFound = !loading && dataFiltered.length === 0;
 
   return (
-    <DashboardContent>
+    <DashboardContent maxWidth={viewMode === 'kanban' ? false : 'lg'}>
       <CustomBreadcrumbs
         heading={t('onlineOrders.heading')}
         links={[
@@ -355,7 +582,25 @@ export function OnlineOrderListView() {
           { name: t('nav.pos'), href: paths.dashboard.pos.root },
           { name: t('onlineOrders.heading') },
         ]}
-        sx={{ mb: { xs: 3, md: 5 } }}
+        action={
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={viewMode}
+            onChange={handleChangeViewMode}
+            aria-label="Modo de visualização"
+          >
+            <ToggleButton value="kanban" sx={{ px: 1.5, gap: 0.75 }}>
+              <Iconify icon="solar:widget-5-bold-duotone" width={18} />
+              {t('onlineOrders.kanban.viewKanban')}
+            </ToggleButton>
+            <ToggleButton value="list" sx={{ px: 1.5, gap: 0.75 }}>
+              <Iconify icon="solar:list-bold-duotone" width={18} />
+              {t('onlineOrders.kanban.viewList')}
+            </ToggleButton>
+          </ToggleButtonGroup>
+        }
+        sx={{ mb: { xs: 2.5, md: 3 } }}
       />
 
       {!enterpriseId ? (
@@ -363,6 +608,138 @@ export function OnlineOrderListView() {
           filled
           title={t('common.noEnterprise', { defaultValue: 'Nenhuma empresa vinculada' })}
         />
+      ) : viewMode === 'kanban' ? (
+        <Stack spacing={2.5}>
+          {/* Compact Operational Control Bar */}
+          <Card sx={{ p: 2 }}>
+            <Stack
+              direction={{ xs: 'column', lg: 'row' }}
+              spacing={2}
+              alignItems={{ xs: 'stretch', lg: 'center' }}
+              justifyContent="space-between"
+            >
+              {/* Search + Delivery Quick Filter */}
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                sx={{ flex: 1 }}
+              >
+                <TextField
+                  size="small"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar por código, cliente ou telefone..."
+                  sx={{ minWidth: { sm: 260 }, maxWidth: { sm: 340 } }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Iconify icon="eva:search-fill" sx={{ color: 'text.disabled' }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: searchQuery ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setSearchQuery('')}>
+                          <Iconify icon="mingcute:close-line" width={16} />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : null,
+                  }}
+                />
+
+                <ToggleButtonGroup
+                  size="small"
+                  value={deliveryFilters}
+                  onChange={(_, next: string[]) => setDeliveryFilters(next)}
+                >
+                  <ToggleButton value="delivery" sx={{ px: 1.25, gap: 0.5 }}>
+                    <Iconify icon="solar:scooter-bold" width={16} />
+                    {t('onlineOrders.kanban.delivery')}
+                  </ToggleButton>
+                  <ToggleButton value="pickup" sx={{ px: 1.25, gap: 0.5 }}>
+                    <Iconify icon="solar:shop-bold" width={16} />
+                    {t('onlineOrders.kanban.pickup')}
+                  </ToggleButton>
+                  <ToggleButton value="table" sx={{ px: 1.25, gap: 0.5 }}>
+                    <Iconify icon="solar:plate-bold" width={16} />
+                    Mesa
+                  </ToggleButton>
+                </ToggleButtonGroup>
+
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  value={kanbanPeriod}
+                  onChange={(_, next: KanbanPeriodFilter | null) => {
+                    if (next) setKanbanPeriod(next);
+                  }}
+                >
+                  <ToggleButton value="today" sx={{ px: 1.25 }}>
+                    {t('onlineOrders.kanban.periodToday')}
+                  </ToggleButton>
+                  <ToggleButton value="7d" sx={{ px: 1.25 }}>
+                    {t('onlineOrders.kanban.period7d')}
+                  </ToggleButton>
+                  <ToggleButton value="all" sx={{ px: 1.25 }}>
+                    {t('onlineOrders.kanban.periodAll')}
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Stack>
+
+              {/* Switches (Auto-print + Fixed Columns) */}
+              <Stack
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                justifyContent={{ xs: 'space-between', lg: 'flex-end' }}
+                flexWrap="wrap"
+              >
+                <FormControlLabel
+                  label={t('onlineOrders.kanban.autoPrintOnAccept')}
+                  labelPlacement="start"
+                  sx={{ m: 0, '& .MuiFormControlLabel-label': { typography: 'body2' } }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={autoPrintOnAccept}
+                      onChange={(e) => handleToggleAutoPrint(e.target.checked)}
+                    />
+                  }
+                />
+
+                <FormControlLabel
+                  label={t('onlineOrders.kanban.columnFixed')}
+                  labelPlacement="start"
+                  sx={{ m: 0, '& .MuiFormControlLabel-label': { typography: 'body2' } }}
+                  control={
+                    <Switch
+                      size="small"
+                      checked={columnFixed}
+                      onChange={(e) => setColumnFixed(e.target.checked)}
+                    />
+                  }
+                />
+              </Stack>
+            </Stack>
+          </Card>
+
+          {/* Kanban Board */}
+          <OnlineOrderKanbanBoard
+            orders={kanbanOrders}
+            loading={loading}
+            columnFixed={columnFixed}
+            estimatedMinutes={estimatedMinutes}
+            nowMs={nowMs}
+            busyId={busyId}
+            optimisticMap={optimisticMap}
+            onOpenDetails={(order) => setSelectedOrderId(order.id)}
+            onAccept={handleAccept}
+            onAcceptAndPrepare={handleAcceptAndPrepare}
+            onRequestReject={(order) => setRejectTarget(order)}
+            onChangeStatus={handleChangeStatus}
+            onPrintReceipt={handlePrintReceipt}
+          />
+        </Stack>
       ) : (
         <Card>
           {/* 1. Analytics Strip — 4 Indicadores Rápidos (Padrão /dashboard/pos/sales) */}
@@ -529,7 +906,7 @@ export function OnlineOrderListView() {
                           onSelectRow={() => table.onSelectRow(row.id)}
                           busy={busyId === row.id}
                           onAccept={() => handleAccept(row.id)}
-                          onReject={() => handleReject(row.id)}
+                          onReject={() => setRejectTarget(row)}
                           onChangeStatus={(next) => handleChangeStatus(row.id, next)}
                           visibleColumns={visibleColumns}
                         />
@@ -558,6 +935,45 @@ export function OnlineOrderListView() {
             onRowsPerPageChange={table.onChangeRowsPerPage}
           />
         </Card>
+      )}
+
+      {/* Drawer Lateral de Detalhes do Pedido */}
+      <OnlineOrderDetailsDrawer
+        order={selectedOrder}
+        open={Boolean(selectedOrder)}
+        busy={Boolean(selectedOrder && busyId === selectedOrder.id)}
+        estimatedMinutes={estimatedMinutes}
+        nowMs={nowMs}
+        onClose={() => setSelectedOrderId(null)}
+        onAccept={handleAccept}
+        onRequestReject={(order) => setRejectTarget(order)}
+        onChangeStatus={handleChangeStatus}
+        onPrintReceipt={handlePrintReceipt}
+        onSaveInternalNotes={handleSaveInternalNotes}
+      />
+
+      {/* Modal de Recusa com Motivo */}
+      <OnlineOrderRejectDialog
+        open={Boolean(rejectTarget)}
+        order={rejectTarget}
+        busy={Boolean(rejectTarget && busyId === rejectTarget.id)}
+        onClose={() => setRejectTarget(null)}
+        onConfirm={handleConfirmReject}
+      />
+
+      {/* Modal de Impressão da Comanda (ReceiptDialog) */}
+      {receiptSale && (
+        <ReceiptDialog
+          open={Boolean(receiptSale)}
+          onClose={() => {
+            setReceiptSale(null);
+            setReceiptAutoPrint(false);
+          }}
+          sale={receiptSale}
+          enterprise={enterprise}
+          autoPrint={receiptAutoPrint}
+          onAutoPrintDone={() => setReceiptAutoPrint(false)}
+        />
       )}
 
       <ConfirmDialog

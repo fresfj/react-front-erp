@@ -122,24 +122,31 @@ export function useOnlineOrdersMonitor() {
 
     const unsub = subscribeOnlineOrders(enterpriseId, (next) => {
       setOrders(next);
-      const pendingOrders = next.filter((o) => o.status === 'pending');
+      const alertableOrders = next.filter(
+        (o) =>
+          o.status === 'pending' ||
+          (o.deliveryType === 'table' && o.fulfillmentStatus === 'preparing')
+      );
 
       if (!primedRef.current) {
-        pendingOrders.forEach((o) => seenPendingRef.current.add(o.id));
+        alertableOrders.forEach((o) => seenPendingRef.current.add(o.id));
         primedRef.current = true;
         return;
       }
 
-      const fresh = pendingOrders.filter((o) => !seenPendingRef.current.has(o.id));
+      const fresh = alertableOrders.filter((o) => !seenPendingRef.current.has(o.id));
       if (fresh.length > 0) {
         fresh.forEach((o) => seenPendingRef.current.add(o.id));
         playLoudOrderAlertSound();
 
         const newest = fresh[0];
-        toast.info(
-          `Novo pedido online ${newest.code} — ${newest.customerName} (${fCurrency(newest.total)})`,
-          { duration: 8000 }
-        );
+        const prefix =
+          newest.deliveryType === 'table'
+            ? `Novo pedido na Mesa ${newest.tableNumber || ''} (${newest.code})`.trim()
+            : `Novo pedido online ${newest.code}`;
+        toast.info(`${prefix} — ${newest.customerName} (${fCurrency(newest.total)})`, {
+          duration: 8000,
+        });
       }
     });
 
@@ -171,7 +178,12 @@ export function useOnlineOrdersMonitor() {
         const isActive =
           order.status === 'pending' ||
           (order.status === 'accepted' && order.fulfillmentStatus !== 'delivered');
-        const modeText = order.deliveryType === 'delivery' ? 'Entrega' : 'Retirada';
+        const modeText =
+          order.deliveryType === 'delivery'
+            ? 'Entrega'
+            : order.deliveryType === 'table'
+              ? `Mesa ${order.tableNumber || ''}`.trim()
+              : 'Retirada';
 
         return {
           id: order.id,

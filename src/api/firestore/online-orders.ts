@@ -2,9 +2,11 @@ import type { Unsubscribe } from 'firebase/firestore';
 
 import { httpsCallable } from 'firebase/functions';
 import {
+  doc,
   query,
   getDocs,
   orderBy,
+  updateDoc,
   onSnapshot,
 } from 'firebase/firestore';
 
@@ -43,6 +45,12 @@ export type OnlineOrderItem = {
   notes?: string;
 };
 
+export type OnlineOrderPaymentChannel = 'online' | 'on_delivery';
+export type OnlineOrderPaymentStatus = 'awaiting_confirmation' | 'confirmed' | 'pay_on_delivery';
+
+export type OnlineOrderDeliveryType = 'pickup' | 'delivery' | 'table';
+export type OnlineOrderSource = 'online_catalog' | 'table_qr' | 'waiter';
+
 export type OnlineOrder = {
   id: string;
   code: string;
@@ -51,17 +59,33 @@ export type OnlineOrder = {
   customerName: string;
   customerPhone: string;
   customerAddress?: string;
-  deliveryType: 'pickup' | 'delivery';
+  deliveryType: OnlineOrderDeliveryType;
   deliveryFee: number;
   paymentMethod: OnlinePayOnDeliveryMethod;
+  paymentChannel: OnlineOrderPaymentChannel;
+  paymentStatus: OnlineOrderPaymentStatus;
+  pixConfirmedAt?: string;
+  orderSource?: OnlineOrderSource;
+  requestedByType?: 'customer' | 'waiter';
+  tableId?: string;
+  tableNumber?: string;
+  tableSessionId?: string;
+  waiterUid?: string;
+  waiterName?: string;
   items: OnlineOrderItem[];
   subtotal: number;
   total: number;
   notes?: string;
+  internalNotes?: string;
   cashSessionId?: string;
   saleId?: string;
   acceptedByUid?: string;
   rejectedReason?: string;
+  acceptedAt?: string;
+  preparingAt?: string;
+  dispatchedAt?: string;
+  deliveredAt?: string;
+  rejectedAt?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -72,6 +96,15 @@ export type PublicStorefrontProduct = {
   category?: string;
   description?: string;
   salePrice: number;
+  originalPrice?: number;
+  promoActive?: boolean;
+  discountType?: 'percent' | 'fixed';
+  discountValue?: number;
+  servingTemperature?: 'none' | 'cold' | 'hot';
+  isCombo?: boolean;
+  comboItems?: Array<{ productId: string; productName: string; qty: number }>;
+  servesCount?: number;
+  featured?: boolean;
   imageUrl?: string;
 };
 
@@ -91,7 +124,12 @@ export type PublicStorefront = {
   deliveryFee: number;
   acceptDelivery: boolean;
   acceptPickup: boolean;
+  acceptTableOrders?: boolean;
   paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
+  acceptOnlinePix?: boolean;
+  pixKey?: string;
+  pixMerchantName?: string;
+  pixMerchantCity?: string;
   whatsapp?: string;
   instagramUrl?: string;
   googleReviewUrl?: string;
@@ -127,8 +165,10 @@ export type PlaceOnlineOrderInput = {
     city?: string;
     state?: string;
   };
-  deliveryType: 'pickup' | 'delivery';
+  deliveryType: OnlineOrderDeliveryType;
+  tableCode?: string;
   paymentMethod: OnlinePayOnDeliveryMethod;
+  paymentChannel?: OnlineOrderPaymentChannel;
   notes?: string;
   origin?: string;
 };
@@ -159,6 +199,11 @@ export type PublicOrderTracking = {
   deliveryType: 'pickup' | 'delivery';
   deliveryFee: number;
   paymentMethod: OnlinePayOnDeliveryMethod;
+  paymentChannel?: OnlineOrderPaymentChannel;
+  paymentStatus?: OnlineOrderPaymentStatus;
+  pixKey?: string;
+  pixMerchantName?: string;
+  pixMerchantCity?: string;
   items: OnlineOrderItem[];
   subtotal: number;
   total: number;
@@ -220,6 +265,18 @@ function mapFulfillmentStatus(
 export function mapOnlineOrder(id: string, data: Record<string, unknown>): OnlineOrder {
   const rawItems = Array.isArray(data.items) ? data.items : [];
   const status = mapStatus(data.status);
+  const paymentMethod = mapPaymentMethod(data.paymentMethod);
+  const paymentChannel: OnlineOrderPaymentChannel =
+    data.paymentChannel === 'online' ? 'online' : 'on_delivery';
+  const paymentStatus: OnlineOrderPaymentStatus =
+    data.paymentStatus === 'awaiting_confirmation' || data.paymentStatus === 'confirmed'
+      ? data.paymentStatus
+      : paymentChannel === 'online'
+        ? status === 'accepted'
+          ? 'confirmed'
+          : 'awaiting_confirmation'
+        : 'pay_on_delivery';
+
   return {
     id,
     code: String(data.code ?? ''),
@@ -228,17 +285,41 @@ export function mapOnlineOrder(id: string, data: Record<string, unknown>): Onlin
     customerName: String(data.customerName ?? ''),
     customerPhone: String(data.customerPhone ?? ''),
     customerAddress: optStr(data.customerAddress),
-    deliveryType: data.deliveryType === 'delivery' ? 'delivery' : 'pickup',
+    deliveryType:
+      data.deliveryType === 'delivery'
+        ? 'delivery'
+        : data.deliveryType === 'table'
+          ? 'table'
+          : 'pickup',
     deliveryFee: Number(data.deliveryFee ?? 0),
-    paymentMethod: mapPaymentMethod(data.paymentMethod),
+    paymentMethod,
+    paymentChannel,
+    paymentStatus,
+    pixConfirmedAt: optStr(data.pixConfirmedAt),
+    orderSource:
+      data.orderSource === 'table_qr' || data.orderSource === 'waiter'
+        ? data.orderSource
+        : 'online_catalog',
+    requestedByType: data.requestedByType === 'waiter' ? 'waiter' : 'customer',
+    tableId: optStr(data.tableId),
+    tableNumber: optStr(data.tableNumber),
+    tableSessionId: optStr(data.tableSessionId),
+    waiterUid: optStr(data.waiterUid),
+    waiterName: optStr(data.waiterName),
     items: rawItems.map((i) => mapOnlineOrderItem(i as Record<string, unknown>)),
     subtotal: Number(data.subtotal ?? 0),
     total: Number(data.total ?? 0),
     notes: optStr(data.notes),
+    internalNotes: optStr(data.internalNotes),
     cashSessionId: optStr(data.cashSessionId),
     saleId: optStr(data.saleId),
     acceptedByUid: optStr(data.acceptedByUid),
     rejectedReason: optStr(data.rejectedReason),
+    acceptedAt: optStr(data.acceptedAt),
+    preparingAt: optStr(data.preparingAt),
+    dispatchedAt: optStr(data.dispatchedAt),
+    deliveredAt: optStr(data.deliveredAt),
+    rejectedAt: optStr(data.rejectedAt),
     createdAt: String(data.createdAt ?? ''),
     updatedAt: String(data.updatedAt ?? ''),
   };
@@ -258,6 +339,18 @@ export function subscribeOnlineOrders(
   const q = query(col, orderBy('createdAt', 'desc'));
   return onSnapshot(q, (snap) => {
     cb(snap.docs.map((d) => mapOnlineOrder(d.id, d.data() as Record<string, unknown>)));
+  });
+}
+
+export async function updateOnlineOrderInternalNotes(
+  enterpriseId: string,
+  orderId: string,
+  internalNotes: string
+): Promise<void> {
+  const ref = doc(enterpriseCollection(enterpriseId, 'onlineOrders'), orderId);
+  await updateDoc(ref, {
+    internalNotes: internalNotes.trim(),
+    updatedAt: new Date().toISOString(),
   });
 }
 
@@ -328,6 +421,45 @@ export function listPublicOrdersByPhoneCf(
   );
 }
 
+export type PublicTableSessionOrder = {
+  id: string;
+  code: string;
+  status: OnlineOrderStatus;
+  fulfillmentStatus: OnlineOrderFulfillmentStatus;
+  requestedByType: 'customer' | 'waiter';
+  waiterName?: string;
+  items: OnlineOrderItem[];
+  subtotal: number;
+  total: number;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PublicTableSessionStatus = {
+  table: {
+    id: string;
+    number: string;
+    label?: string;
+    area?: string;
+    qrCodeSlug: string;
+    status: string;
+    acceptingOrders?: boolean;
+    acceptTableOrders?: boolean;
+  };
+  session: {
+    id: string;
+    status: 'open' | 'closed';
+    customerName?: string;
+    customerPhone?: string;
+    waiterName?: string;
+    subtotal: number;
+    total: number;
+    openedAt: string;
+  } | null;
+  orders: PublicTableSessionOrder[];
+};
+
 export function getPublicOrderStatusCf(
   slug: string,
   orderId: string
@@ -336,6 +468,18 @@ export function getPublicOrderStatusCf(
     'getPublicOrderStatus',
     { slug, orderId }
   );
+}
+
+export async function getPublicTableSessionStatusCf(
+  slug: string,
+  tableCode: string,
+  customerPhone?: string
+): Promise<PublicTableSessionStatus> {
+  const res = await call<
+    { slug: string; tableCode: string; customerPhone?: string },
+    { tableStatus: PublicTableSessionStatus }
+  >('getPublicOrderStatus', { slug, tableCode, customerPhone });
+  return res.tableStatus;
 }
 
 export function updateOnlineOrderStatusCf(

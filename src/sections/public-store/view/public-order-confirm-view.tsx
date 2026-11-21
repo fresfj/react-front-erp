@@ -1,10 +1,12 @@
 import type { PublicOrderTracking } from 'src/api/firestore/online-orders';
 
+import { QRCodeSVG } from 'qrcode.react';
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, Link as RouterLink } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
+import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
@@ -16,6 +18,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { paths } from 'src/routes/paths';
 
 import { fCurrency } from 'src/utils/format-number';
+import { buildPixBrCode } from 'src/utils/pix-brcode';
 
 import { varAlpha } from 'src/theme/styles';
 import { getPublicOrderStatusCf } from 'src/api/firestore/online-orders';
@@ -42,6 +45,7 @@ export function PublicOrderConfirmView() {
   const [loading, setLoading] = useState(Boolean(orderId));
   const [refreshing, setRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pixCopied, setPixCopied] = useState(false);
 
   const fetchOrder = useCallback(
     async (silent = false) => {
@@ -83,8 +87,39 @@ export function PublicOrderConfirmView() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const isOnlinePix = order?.paymentChannel === 'online' || order?.paymentMethod === 'pix';
+  const isAwaitingPix =
+    isOnlinePix &&
+    order?.paymentStatus === 'awaiting_confirmation' &&
+    currentStatus !== 'rejected' &&
+    currentStatus !== 'cancelled';
+
+  const pixBrCode =
+    isAwaitingPix && order?.pixKey
+      ? buildPixBrCode({
+          pixKey: order.pixKey,
+          merchantName: order.pixMerchantName || order.storeName || 'LOJA',
+          merchantCity: order.pixMerchantCity || 'BRASIL',
+          amount: order.total,
+          txid: order.code,
+        })
+      : '';
+
+  const handleCopyPix = () => {
+    const textToCopy = pixBrCode || order?.pixKey || '';
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    setPixCopied(true);
+    toast.success('Código PIX copiado! Cole no app do seu banco.');
+    setTimeout(() => setPixCopied(false), 3000);
+  };
+
   const whatsappMessage = encodeURIComponent(
     `Olá! Gostaria de acompanhar o pedido *${code}* feito pelo cardápio online.`
+  );
+
+  const whatsappPixMessage = encodeURIComponent(
+    `Olá! Segue o comprovante do PIX do pedido *${code}* (${fCurrency(order?.total || 0)}).`
   );
 
   return (
@@ -174,6 +209,86 @@ export function PublicOrderConfirmView() {
               rejectedReason={order?.rejectedReason}
             />
           </Box>
+        )}
+
+        {/* Bloco PIX Online — QR Code + Copia e Cola + Confirmação pela loja */}
+        {isAwaitingPix && (
+          <Box
+            sx={{
+              p: 2.5,
+              mb: 3,
+              borderRadius: 2,
+              bgcolor: (theme) => varAlpha(theme.vars.palette.warning.mainChannel, 0.08),
+              border: (theme) =>
+                `1.5px solid ${varAlpha(theme.vars.palette.warning.mainChannel, 0.36)}`,
+            }}
+          >
+            <Stack spacing={1.5} alignItems="center">
+              <Label variant="filled" color="warning">
+                PIX Online · Aguardando confirmação da loja
+              </Label>
+
+              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                Pague {fCurrency(order?.total || 0)} via PIX para agilizar seu pedido
+              </Typography>
+
+              {pixBrCode ? (
+                <>
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      bgcolor: 'common.white',
+                      boxShadow: (theme) => theme.customShadows.z4,
+                    }}
+                  >
+                    <QRCodeSVG value={pixBrCode} size={184} includeMargin={false} />
+                  </Box>
+
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={handleCopyPix}
+                    startIcon={
+                      <Iconify
+                        icon={pixCopied ? 'solar:check-read-bold' : 'solar:copy-bold'}
+                        width={20}
+                      />
+                    }
+                  >
+                    {pixCopied ? 'Código PIX Copiado!' : 'Copiar código PIX (Copia e Cola)'}
+                  </Button>
+                </>
+              ) : (
+                <Alert severity="info" sx={{ width: '100%', textAlign: 'left' }}>
+                  A loja ainda não configurou a chave PIX automática. Entre em contato pelo WhatsApp
+                  para receber a chave PIX.
+                </Alert>
+              )}
+
+              {whatsapp && (
+                <Button
+                  fullWidth
+                  variant="soft"
+                  color="success"
+                  component="a"
+                  href={`https://wa.me/55${whatsapp}?text=${whatsappPixMessage}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  startIcon={<Iconify icon="ic:baseline-whatsapp" width={20} />}
+                >
+                  Enviar comprovante no WhatsApp
+                </Button>
+              )}
+            </Stack>
+          </Box>
+        )}
+
+        {isOnlinePix && order?.paymentStatus === 'confirmed' && (
+          <Alert severity="success" sx={{ mb: 2.5, textAlign: 'left', borderRadius: 1.5 }}>
+            <strong>PIX Online confirmado pela loja!</strong> Seu pedido está em andamento.
+          </Alert>
         )}
 
         {/* Caixa com o Código do Pedido e botão Atualizar */}

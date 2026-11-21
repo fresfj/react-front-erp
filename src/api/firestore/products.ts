@@ -1,3 +1,6 @@
+import type { ProductDiscountType } from 'src/utils/product-pricing';
+import type { ProductServingTemp } from 'src/components/product-badges/product-image-badges';
+
 import {
   doc,
   addDoc,
@@ -12,7 +15,15 @@ import { omitUndefined } from './omit-undefined';
 
 // ----------------------------------------------------------------------
 
+export type { ProductServingTemp, ProductDiscountType };
+
 export type ProductType = 'raw' | 'finished';
+
+export type ProductComboItem = {
+  productId: string;
+  productName: string;
+  qty: number;
+};
 
 export type Product = {
   id: string;
@@ -21,9 +32,18 @@ export type Product = {
   ean?: string;
   type: ProductType;
   category?: string;
+  description?: string;
   unit: string;
   costPrice?: number;
   salePrice?: number;
+  promoActive?: boolean;
+  discountType?: ProductDiscountType;
+  discountValue?: number;
+  servingTemperature?: ProductServingTemp;
+  isCombo?: boolean;
+  comboItems?: ProductComboItem[];
+  servesCount?: number;
+  featured?: boolean;
   minStock?: number;
   expirationDate?: string;
   supplierId?: string;
@@ -47,6 +67,25 @@ function optStr(val: unknown): string | undefined {
   return String(val);
 }
 
+function mapServingTemp(val: unknown): ProductServingTemp | undefined {
+  if (val === 'cold' || val === 'hot' || val === 'none') return val;
+  return undefined;
+}
+
+function mapComboItems(raw: unknown): ProductComboItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  return raw
+    .map((item) => {
+      const rec = item as Record<string, unknown>;
+      return {
+        productId: String(rec.productId ?? ''),
+        productName: String(rec.productName ?? ''),
+        qty: Math.max(1, Number(rec.qty ?? 1)),
+      };
+    })
+    .filter((i) => Boolean(i.productId));
+}
+
 function mapProduct(id: string, data: Record<string, unknown>): Product {
   const type = data.type === 'raw' ? 'raw' : 'finished';
 
@@ -57,9 +96,18 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
     ean: optStr(data.ean),
     type,
     category: optStr(data.category),
+    description: optStr(data.description),
     unit: String(data.unit ?? 'un'),
     costPrice: typeof data.costPrice === 'number' ? data.costPrice : undefined,
     salePrice: typeof data.salePrice === 'number' ? data.salePrice : undefined,
+    promoActive: data.promoActive === true,
+    discountType: data.discountType === 'fixed' ? 'fixed' : data.discountType === 'percent' ? 'percent' : undefined,
+    discountValue: typeof data.discountValue === 'number' ? data.discountValue : undefined,
+    servingTemperature: mapServingTemp(data.servingTemperature),
+    isCombo: data.isCombo === true,
+    comboItems: mapComboItems(data.comboItems),
+    servesCount: typeof data.servesCount === 'number' ? data.servesCount : undefined,
+    featured: data.featured === true,
     minStock: typeof data.minStock === 'number' ? data.minStock : undefined,
     expirationDate: optStr(data.expirationDate),
     supplierId: optStr(data.supplierId),

@@ -67,17 +67,22 @@ export type ChannelBreakdown = {
   posCount: number;
   onlineRevenue: number;
   onlineCount: number;
+  tableRevenue: number;
+  tableCount: number;
   totalRevenue: number;
   totalCount: number;
   posSharePercent: number;
   onlineSharePercent: number;
+  tableSharePercent: number;
   avgTicket: number;
   dailySeries: Array<{
     date: string;
     posRevenue: number;
     onlineRevenue: number;
+    tableRevenue: number;
     posCount: number;
     onlineCount: number;
+    tableCount: number;
   }>;
 };
 
@@ -90,18 +95,32 @@ export function computeChannelBreakdown(sales: Sale[], bounds: PeriodBounds): Ch
   let posCount = 0;
   let onlineRevenue = 0;
   let onlineCount = 0;
+  let tableRevenue = 0;
+  let tableCount = 0;
 
   const dailyMap = new Map<
     string,
-    { date: string; posRevenue: number; onlineRevenue: number; posCount: number; onlineCount: number }
+    {
+      date: string;
+      posRevenue: number;
+      onlineRevenue: number;
+      tableRevenue: number;
+      posCount: number;
+      onlineCount: number;
+      tableCount: number;
+    }
   >();
 
   completed.forEach((sale) => {
     const amount = Number(sale.total) || 0;
-    const isOnline = sale.channel === 'online' || Boolean(sale.onlineOrderId);
+    const isTable = sale.channel === 'table' || Boolean(sale.tableId || sale.tableSessionId);
+    const isOnline = !isTable && (sale.channel === 'online' || Boolean(sale.onlineOrderId));
     const dayKey = sale.createdAt ? dayjs(sale.createdAt).format('YYYY-MM-DD') : '';
 
-    if (isOnline) {
+    if (isTable) {
+      tableRevenue += amount;
+      tableCount += 1;
+    } else if (isOnline) {
       onlineRevenue += amount;
       onlineCount += 1;
     } else {
@@ -114,10 +133,15 @@ export function computeChannelBreakdown(sales: Sale[], bounds: PeriodBounds): Ch
         date: dayKey,
         posRevenue: 0,
         onlineRevenue: 0,
+        tableRevenue: 0,
         posCount: 0,
         onlineCount: 0,
+        tableCount: 0,
       };
-      if (isOnline) {
+      if (isTable) {
+        existing.tableRevenue = round2(existing.tableRevenue + amount);
+        existing.tableCount += 1;
+      } else if (isOnline) {
         existing.onlineRevenue = round2(existing.onlineRevenue + amount);
         existing.onlineCount += 1;
       } else {
@@ -128,18 +152,21 @@ export function computeChannelBreakdown(sales: Sale[], bounds: PeriodBounds): Ch
     }
   });
 
-  const totalRevenue = round2(posRevenue + onlineRevenue);
-  const totalCount = posCount + onlineCount;
+  const totalRevenue = round2(posRevenue + onlineRevenue + tableRevenue);
+  const totalCount = posCount + onlineCount + tableCount;
 
   return {
     posRevenue: round2(posRevenue),
     posCount,
     onlineRevenue: round2(onlineRevenue),
     onlineCount,
+    tableRevenue: round2(tableRevenue),
+    tableCount,
     totalRevenue,
     totalCount,
     posSharePercent: totalRevenue > 0 ? round2((posRevenue / totalRevenue) * 100) : 0,
     onlineSharePercent: totalRevenue > 0 ? round2((onlineRevenue / totalRevenue) * 100) : 0,
+    tableSharePercent: totalRevenue > 0 ? round2((tableRevenue / totalRevenue) * 100) : 0,
     avgTicket: totalCount > 0 ? round2(totalRevenue / totalCount) : 0,
     dailySeries: Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date)),
   };

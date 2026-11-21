@@ -1,5 +1,11 @@
 import type { Supplier } from 'src/api/firestore/suppliers';
-import type { Product, ProductType } from 'src/api/firestore/products';
+import type {
+  Product,
+  ProductType,
+  ProductComboItem,
+  ProductServingTemp,
+  ProductDiscountType,
+} from 'src/api/firestore/products';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -15,24 +21,30 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import Collapse from '@mui/material/Collapse';
 import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import CardHeader from '@mui/material/CardHeader';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
+import ToggleButton from '@mui/material/ToggleButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { paths } from 'src/routes/paths';
 import { useRouter } from 'src/routes/hooks';
 
 import { useBoolean } from 'src/hooks/use-boolean';
 
+import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { useTranslate } from 'src/locales';
 import { listSuppliers } from 'src/api/firestore/suppliers';
 import { uploadProductImage } from 'src/api/firestore/storage';
 import {
+  listProducts,
   createProduct,
   updateProduct,
   deactivateProduct,
@@ -87,9 +99,17 @@ export const ProductSchema = zod.object({
   ean: zod.string().optional().or(zod.literal('')),
   type: zod.enum(['raw', 'finished'], { required_error: 'Required' }),
   category: zod.string().optional().or(zod.literal('')),
+  description: zod.string().optional().or(zod.literal('')),
   unit: zod.string().min(1, { message: 'Required' }),
   costPrice: optionalNumber,
   salePrice: optionalNumber,
+  promoActive: zod.boolean(),
+  discountType: zod.enum(['percent', 'fixed']),
+  discountValue: optionalNumber,
+  servingTemperature: zod.enum(['none', 'cold', 'hot']),
+  isCombo: zod.boolean(),
+  servesCount: optionalNumber,
+  featured: zod.boolean(),
   minStock: optionalNumber,
   expirationDate: zod.string().optional().or(zod.literal('')),
   supplierId: zod.string().optional().or(zod.literal('')),
@@ -116,6 +136,7 @@ export function ProductForm({ currentProduct }: Props) {
 
   const confirmDeactivate = useBoolean();
   const openDetails = useBoolean(true);
+  const openCatalogExtras = useBoolean(true);
   const openProperties = useBoolean(true);
   const openPricing = useBoolean(true);
   const supplierPicker = useBoolean();
@@ -125,6 +146,12 @@ export function ProductForm({ currentProduct }: Props) {
     !currentProduct?.taxPercent || currentProduct.taxPercent === 0
   );
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [comboItems, setComboItems] = useState<ProductComboItem[]>(
+    currentProduct?.comboItems || []
+  );
+  const [comboPickId, setComboPickId] = useState('');
+  const [comboPickQty, setComboPickQty] = useState(1);
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -135,9 +162,17 @@ export function ProductForm({ currentProduct }: Props) {
       ean: currentProduct?.ean || '',
       type: currentProduct?.type || 'finished',
       category: currentProduct?.category || PRODUCT_CATEGORIES[0],
+      description: currentProduct?.description || '',
       unit: currentProduct?.unit || 'L',
       costPrice: currentProduct?.costPrice,
       salePrice: currentProduct?.salePrice,
+      promoActive: currentProduct?.promoActive === true,
+      discountType: (currentProduct?.discountType as ProductDiscountType) || 'percent',
+      discountValue: currentProduct?.discountValue,
+      servingTemperature: (currentProduct?.servingTemperature as ProductServingTemp) || 'none',
+      isCombo: currentProduct?.isCombo === true,
+      servesCount: currentProduct?.servesCount,
+      featured: currentProduct?.featured === true,
       minStock: currentProduct?.minStock ?? 10,
       expirationDate: currentProduct?.expirationDate || '',
       supplierId: currentProduct?.supplierId || '',
@@ -167,6 +202,23 @@ export function ProductForm({ currentProduct }: Props) {
 
   const productType = watch('type') as ProductType;
   const watchedSupplierId = watch('supplierId');
+  const watchedSalePrice = watch('salePrice');
+  const watchedPromoActive = watch('promoActive');
+  const watchedDiscountType = watch('discountType') as ProductDiscountType;
+  const watchedDiscountValue = watch('discountValue');
+  const watchedServingTemp = watch('servingTemperature') as ProductServingTemp;
+  const watchedIsCombo = watch('isCombo');
+
+  const pricingPreview = useMemo(
+    () =>
+      getEffectiveProductPrice({
+        salePrice: watchedSalePrice,
+        promoActive: watchedPromoActive,
+        discountType: watchedDiscountType,
+        discountValue: watchedDiscountValue,
+      }),
+    [watchedSalePrice, watchedPromoActive, watchedDiscountType, watchedDiscountValue]
+  );
 
   const selectedSupplier = useMemo(
     () => suppliers.find((s) => s.id === watchedSupplierId) || null,
@@ -176,12 +228,20 @@ export function ProductForm({ currentProduct }: Props) {
   const loadSuppliers = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      const sups = await listSuppliers(enterpriseId);
+      const [sups, prods] = await Promise.all([
+        listSuppliers(enterpriseId),
+        listProducts(enterpriseId),
+      ]);
       setSuppliers(sups.filter((s) => s.active));
+      setCatalogProducts(
+        prods.filter(
+          (p) => p.active && p.type === 'finished' && !p.isCombo && p.id !== currentProduct?.id
+        )
+      );
     } catch (error) {
       console.error(error);
     }
-  }, [enterpriseId]);
+  }, [enterpriseId, currentProduct?.id]);
 
   useEffect(() => {
     loadSuppliers();
@@ -190,8 +250,30 @@ export function ProductForm({ currentProduct }: Props) {
   useEffect(() => {
     if (currentProduct) {
       reset(defaultValues);
+      setComboItems(currentProduct.comboItems || []);
     }
   }, [currentProduct, defaultValues, reset]);
+
+  const handleAddComboItem = () => {
+    const picked = catalogProducts.find((p) => p.id === comboPickId);
+    if (!picked) return;
+    const qty = Math.max(1, Number(comboPickQty || 1));
+    setComboItems((prev) => {
+      const existing = prev.find((i) => i.productId === picked.id);
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === picked.id ? { ...i, qty: i.qty + qty } : i
+        );
+      }
+      return [...prev, { productId: picked.id, productName: picked.name, qty }];
+    });
+    setComboPickId('');
+    setComboPickQty(1);
+  };
+
+  const handleRemoveComboItem = (productId: string) => {
+    setComboItems((prev) => prev.filter((i) => i.productId !== productId));
+  };
 
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId) {
@@ -223,9 +305,18 @@ export function ProductForm({ currentProduct }: Props) {
         ean: data.ean?.trim() || undefined,
         type: data.type,
         category: data.category?.trim() || undefined,
+        description: data.description?.trim() || undefined,
         unit: data.unit.trim(),
         costPrice: data.costPrice,
         salePrice: data.salePrice,
+        promoActive: data.promoActive,
+        discountType: data.promoActive ? data.discountType : undefined,
+        discountValue: data.promoActive ? data.discountValue : undefined,
+        servingTemperature: data.servingTemperature !== 'none' ? data.servingTemperature : undefined,
+        isCombo: data.isCombo,
+        comboItems: data.isCombo && comboItems.length > 0 ? comboItems : undefined,
+        servesCount: data.servesCount && data.servesCount > 0 ? Math.round(data.servesCount) : undefined,
+        featured: data.featured,
         minStock: data.minStock,
         expirationDate: data.expirationDate?.trim() || undefined,
         supplierId: sup?.id || undefined,
@@ -293,6 +384,14 @@ export function ProductForm({ currentProduct }: Props) {
         <Divider />
         <Stack spacing={3} sx={{ p: 3 }}>
           <Field.Text name="name" label={t('products.fields.name')} />
+
+          <Field.Text
+            name="description"
+            label="Descrição comercial (exibida no Cardápio Online e detalhes do PDV)"
+            placeholder="Ex.: Açaí cremoso batido com guaraná natural, acompanha banana e granola crocante..."
+            multiline
+            rows={3}
+          />
 
           <Box
             columnGap={2}
@@ -459,6 +558,170 @@ export function ProductForm({ currentProduct }: Props) {
     </Card>
   );
 
+  const renderCatalogExtras = (
+    <Card>
+      <CardHeader
+        title="Cardápio Digital, Temperatura & Combo"
+        subheader="Identificação Gelado/Quente sobre a imagem, composição de Combo e destaques estilo iFood"
+        action={renderCollapseAction(openCatalogExtras.value, openCatalogExtras.onToggle)}
+        sx={{ mb: 3 }}
+      />
+
+      <Collapse in={openCatalogExtras.value}>
+        <Divider />
+        <Stack spacing={3} sx={{ p: 3 }}>
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">Temperatura do produto (badge sobre a imagem)</Typography>
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={watchedServingTemp}
+              onChange={(_, val: ProductServingTemp | null) => {
+                if (val) setValue('servingTemperature', val);
+              }}
+            >
+              <ToggleButton value="none" sx={{ px: 2 }}>
+                Nenhum
+              </ToggleButton>
+              <ToggleButton
+                value="cold"
+                sx={{
+                  px: 2,
+                  gap: 0.75,
+                  '&.Mui-selected': {
+                    bgcolor: 'info.main',
+                    color: 'common.white',
+                    '&:hover': { bgcolor: 'info.dark' },
+                  },
+                }}
+              >
+                <Iconify icon="solar:snowflake-line-duotone" width={18} />
+                Gelado
+              </ToggleButton>
+              <ToggleButton
+                value="hot"
+                sx={{
+                  px: 2,
+                  gap: 0.75,
+                  '&.Mui-selected': {
+                    bgcolor: 'error.main',
+                    color: 'common.white',
+                    '&:hover': { bgcolor: 'error.dark' },
+                  },
+                }}
+              >
+                <Iconify icon="solar:flame-bold-duotone" width={18} />
+                Quente
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Stack>
+
+          <Box
+            columnGap={2}
+            rowGap={3}
+            display="grid"
+            gridTemplateColumns={{ xs: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)' }}
+            alignItems="center"
+          >
+            <Field.Text
+              name="servesCount"
+              label="Serve quantas pessoas (opcional)"
+              placeholder="Ex.: 2"
+              type="number"
+              InputLabelProps={{ shrink: true }}
+              inputProps={{ min: 1, step: 1 }}
+            />
+
+            <Field.Switch name="featured" label="Destacar no cardápio (Mais pedido)" />
+          </Box>
+
+          <Divider sx={{ borderStyle: 'dashed' }} />
+
+          <Stack spacing={2}>
+            <Field.Switch
+              name="isCombo"
+              label="Este produto é um Combo (agrupa outros itens do cardápio)"
+            />
+
+            {watchedIsCombo && (
+              <Stack spacing={2} sx={{ p: 2, borderRadius: 1.5, bgcolor: 'background.neutral' }}>
+                <Typography variant="caption" color="text.secondary">
+                  Selecione os produtos que compõem este combo. A composição aparece no cardápio online e no PDV.
+                </Typography>
+
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                  <TextField
+                    select
+                    fullWidth
+                    size="small"
+                    label="Produto componente"
+                    value={comboPickId}
+                    onChange={(e) => setComboPickId(e.target.value)}
+                  >
+                    {catalogProducts.map((p) => (
+                      <MenuItem key={p.id} value={p.id}>
+                        {p.name} ({fCurrency(p.salePrice ?? 0)})
+                      </MenuItem>
+                    ))}
+                  </TextField>
+
+                  <TextField
+                    size="small"
+                    type="number"
+                    label="Qtd"
+                    value={comboPickQty}
+                    onChange={(e) => setComboPickQty(Math.max(1, Number(e.target.value || 1)))}
+                    inputProps={{ min: 1 }}
+                    sx={{ width: { xs: '100%', sm: 96 } }}
+                  />
+
+                  <Button
+                    variant="contained"
+                    onClick={handleAddComboItem}
+                    disabled={!comboPickId}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Adicionar
+                  </Button>
+                </Stack>
+
+                {comboItems.length > 0 && (
+                  <Stack spacing={1}>
+                    {comboItems.map((item) => (
+                      <Stack
+                        key={item.productId}
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{
+                          px: 1.5,
+                          py: 0.75,
+                          borderRadius: 1,
+                          bgcolor: 'background.paper',
+                        }}
+                      >
+                        <Typography variant="body2">
+                          <strong>{item.qty}x</strong> {item.productName}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => handleRemoveComboItem(item.productId)}
+                        >
+                          <Iconify icon="solar:trash-bin-trash-bold" width={16} />
+                        </IconButton>
+                      </Stack>
+                    ))}
+                  </Stack>
+                )}
+              </Stack>
+            )}
+          </Stack>
+        </Stack>
+      </Collapse>
+    </Card>
+  );
+
   const renderPricing = (
     <Card>
       <CardHeader
@@ -508,6 +771,68 @@ export function ProductForm({ currentProduct }: Props) {
               ),
             }}
           />
+
+          <Divider sx={{ borderStyle: 'dashed' }} />
+
+          <Field.Switch
+            name="promoActive"
+            label="Ativar promoção / desconto neste produto (PDV e Cardápio Online)"
+          />
+
+          {watchedPromoActive && (
+            <Stack spacing={2} sx={{ p: 2, borderRadius: 1.5, bgcolor: 'background.neutral' }}>
+              <Box
+                columnGap={2}
+                rowGap={2}
+                display="grid"
+                gridTemplateColumns={{ xs: 'repeat(1, 1fr)', md: 'repeat(2, 1fr)' }}
+              >
+                <Field.Select name="discountType" label="Tipo de desconto">
+                  <MenuItem value="percent">Percentual (%)</MenuItem>
+                  <MenuItem value="fixed">Valor fixo (R$)</MenuItem>
+                </Field.Select>
+
+                <Field.Text
+                  name="discountValue"
+                  label={watchedDiscountType === 'fixed' ? 'Desconto em R$' : 'Desconto em %'}
+                  placeholder="0"
+                  type="number"
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{
+                    min: 0,
+                    max: watchedDiscountType === 'percent' ? 100 : undefined,
+                    step: 'any',
+                  }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Box component="span" sx={{ color: 'text.disabled' }}>
+                          {watchedDiscountType === 'fixed' ? 'R$' : '%'}
+                        </Box>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Box>
+
+              {pricingPreview.hasDiscount && (
+                <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                  <Typography
+                    variant="body2"
+                    sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                  >
+                    De {fCurrency(pricingPreview.basePrice)}
+                  </Typography>
+                  <Typography variant="subtitle1" color="success.main" sx={{ fontWeight: 700 }}>
+                    Por {fCurrency(pricingPreview.effectivePrice)}
+                  </Typography>
+                  {pricingPreview.discountBadge && (
+                    <Chip size="small" color="success" label={pricingPreview.discountBadge} />
+                  )}
+                </Stack>
+              )}
+            </Stack>
+          )}
 
           <FormControlLabel
             control={
@@ -580,6 +905,7 @@ export function ProductForm({ currentProduct }: Props) {
       <Form methods={methods} onSubmit={onSubmit}>
         <Stack spacing={{ xs: 3, md: 5 }} sx={{ mx: 'auto', maxWidth: { xs: 720, xl: 880 } }}>
           {renderDetails}
+          {renderCatalogExtras}
           {renderProperties}
           {renderPricing}
           {renderActions}

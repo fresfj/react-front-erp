@@ -124,14 +124,18 @@ export function OverviewSellerView() {
 
   const channelDonut = useMemo(() => {
     const posRev = summary.todaySales
-      .filter((s) => s.channel !== 'online')
+      .filter((s) => s.channel !== 'online' && s.channel !== 'table')
       .reduce((acc, s) => acc + (s.total || 0), 0);
     const onlineRev = summary.todaySales
       .filter((s) => s.channel === 'online')
       .reduce((acc, s) => acc + (s.total || 0), 0);
+    const tableRev = summary.todaySales
+      .filter((s) => s.channel === 'table')
+      .reduce((acc, s) => acc + (s.total || 0), 0);
     const entries = [
       { label: t('sellerHome.channelPos'), value: Math.round(posRev) || 0 },
       { label: t('sellerHome.channelOnline'), value: Math.round(onlineRev) || 0 },
+      { label: 'Mesas / Salão', value: Math.round(tableRev) || 0 },
     ].filter((e) => e.value > 0);
     return entries.length ? entries : [{ label: t('sellerHome.channelEmpty'), value: 1 }];
   }, [summary.todaySales, t]);
@@ -410,8 +414,21 @@ export function OverviewSellerView() {
                           />
                         </TableCell>
                         <TableCell>
-                          <Label variant="soft" color={sale.channel === 'online' ? 'info' : 'default'}>
-                            {sale.channel === 'online' ? 'Online' : 'PDV'}
+                          <Label
+                            variant="soft"
+                            color={
+                              sale.channel === 'online'
+                                ? 'info'
+                                : sale.channel === 'table'
+                                  ? 'warning'
+                                  : 'default'
+                            }
+                          >
+                            {sale.channel === 'online'
+                              ? 'Online'
+                              : sale.channel === 'table'
+                                ? 'Mesa'
+                                : 'PDV'}
                           </Label>
                         </TableCell>
                         <TableCell align="right">{fCurrency(sale.total)}</TableCell>

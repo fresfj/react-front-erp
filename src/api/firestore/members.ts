@@ -15,6 +15,7 @@ import { omitUndefined } from './omit-undefined';
 
 export type MemberPermissionKey =
   | 'pos' // Emitir Venda (PDV)
+  | 'tables' // Salão, Mesas e Garçom
   | 'customers' // Clientes
   | 'cash_close' // Fechar Caixa (Sem relatórios financeiros DRE)
   | 'batches_read' // Consultar Estoque / Lotes
@@ -41,6 +42,12 @@ export const ALL_MEMBER_PERMISSIONS: {
     key: 'pos',
     label: 'Emitir Venda (PDV)',
     description: 'Acesso à Frente de Caixa e emissão de vendas',
+    defaultForOperator: true,
+  },
+  {
+    key: 'tables',
+    label: 'Mesas e Garçom (Salão)',
+    description: 'Abrir mesas, lançar pedidos de salão e encerrar comandas de mesas',
     defaultForOperator: true,
   },
   {

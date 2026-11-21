@@ -50,16 +50,19 @@ import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 
 type LocationState = {
   store?: PublicStorefront;
+  tableCode?: string;
 } | null;
 
 export function PublicCheckoutView() {
-  const { slug = '' } = useParams();
+  const { slug = '', tableCode: paramTableCode = '' } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslate('common');
   const cart = usePublicCart();
 
   const stateStore = (location.state as LocationState)?.store ?? null;
+  const activeTableCode = paramTableCode || (location.state as LocationState)?.tableCode || '';
+  const isTableMode = Boolean(activeTableCode);
 
   const [store, setStore] = useState<PublicStorefront | null>(stateStore);
   const [loading, setLoading] = useState(!stateStore);
@@ -80,7 +83,7 @@ export function PublicCheckoutView() {
   const lastLookedUpDigitsRef = useRef('');
 
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>(
-    stateStore ? (stateStore.acceptDelivery ? 'delivery' : 'pickup') : 'delivery'
+    isTableMode ? 'pickup' : stateStore ? (stateStore.acceptDelivery ? 'delivery' : 'pickup') : 'delivery'
   );
   const [paymentMethod, setPaymentMethod] = useState<OnlinePayOnDeliveryMethod>(
     stateStore?.paymentMethodsOnDelivery?.[0] || 'pix'
@@ -204,11 +207,15 @@ export function PublicCheckoutView() {
       toast.error(`O valor mínimo para pedidos nesta loja é de ${fCurrency(store.minOrderAmount)}.`);
       return;
     }
-    if (!customerName.trim() || !customerPhone.trim()) {
-      toast.error('Por favor, informe seu nome e WhatsApp para contato.');
+    if (!customerName.trim() || (!isTableMode && !customerPhone.trim())) {
+      toast.error(
+        isTableMode
+          ? 'Por favor, informe seu nome para identificar o pedido na mesa.'
+          : 'Por favor, informe seu nome e WhatsApp para contato.'
+      );
       return;
     }
-    if (deliveryType === 'delivery') {
+    if (!isTableMode && deliveryType === 'delivery') {
       if (!street.trim() || !number.trim() || !neighborhood.trim()) {
         toast.error('Informe rua, número e bairro para a entrega.');
         return;
@@ -216,7 +223,7 @@ export function PublicCheckoutView() {
     }
 
     const fullAddress =
-      deliveryType === 'delivery'
+      !isTableMode && deliveryType === 'delivery'
         ? `${street.trim()}, nº ${number.trim()}${
             complement.trim() ? ` (${complement.trim()})` : ''
           } - ${neighborhood.trim()}${city.trim() ? `, ${city.trim()}` : ''}${
@@ -256,8 +263,10 @@ export function PublicCheckoutView() {
                 state: state.trim(),
               }
             : undefined,
-        deliveryType,
+        deliveryType: isTableMode ? 'table' : deliveryType,
+        tableCode: isTableMode ? activeTableCode : undefined,
         paymentMethod,
+        paymentChannel: !isTableMode && paymentMethod === 'pix' ? 'online' : 'on_delivery',
         notes: finalNotes || undefined,
         origin: typeof window !== 'undefined' ? window.location.origin : undefined,
       });
@@ -676,14 +685,25 @@ export function PublicCheckoutView() {
                   </Card>
                 )}
 
-                {/* 4. Forma de Pagamento e Observações */}
+                {/* 4. Forma de Pagamento (Online vs. Na Entrega) e Observações */}
                 <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
                   <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                    Forma de Pagamento (na {deliveryType === 'delivery' ? 'entrega' : 'retirada'})
+                    Forma de Pagamento
                   </Typography>
 
-                  <Stack spacing={1.5} sx={{ mb: 2.5 }}>
-                    {store.paymentMethodsOnDelivery.map((method) => {
+                  {(() => {
+                    const hasOnlinePix =
+                      store.acceptOnlinePix !== false &&
+                      store.paymentMethodsOnDelivery.includes('pix');
+                    const onDeliveryMethods = store.paymentMethodsOnDelivery.filter(
+                      (m) => m !== 'pix'
+                    );
+
+                    const renderOptionButton = (
+                      method: OnlinePayOnDeliveryMethod,
+                      subtitleOverride?: string,
+                      badgeText?: string
+                    ) => {
                       const cfg = PAYMENT_METHOD_CONFIG[method] || PAYMENT_METHOD_CONFIG.cash;
                       const isSelected = paymentMethod === method;
 
@@ -731,10 +751,28 @@ export function PublicCheckoutView() {
                                 <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
                                   {cfg.label}
                                 </Typography>
+                                {badgeText && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      px: 0.75,
+                                      py: 0.2,
+                                      borderRadius: 0.75,
+                                      bgcolor: (theme) =>
+                                        varAlpha(theme.vars.palette.success.mainChannel, 0.14),
+                                      color: 'success.dark',
+                                      typography: 'caption',
+                                      fontWeight: 700,
+                                      fontSize: 10.5,
+                                    }}
+                                  >
+                                    {badgeText}
+                                  </Box>
+                                )}
                                 <PaymentBrandLogos method={method} size={20} />
                               </Stack>
                               <Typography variant="caption" color="text.secondary">
-                                {cfg.desc}
+                                {subtitleOverride || cfg.desc}
                               </Typography>
                             </Box>
 
@@ -748,8 +786,42 @@ export function PublicCheckoutView() {
                           </Stack>
                         </ButtonBase>
                       );
-                    })}
-                  </Stack>
+                    };
+
+                    return (
+                      <Stack spacing={2.5} sx={{ mb: 2.5 }}>
+                        {hasOnlinePix && (
+                          <Stack spacing={1.25}>
+                            <Typography
+                              variant="overline"
+                              color="text.secondary"
+                              sx={{ fontWeight: 700 }}
+                            >
+                              Pagamento Online
+                            </Typography>
+                            {renderOptionButton(
+                              'pix',
+                              'Gera QR Code e Copia e Cola agora — aguarda confirmação da loja',
+                              'Online'
+                            )}
+                          </Stack>
+                        )}
+
+                        {onDeliveryMethods.length > 0 && (
+                          <Stack spacing={1.25}>
+                            <Typography
+                              variant="overline"
+                              color="text.secondary"
+                              sx={{ fontWeight: 700 }}
+                            >
+                              Pagar na {deliveryType === 'delivery' ? 'Entrega' : 'Retirada'}
+                            </Typography>
+                            {onDeliveryMethods.map((method) => renderOptionButton(method))}
+                          </Stack>
+                        )}
+                      </Stack>
+                    );
+                  })()}
 
                   <Stack spacing={2}>
                     {paymentMethod === 'cash' && (

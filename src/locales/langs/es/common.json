@@ -542,6 +542,81 @@
       "customer": "Cliente",
       "total": "Total",
       "status": "Estado"
+    },
+    "kanban": {
+      "viewKanban": "Tablero Kanban",
+      "viewList": "Lista",
+      "columnFixed": "Columnas fijas",
+      "autoPrintOnAccept": "Imprimir al aceptar",
+      "periodToday": "Hoy",
+      "period7d": "7 días",
+      "periodAll": "Todos",
+      "delivery": "Entrega",
+      "pickup": "Retiro",
+      "columns": {
+        "pending": "Nuevos",
+        "accepted": "Aceptados",
+        "preparing": "En preparación",
+        "out_for_delivery": "Despacho / Retiro",
+        "delivered": "Finalizados"
+      },
+      "actions": {
+        "accept": "Aceptar",
+        "reject": "Rechazar",
+        "startPreparing": "Iniciar preparación",
+        "dispatchDelivery": "En camino",
+        "readyPickup": "Listo para retiro",
+        "finish": "Finalizar",
+        "printReceipt": "Comanda",
+        "viewSale": "Ver venta",
+        "whatsapp": "WhatsApp",
+        "copyAddress": "Copiar dirección",
+        "addressCopied": "¡Dirección copiada!"
+      },
+      "emptyColumn": "Sin pedidos en esta etapa",
+      "cannotRevertPending": "Los pedidos aceptados no pueden volver a Nuevos.",
+      "mustAcceptFirst": "Acepta el pedido antes de despacharlo.",
+      "rejectDialog": {
+        "title": "Rechazar pedido",
+        "subtitle": "Indica el motivo del rechazo (opcional). Se enviará al cliente si WhatsApp está activo.",
+        "reasonLabel": "Motivo del rechazo",
+        "reasonPlaceholder": "Ej.: Producto agotado, fuera de la zona de entrega...",
+        "confirm": "Confirmar rechazo",
+        "quickReasons": {
+          "outOfStock": "Producto agotado",
+          "outsideArea": "Fuera de la zona de entrega",
+          "highDemand": "Alta demanda en este momento",
+          "storeClosing": "Tienda cerrando pronto"
+        }
+      },
+      "drawer": {
+        "orderDetails": "Detalles del pedido",
+        "customer": "Cliente",
+        "address": "Dirección de entrega",
+        "items": "Ítems del pedido",
+        "notes": "Observaciones del pedido",
+        "subtotal": "Subtotal",
+        "deliveryFee": "Tarifa de entrega",
+        "total": "Total",
+        "payment": "Pago",
+        "rejectedReason": "Motivo del rechazo",
+        "internalNotes": "Notas internas (control de la empresa)",
+        "internalNotesHint": "Visible solo para el equipo en el ERP (no aparece para el cliente).",
+        "internalNotesPlaceholder": "Ej.: Repartidor Juan, cambio para $50, prioridad en cocina...",
+        "saveInternalNotes": "Guardar nota",
+        "internalNotesSaved": "¡Nota interna guardada!",
+        "internalNotesError": "Error al guardar la nota interna",
+        "journeyTitle": "Jornada del pedido",
+        "totalWaitTime": "Tiempo total",
+        "journey": {
+          "created": "Solicitado",
+          "accepted": "Aceptado",
+          "preparing": "En preparación",
+          "dispatched": "Despachado / Listo",
+          "delivered": "Finalizado",
+          "rejected": "Rechazado"
+        }
+      }
     }
   },
   "onlineStore": {

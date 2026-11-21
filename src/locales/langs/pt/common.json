@@ -542,6 +542,81 @@
       "customer": "Cliente",
       "total": "Total",
       "status": "Status"
+    },
+    "kanban": {
+      "viewKanban": "Painel Kanban",
+      "viewList": "Lista",
+      "columnFixed": "Colunas fixas",
+      "autoPrintOnAccept": "Imprimir ao aceitar",
+      "periodToday": "Hoje",
+      "period7d": "7 dias",
+      "periodAll": "Todos",
+      "delivery": "Entrega",
+      "pickup": "Retirada",
+      "columns": {
+        "pending": "Novos",
+        "accepted": "Aceitos",
+        "preparing": "Em preparo",
+        "out_for_delivery": "Expedição / Retirada",
+        "delivered": "Finalizados"
+      },
+      "actions": {
+        "accept": "Aceitar",
+        "reject": "Recusar",
+        "startPreparing": "Iniciar preparo",
+        "dispatchDelivery": "Saiu p/ entrega",
+        "readyPickup": "Pronto p/ retirada",
+        "finish": "Finalizar",
+        "printReceipt": "Comanda",
+        "viewSale": "Ver venda",
+        "whatsapp": "WhatsApp",
+        "copyAddress": "Copiar endereço",
+        "addressCopied": "Endereço copiado!"
+      },
+      "emptyColumn": "Nenhum pedido nesta etapa",
+      "cannotRevertPending": "Pedidos já aceitos não podem voltar para Novos.",
+      "mustAcceptFirst": "Aceite o pedido antes de enviar para expedição.",
+      "rejectDialog": {
+        "title": "Recusar pedido",
+        "subtitle": "Informe o motivo da recusa (opcional). Ele será enviado ao cliente caso o WhatsApp esteja ativo.",
+        "reasonLabel": "Motivo da recusa",
+        "reasonPlaceholder": "Ex.: Item em falta no estoque, área fora da entrega...",
+        "confirm": "Confirmar recusa",
+        "quickReasons": {
+          "outOfStock": "Produto em falta",
+          "outsideArea": "Fora da área de entrega",
+          "highDemand": "Alta demanda no momento",
+          "storeClosing": "Loja encerrando expediente"
+        }
+      },
+      "drawer": {
+        "orderDetails": "Detalhes do pedido",
+        "customer": "Cliente",
+        "address": "Endereço de entrega",
+        "items": "Itens do pedido",
+        "notes": "Observações do pedido",
+        "subtotal": "Subtotal",
+        "deliveryFee": "Taxa de entrega",
+        "total": "Total",
+        "payment": "Pagamento",
+        "rejectedReason": "Motivo da recusa",
+        "internalNotes": "Notas internas (controle da empresa)",
+        "internalNotesHint": "Visível apenas para a equipe no ERP (não aparece para o cliente).",
+        "internalNotesPlaceholder": "Ex.: Entregador João, troco para R$ 50, prioridade na cozinha...",
+        "saveInternalNotes": "Salvar nota",
+        "internalNotesSaved": "Nota interna salva!",
+        "internalNotesError": "Erro ao salvar nota interna",
+        "journeyTitle": "Jornada do pedido",
+        "totalWaitTime": "Tempo total",
+        "journey": {
+          "created": "Solicitado",
+          "accepted": "Aceito",
+          "preparing": "Em preparo",
+          "dispatched": "Despachado / Pronto",
+          "delivered": "Finalizado",
+          "rejected": "Recusado"
+        }
+      }
     }
   },
   "onlineStore": {

@@ -24,7 +24,9 @@ export const publicStoreRoutes = [
     ),
     children: [
       { path: ':slug', element: <StorefrontPage /> },
+      { path: ':slug/mesa/:tableCode', element: <StorefrontPage /> },
       { path: ':slug/checkout', element: <CheckoutPage /> },
+      { path: ':slug/mesa/:tableCode/checkout', element: <CheckoutPage /> },
       { path: ':slug/orders', element: <OrdersPage /> },
       { path: ':slug/order/:orderId', element: <OrderStatusPage /> },
     ],

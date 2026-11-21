@@ -83,6 +83,7 @@ O projeto roda `vite-plugin-checker` em tempo real no `vite dev`. Qualquer warni
 | **Handoff Antigravity** | `docs/agents/antigravity-erp-handoff.md` | Continuidade de sessão / status feito-pendente |
 | **Visão PDV / beneficiamento** | `docs/deepseek_markdown_20261115_78aa86.md` | Roadmap produto (stack oficial = Firebase, não Nest) |
 | **UI CRUD** | `docs/reference/erp-crud-ui.md` | Checklist visual Minimals |
+| **Canais de Venda (PDV / Online / Mesas)** | `docs/reference/erp-sales-channels-pos-online-tables.md` | Arquitetura dos 3 canais, regra de caixa aberto obrigatório, comandas individuais, CMV e consolidação no Dashboard/Caixa |
 
 ### Fluxo Superpowers (sessão / Cursor)
 Usar nesta ordem quando a fatia for nova ou ambígua:

@@ -15,10 +15,12 @@ import ListItemText from '@mui/material/ListItemText';
 
 import { fDate } from 'src/utils/format-time';
 import { fCurrency } from 'src/utils/format-number';
+import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
+import { ProductImageBadges } from 'src/components/product-badges/product-image-badges';
 
 // ----------------------------------------------------------------------
 
@@ -47,6 +49,7 @@ export function ProductTableRow({
   const isRaw = row.type === 'raw';
   const typeColor = isRaw ? 'warning' : 'info';
   const typeLabel = isRaw ? 'Matéria-prima' : 'Produto Acabado';
+  const pricing = getEffectiveProductPrice(row);
 
   return (
     <>
@@ -60,26 +63,52 @@ export function ProductTableRow({
         {isVisible('name') && (
           <TableCell>
             <Stack spacing={2} direction="row" alignItems="center">
-              <Avatar
-                alt={row.name}
-                src={row.imageUrl || ''}
-                variant="rounded"
-                sx={{ width: 48, height: 48, bgcolor: 'background.neutral', flexShrink: 0 }}
-              >
-                {row.name?.charAt(0).toUpperCase()}
-              </Avatar>
+              <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                <Avatar
+                  alt={row.name}
+                  src={row.imageUrl || ''}
+                  variant="rounded"
+                  sx={{ width: 48, height: 48, bgcolor: 'background.neutral' }}
+                >
+                  {row.name?.charAt(0).toUpperCase()}
+                </Avatar>
+                <ProductImageBadges
+                  compact
+                  servingTemperature={row.servingTemperature}
+                />
+              </Box>
 
               <ListItemText
                 disableTypography
                 primary={
-                  <Link
-                    noWrap
-                    variant="subtitle2"
-                    onClick={onViewRow}
-                    sx={{ color: 'text.primary', cursor: 'pointer', fontWeight: 600 }}
-                  >
-                    {row.name}
-                  </Link>
+                  <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                    <Link
+                      noWrap
+                      variant="subtitle2"
+                      onClick={onViewRow}
+                      sx={{ color: 'text.primary', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                      {row.name}
+                    </Link>
+                    {row.isCombo && (
+                      <Label
+                        variant="soft"
+                        color="primary"
+                        sx={{ height: 18, fontSize: 10, px: 0.6 }}
+                      >
+                        Combo
+                      </Label>
+                    )}
+                    {pricing.discountBadge && (
+                      <Label
+                        variant="soft"
+                        color="success"
+                        sx={{ height: 18, fontSize: 10, px: 0.6 }}
+                      >
+                        {pricing.discountBadge}
+                      </Label>
+                    )}
+                  </Stack>
                 }
                 secondary={
                   <Box component="div" sx={{ typography: 'caption', color: 'text.disabled' }}>
@@ -114,9 +143,23 @@ export function ProductTableRow({
         {isVisible('salePrice') && (
           <TableCell>
             <Stack spacing={0.25} sx={{ typography: 'body2' }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                {fCurrency(row.salePrice ?? 0)}
-              </Typography>
+              {pricing.hasDiscount ? (
+                <Stack direction="row" spacing={0.75} alignItems="center">
+                  <Typography
+                    variant="caption"
+                    sx={{ textDecoration: 'line-through', color: 'text.disabled' }}
+                  >
+                    {fCurrency(pricing.basePrice)}
+                  </Typography>
+                  <Typography variant="subtitle2" color="success.main" sx={{ fontWeight: 700 }}>
+                    {fCurrency(pricing.effectivePrice)}
+                  </Typography>
+                </Stack>
+              ) : (
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  {fCurrency(row.salePrice ?? 0)}
+                </Typography>
+              )}
               {row.costPrice != null && row.costPrice > 0 && (
                 <Typography variant="caption" sx={{ color: 'text.disabled' }}>
                   Custo: {fCurrency(row.costPrice)}

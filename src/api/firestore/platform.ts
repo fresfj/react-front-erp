@@ -40,8 +40,13 @@ export type OnlineStoreConfig = {
   estimatedMinutes: number;
   acceptDelivery: boolean;
   acceptPickup: boolean;
+  acceptTableOrders?: boolean;
   defaultDeliveryFee: number;
   paymentMethodsOnDelivery: OnlinePayOnDeliveryMethod[];
+  acceptOnlinePix?: boolean;
+  pixKey?: string;
+  pixMerchantName?: string;
+  pixMerchantCity?: string;
   whatsapp?: string;
   description?: string;
   instagramUrl?: string;
