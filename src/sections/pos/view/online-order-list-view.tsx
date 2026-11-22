@@ -20,11 +20,9 @@ import TableBody from '@mui/material/TableBody';
 import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
 import IconButton from '@mui/material/IconButton';
-import ToggleButton from '@mui/material/ToggleButton';
 import InputAdornment from '@mui/material/InputAdornment';
 import TableContainer from '@mui/material/TableContainer';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 
 import { paths } from 'src/routes/paths';
 
@@ -51,6 +49,7 @@ import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
+import { CustomTabs } from 'src/components/custom-tabs';
 import { EmptyContent } from 'src/components/empty-content';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
@@ -230,7 +229,7 @@ export function OnlineOrderListView() {
   );
 
   const handleChangeViewMode = useCallback(
-    (_: React.MouseEvent<HTMLElement>, nextMode: ViewMode | null) => {
+    (_: React.SyntheticEvent, nextMode: ViewMode | null) => {
       if (!nextMode) return;
       setViewMode(nextMode);
       try {
@@ -583,22 +582,42 @@ export function OnlineOrderListView() {
           { name: t('onlineOrders.heading') },
         ]}
         action={
-          <ToggleButtonGroup
-            size="small"
-            exclusive
+          <CustomTabs
             value={viewMode}
-            onChange={handleChangeViewMode}
-            aria-label="Modo de visualização"
+            onChange={(_, val: ViewMode) => {
+              if (val) handleChangeViewMode(_, val);
+            }}
+            sx={{
+              borderRadius: 1.25,
+              bgcolor: 'background.neutral',
+              minHeight: 40,
+            }}
+            slotProps={{
+              indicator: {
+                borderRadius: 1,
+                boxShadow: (th) => th.customShadows.z4,
+              },
+              tab: {
+                minHeight: 34,
+                py: 0.5,
+                px: 1.5,
+                typography: 'subtitle2',
+              },
+            }}
           >
-            <ToggleButton value="kanban" sx={{ px: 1.5, gap: 0.75 }}>
-              <Iconify icon="solar:widget-5-bold-duotone" width={18} />
-              {t('onlineOrders.kanban.viewKanban')}
-            </ToggleButton>
-            <ToggleButton value="list" sx={{ px: 1.5, gap: 0.75 }}>
-              <Iconify icon="solar:list-bold-duotone" width={18} />
-              {t('onlineOrders.kanban.viewList')}
-            </ToggleButton>
-          </ToggleButtonGroup>
+            <Tab
+              value="kanban"
+              label={t('onlineOrders.kanban.viewKanban')}
+              icon={<Iconify icon="solar:widget-5-bold-duotone" width={18} />}
+              iconPosition="start"
+            />
+            <Tab
+              value="list"
+              label={t('onlineOrders.kanban.viewList')}
+              icon={<Iconify icon="solar:list-bold-duotone" width={18} />}
+              iconPosition="start"
+            />
+          </CustomTabs>
         }
         sx={{ mb: { xs: 2.5, md: 3 } }}
       />
@@ -647,43 +666,83 @@ export function OnlineOrderListView() {
                   }}
                 />
 
-                <ToggleButtonGroup
-                  size="small"
-                  value={deliveryFilters}
-                  onChange={(_, next: string[]) => setDeliveryFilters(next)}
-                >
-                  <ToggleButton value="delivery" sx={{ px: 1.25, gap: 0.5 }}>
-                    <Iconify icon="solar:scooter-bold" width={16} />
-                    {t('onlineOrders.kanban.delivery')}
-                  </ToggleButton>
-                  <ToggleButton value="pickup" sx={{ px: 1.25, gap: 0.5 }}>
-                    <Iconify icon="solar:shop-bold" width={16} />
-                    {t('onlineOrders.kanban.pickup')}
-                  </ToggleButton>
-                  <ToggleButton value="table" sx={{ px: 1.25, gap: 0.5 }}>
-                    <Iconify icon="solar:plate-bold" width={16} />
-                    Mesa
-                  </ToggleButton>
-                </ToggleButtonGroup>
-
-                <ToggleButtonGroup
-                  size="small"
-                  exclusive
-                  value={kanbanPeriod}
-                  onChange={(_, next: KanbanPeriodFilter | null) => {
-                    if (next) setKanbanPeriod(next);
+                <CustomTabs
+                  value={deliveryFilters.length === 1 ? deliveryFilters[0] : 'all'}
+                  onChange={(_, next: string) => {
+                    if (!next || next === 'all') {
+                      setDeliveryFilters([]);
+                    } else {
+                      setDeliveryFilters([next]);
+                    }
+                  }}
+                  sx={{
+                    borderRadius: 1.25,
+                    bgcolor: 'background.neutral',
+                    minHeight: 40,
+                  }}
+                  slotProps={{
+                    indicator: {
+                      borderRadius: 1,
+                      boxShadow: (th) => th.customShadows.z4,
+                    },
+                    tab: {
+                      minHeight: 34,
+                      py: 0.5,
+                      px: 1.25,
+                      typography: 'caption',
+                      fontWeight: 700,
+                    },
                   }}
                 >
-                  <ToggleButton value="today" sx={{ px: 1.25 }}>
-                    {t('onlineOrders.kanban.periodToday')}
-                  </ToggleButton>
-                  <ToggleButton value="7d" sx={{ px: 1.25 }}>
-                    {t('onlineOrders.kanban.period7d')}
-                  </ToggleButton>
-                  <ToggleButton value="all" sx={{ px: 1.25 }}>
-                    {t('onlineOrders.kanban.periodAll')}
-                  </ToggleButton>
-                </ToggleButtonGroup>
+                  <Tab value="all" label="Todos" />
+                  <Tab
+                    value="delivery"
+                    label={t('onlineOrders.kanban.delivery')}
+                    icon={<Iconify icon="solar:scooter-bold" width={16} />}
+                    iconPosition="start"
+                  />
+                  <Tab
+                    value="pickup"
+                    label={t('onlineOrders.kanban.pickup')}
+                    icon={<Iconify icon="solar:shop-bold" width={16} />}
+                    iconPosition="start"
+                  />
+                  <Tab
+                    value="table"
+                    label="Mesa"
+                    icon={<Iconify icon="solar:plate-bold" width={16} />}
+                    iconPosition="start"
+                  />
+                </CustomTabs>
+
+                <CustomTabs
+                  value={kanbanPeriod}
+                  onChange={(_, next: KanbanPeriodFilter) => {
+                    if (next) setKanbanPeriod(next);
+                  }}
+                  sx={{
+                    borderRadius: 1.25,
+                    bgcolor: 'background.neutral',
+                    minHeight: 40,
+                  }}
+                  slotProps={{
+                    indicator: {
+                      borderRadius: 1,
+                      boxShadow: (th) => th.customShadows.z4,
+                    },
+                    tab: {
+                      minHeight: 34,
+                      py: 0.5,
+                      px: 1.25,
+                      typography: 'caption',
+                      fontWeight: 700,
+                    },
+                  }}
+                >
+                  <Tab value="today" label={t('onlineOrders.kanban.periodToday')} />
+                  <Tab value="7d" label={t('onlineOrders.kanban.period7d')} />
+                  <Tab value="all" label={t('onlineOrders.kanban.periodAll')} />
+                </CustomTabs>
               </Stack>
 
               {/* Switches (Auto-print + Fixed Columns) */}

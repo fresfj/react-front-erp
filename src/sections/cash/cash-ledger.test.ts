@@ -68,7 +68,7 @@ describe('buildCashLedger', () => {
       balanceAfter: 120,
     });
 
-    expect(summary).toEqual({
+    expect(summary).toMatchObject({
       inflow: 150,
       outflow: 30,
       net: 120,
@@ -111,11 +111,13 @@ describe('buildCashLedger', () => {
     const { lines, summary } = buildCashLedger([session], bounds);
 
     expect(lines.map((l) => l.type)).toEqual(['RECEIPT']);
-    expect(lines[0].balanceAfter).toBe(40);
-    expect(summary).toEqual({
+    expect(lines[0].balanceAfter).toBe(140);
+    expect(summary).toMatchObject({
+      previousBalance: 100,
       inflow: 40,
       outflow: 0,
       net: 40,
+      closingBalance: 140,
       lineCount: 1,
     });
   });

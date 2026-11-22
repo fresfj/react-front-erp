@@ -88,8 +88,8 @@ export function OverviewAppView() {
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState<DateFilterPreset>('30d');
-  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+  const [preset, setPreset] = useState<DateFilterPreset>('7d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(6, 'day'), dayjs());
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);

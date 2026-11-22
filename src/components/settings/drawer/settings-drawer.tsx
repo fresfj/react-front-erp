@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import Drawer, { drawerClasses } from '@mui/material/Drawer';
 import { useTheme, useColorScheme } from '@mui/material/styles';
 
+import { useTranslate } from 'src/locales';
 import COLORS from 'src/theme/core/colors.json';
 import { paper, varAlpha } from 'src/theme/styles';
 import { defaultFont } from 'src/theme/core/typography';
@@ -38,6 +39,7 @@ export function SettingsDrawer({
   hideColorScheme,
 }: SettingsDrawerProps) {
   const theme = useTheme();
+  const { t } = useTranslate('common');
 
   const settings = useSettingsContext();
 
@@ -46,12 +48,12 @@ export function SettingsDrawer({
   const renderHead = (
     <Box display="flex" alignItems="center" sx={{ py: 2, pr: 1, pl: 2.5 }}>
       <Typography variant="h6" sx={{ flexGrow: 1 }}>
-        Settings
+        {t('settingsDrawer.title', { defaultValue: 'Configurações' })}
       </Typography>
 
       <FullScreenButton />
 
-      <Tooltip title="Reset">
+      <Tooltip title={t('settingsDrawer.resetAll', { defaultValue: 'Restaurar tudo' })}>
         <IconButton
           onClick={() => {
             settings.onReset();
@@ -64,7 +66,7 @@ export function SettingsDrawer({
         </IconButton>
       </Tooltip>
 
-      <Tooltip title="Close">
+      <Tooltip title={t('settingsDrawer.close', { defaultValue: 'Fechar' })}>
         <IconButton onClick={settings.onCloseDrawer}>
           <Iconify icon="mingcute:close-line" />
         </IconButton>
@@ -74,7 +76,7 @@ export function SettingsDrawer({
 
   const renderMode = (
     <BaseOption
-      label="Dark mode"
+      label={t('settingsDrawer.darkMode', { defaultValue: 'Modo escuro' })}
       icon="moon"
       selected={settings.colorScheme === 'dark'}
       onClick={() => {
@@ -86,7 +88,7 @@ export function SettingsDrawer({
 
   const renderContrast = (
     <BaseOption
-      label="Contrast"
+      label={t('settingsDrawer.contrast', { defaultValue: 'Contraste' })}
       icon="contrast"
       selected={settings.contrast === 'hight'}
       onClick={() =>
@@ -97,7 +99,7 @@ export function SettingsDrawer({
 
   const renderRTL = (
     <BaseOption
-      label="Right to left"
+      label={t('settingsDrawer.rtl', { defaultValue: 'Direita p/ esquerda' })}
       icon="align-right"
       selected={settings.direction === 'rtl'}
       onClick={() =>
@@ -108,8 +110,10 @@ export function SettingsDrawer({
 
   const renderCompact = (
     <BaseOption
-      tooltip="Dashboard only and available at large resolutions > 1600px (xl)"
-      label="Compact"
+      tooltip={t('settingsDrawer.compactTooltip', {
+        defaultValue: 'Somente no painel em telas grandes (> 1600px)',
+      })}
+      label={t('settingsDrawer.compact', { defaultValue: 'Compacto' })}
       icon="autofit-width"
       selected={settings.compactLayout}
       onClick={() => settings.onUpdateField('compactLayout', !settings.compactLayout)}
@@ -120,6 +124,8 @@ export function SettingsDrawer({
     <PresetsOptions
       value={settings.primaryColor}
       onClickOption={(newValue) => settings.onUpdateField('primaryColor', newValue)}
+      canReset={settings.primaryColor !== defaultSettings.primaryColor}
+      onReset={() => settings.onUpdateField('primaryColor', defaultSettings.primaryColor)}
       options={[
         { name: 'default', value: COLORS.primary.main },
         { name: 'cyan', value: PRIMARY_COLOR.cyan.main },
@@ -141,6 +147,10 @@ export function SettingsDrawer({
         color: (newValue) => settings.onUpdateField('navColor', newValue),
         layout: (newValue) => settings.onUpdateField('navLayout', newValue),
       }}
+      canResetLayout={settings.navLayout !== defaultSettings.navLayout}
+      onResetLayout={() => settings.onUpdateField('navLayout', defaultSettings.navLayout)}
+      canResetColor={settings.navColor !== defaultSettings.navColor}
+      onResetColor={() => settings.onUpdateField('navColor', defaultSettings.navColor)}
       options={{
         colors: ['integrate', 'apparent'],
         layouts: ['vertical', 'horizontal', 'mini'],
@@ -153,9 +163,13 @@ export function SettingsDrawer({
   const renderFont = (
     <FontOptions
       value={settings.fontFamily}
-      fontSize={settings.fontSize ?? 16}
+      fontSize={settings.fontSize ?? defaultSettings.fontSize ?? 16}
       onClickOption={(newValue) => settings.onUpdateField('fontFamily', newValue)}
       onChangeFontSize={(newValue) => settings.onUpdateField('fontSize', newValue)}
+      canResetFamily={settings.fontFamily !== defaultSettings.fontFamily}
+      onResetFamily={() => settings.onUpdateField('fontFamily', defaultSettings.fontFamily)}
+      canResetSize={(settings.fontSize ?? 16) !== (defaultSettings.fontSize ?? 16)}
+      onResetSize={() => settings.onUpdateField('fontSize', defaultSettings.fontSize ?? 16)}
       options={[defaultFont, 'Inter', 'DM Sans', 'Nunito Sans']}
     />
   );

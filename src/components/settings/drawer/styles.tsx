@@ -2,6 +2,7 @@ import type { Theme, SxProps } from '@mui/material/styles';
 
 import Box from '@mui/material/Box';
 import Tooltip from '@mui/material/Tooltip';
+import ButtonBase from '@mui/material/ButtonBase';
 
 import { varAlpha, stylesMode } from 'src/theme/styles';
 
@@ -9,14 +10,16 @@ import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
 
-type Props = {
+type BlockProps = {
   title: string;
   tooltip?: string;
+  canReset?: boolean;
+  onReset?: () => void;
   sx?: SxProps<Theme>;
   children: React.ReactNode;
 };
 
-export function Block({ title, tooltip, children, sx }: Props) {
+export function Block({ title, tooltip, canReset, onReset, children, sx }: BlockProps) {
   return (
     <Box
       sx={{
@@ -48,10 +51,21 @@ export function Block({ title, tooltip, children, sx }: Props) {
           [stylesMode.dark]: { color: 'grey.800' },
         }}
       >
+        {canReset && onReset && (
+          <ButtonBase
+            disableRipple
+            onClick={onReset}
+            aria-label={`Reset ${title}`}
+            sx={{ ml: -0.5, mr: 0.5 }}
+          >
+            <Iconify width={14} icon="solar:restart-bold" sx={{ opacity: 0.72 }} />
+          </ButtonBase>
+        )}
+
         {title}
 
         {tooltip && (
-          <Tooltip title={tooltip} placement="right">
+          <Tooltip title={tooltip} placement="right" arrow>
             <Iconify
               width={14}
               icon="eva:info-outline"
@@ -60,6 +74,53 @@ export function Block({ title, tooltip, children, sx }: Props) {
           </Tooltip>
         )}
       </Box>
+
+      {children}
+    </Box>
+  );
+}
+
+// ----------------------------------------------------------------------
+
+type SmallBlockProps = {
+  label: string;
+  canReset?: boolean;
+  onReset?: () => void;
+  sx?: SxProps<Theme>;
+  children: React.ReactNode;
+};
+
+export function SmallBlock({ label, canReset, onReset, sx, children }: SmallBlockProps) {
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.25,
+        ...sx,
+      }}
+    >
+      <ButtonBase
+        component="button"
+        type="button"
+        disableRipple
+        onClick={canReset ? onReset : undefined}
+        sx={{
+          gap: 0.5,
+          lineHeight: '16px',
+          alignSelf: 'flex-start',
+          cursor: canReset ? 'pointer' : 'default',
+          pointerEvents: canReset ? 'auto' : 'none',
+          fontSize: (theme) => theme.typography.pxToRem(11),
+          color: canReset ? 'text.primary' : 'text.secondary',
+          fontWeight: canReset ? 'fontWeightBold' : 'fontWeightSemiBold',
+          transition: (theme) => theme.transitions.create(['color']),
+          '&:hover': canReset ? { color: 'primary.main' } : undefined,
+        }}
+      >
+        {canReset && <Iconify width={14} icon="solar:restart-bold" />}
+        {label}
+      </ButtonBase>
 
       {children}
     </Box>

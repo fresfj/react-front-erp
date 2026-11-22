@@ -33,11 +33,9 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
-import {
-  listCustomers,
-  deactivateCustomer,
-  settleCustomerDebt,
-} from 'src/api/firestore/customers';
+import { getOpenCashSession } from 'src/api/firestore/cash-sessions';
+import { settleCustomerDebtWithSession } from 'src/api/firestore/receivables';
+import { listCustomers, deactivateCustomer } from 'src/api/firestore/customers';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -299,8 +297,16 @@ export function CustomerListView() {
     if (!enterpriseId || !settleTarget || settleAmount <= 0) return;
 
     try {
-      await settleCustomerDebt(enterpriseId, settleTarget, settleAmount);
-      toast.success('Pagamento de débito registrado com sucesso!');
+      const openSession = await getOpenCashSession(enterpriseId);
+      if (!openSession) {
+        toast.error('Abra o caixa em Financeiro → Caixa antes de receber um pagamento de débito.');
+        return;
+      }
+      await settleCustomerDebtWithSession(enterpriseId, settleTarget, settleAmount, {
+        session: openSession,
+        createdBy: user?.email,
+      });
+      toast.success('Pagamento de débito registrado no caixa com sucesso!');
       setSettleTarget(null);
       settleDialog.onFalse();
       await loadCustomers();
@@ -308,7 +314,7 @@ export function CustomerListView() {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, 'Erro ao baixar débito'));
     }
-  }, [enterpriseId, loadCustomers, settleAmount, settleDialog, settleTarget]);
+  }, [enterpriseId, loadCustomers, settleAmount, settleDialog, settleTarget, user?.email]);
 
   return (
     <>

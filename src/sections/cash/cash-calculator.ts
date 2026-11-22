@@ -22,8 +22,8 @@ export function emptyTotalsByMethod(): CashSessionTotalsByMethod {
 }
 
 /**
- * Calcula os totais esperados do caixa a partir do saldo inicial, movimentações (suprimento/sangria)
- * e vendas concluídas no período da sessão.
+ * Calcula os totais esperados do caixa a partir do saldo inicial, movimentações
+ * (suprimento, sangria, recebimentos de AR/fiado e pagamentos de AP) e vendas concluídas.
  */
 export function calculateCashSessionExpected(params: {
   openingBalance: number;
@@ -33,26 +33,31 @@ export function calculateCashSessionExpected(params: {
   expectedTotals: CashSessionTotalsByMethod;
   totalSupplies: number;
   totalWithdrawals: number;
+  totalReceipts: number;
+  totalPayments: number;
   netCashSales: number;
   expectedDrawerCash: number;
 } {
   const totals = emptyTotalsByMethod();
 
-  let totalChangeGiven = 0;
-
   params.sales
     .filter((s) => s.status === 'completed')
     .forEach((sale) => {
+      let changeLeft = Math.max(0, Number(sale.changeAmount) || 0);
       sale.payments.forEach((p) => {
         if (p.method in totals) {
-          totals[p.method] = round2(totals[p.method] + (Number(p.amount) || 0));
+          let amt = Number(p.amount) || 0;
+          if (p.method === 'cash' && changeLeft > 0) {
+            const deduct = Math.min(amt, changeLeft);
+            amt = round2(amt - deduct);
+            changeLeft = round2(changeLeft - deduct);
+          }
+          totals[p.method] = round2(totals[p.method] + amt);
         }
       });
-      totalChangeGiven = round2(totalChangeGiven + (Number(sale.changeAmount) || 0));
     });
 
-  // Net cash kept in drawer from sales = cash received - change given back
-  const netCashSales = round2(Math.max(0, totals.cash - totalChangeGiven));
+  const netCashSales = round2(Math.max(0, totals.cash));
   totals.cash = netCashSales;
 
   const totalSupplies = round2(
@@ -67,17 +72,57 @@ export function calculateCashSessionExpected(params: {
       .reduce((acc, m) => acc + (Number(m.amount) || 0), 0)
   );
 
+  const totalReceipts = round2(
+    params.movements
+      .filter((m) => m.type === 'RECEIPT')
+      .reduce((acc, m) => acc + (Number(m.amount) || 0), 0)
+  );
+
+  const totalPayments = round2(
+    params.movements
+      .filter((m) => m.type === 'PAYMENT')
+      .reduce((acc, m) => acc + (Number(m.amount) || 0), 0)
+  );
+
   const expectedDrawerCash = round2(
-    (Number(params.openingBalance) || 0) + netCashSales + totalSupplies - totalWithdrawals
+    (Number(params.openingBalance) || 0) +
+      netCashSales +
+      totalSupplies +
+      totalReceipts -
+      totalWithdrawals -
+      totalPayments
   );
 
   return {
     expectedTotals: totals,
     totalSupplies,
     totalWithdrawals,
+    totalReceipts,
+    totalPayments,
     netCashSales,
     expectedDrawerCash,
   };
+}
+
+export function calculateMethodDifferences(
+  expected: CashSessionTotalsByMethod,
+  counted: CashSessionTotalsByMethod
+): {
+  pix: number;
+  credit_card: number;
+  debit_card: number;
+  hasDigitalDivergence: boolean;
+} {
+  const pix = round2((Number(counted.pix) || 0) - (Number(expected.pix) || 0));
+  const credit_card = round2(
+    (Number(counted.credit_card) || 0) - (Number(expected.credit_card) || 0)
+  );
+  const debit_card = round2(
+    (Number(counted.debit_card) || 0) - (Number(expected.debit_card) || 0)
+  );
+  const hasDigitalDivergence =
+    Math.abs(pix) >= 0.01 || Math.abs(credit_card) >= 0.01 || Math.abs(debit_card) >= 0.01;
+  return { pix, credit_card, debit_card, hasDigitalDivergence };
 }
 
 export function calculateBlindCloseDifference(params: {

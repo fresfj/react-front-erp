@@ -1,5 +1,6 @@
 import Stack from '@mui/material/Stack';
 import Avatar from '@mui/material/Avatar';
+import Tooltip from '@mui/material/Tooltip';
 import TableRow from '@mui/material/TableRow';
 import Checkbox from '@mui/material/Checkbox';
 import TableCell from '@mui/material/TableCell';
@@ -25,13 +26,18 @@ export const TYPE_CONFIG: Record<
     color: 'info',
     icon: 'solar:lock-keyhole-minimalistic-unlocked-bold-duotone',
   },
+  SALE: {
+    label: 'Venda à Vista',
+    color: 'success',
+    icon: 'solar:cart-check-bold-duotone',
+  },
   SUPPLY: {
     label: 'Suprimento (Entrada)',
     color: 'success',
     icon: 'solar:wallet-money-bold-duotone',
   },
   RECEIPT: {
-    label: 'Recebimento / Venda',
+    label: 'Recebimento (AR / Fiado)',
     color: 'success',
     icon: 'solar:card-recive-bold-duotone',
   },
@@ -69,26 +75,45 @@ export function CashLedgerTableRow({ row, selected, onSelectRow, visibleColumns 
       )}
 
       {isVisible('reason') && (
-        <TableCell>
-          <Stack direction="row" spacing={1.5} alignItems="center">
+        <TableCell sx={{ maxWidth: 320 }}>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
             <Avatar
               sx={{
                 width: 36,
                 height: 36,
+                flexShrink: 0,
                 bgcolor: alpha(theme.palette[config.color].main, 0.12),
                 color: theme.palette[config.color].main,
               }}
             >
               <Iconify icon={config.icon} width={20} />
             </Avatar>
-            <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
-                {row.type === 'OPENING' ? 'Abertura de Caixa' : row.reason || 'Movimentação avulsa'}
-              </Typography>
+            <Stack spacing={0.25} sx={{ minWidth: 0, maxWidth: 256 }}>
+              <Tooltip
+                title={
+                  row.type === 'OPENING'
+                    ? 'Abertura de Caixa (Fundo de troco)'
+                    : row.reason || 'Movimentação avulsa'
+                }
+                placement="top-start"
+                arrow
+              >
+                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                  {row.type === 'OPENING'
+                    ? 'Abertura de Caixa'
+                    : row.reason || 'Movimentação avulsa'}
+                </Typography>
+              </Tooltip>
               <Typography variant="caption" sx={{ color: 'text.secondary' }} noWrap>
                 Sessão: {row.sessionCode || '—'}
                 {row.refId
-                  ? ` • Ref: ${row.refType === 'payable' ? 'AP' : 'AR'}:${row.refId.slice(0, 8)}`
+                  ? ` • Ref: ${
+                      row.refType === 'payable'
+                        ? 'AP'
+                        : row.refType === 'sale'
+                          ? 'VD'
+                          : 'AR'
+                    }:${row.refId.slice(0, 8)}`
                   : ''}
               </Typography>
             </Stack>

@@ -104,8 +104,8 @@ export function SellerRankingView() {
   const [perfFilters, setPerfFilters] = useState<string[]>([]);
   const [visibleColumns, setVisibleColumns] =
     useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
-  const [preset, setPreset] = useState<DateFilterPreset>('30d');
-  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+  const [preset, setPreset] = useState<DateFilterPreset>('7d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(6, 'day'), dayjs());
 
   const bounds = useMemo(
     () => resolvePeriodBounds(preset, rangePicker.startDate, rangePicker.endDate),

@@ -1,4 +1,5 @@
 import type { Unsubscribe } from 'firebase/firestore';
+import type { DeliveryAreaConfig } from 'src/sections/online-store/delivery-area-domain';
 
 import { httpsCallable } from 'firebase/functions';
 import {
@@ -122,6 +123,7 @@ export type PublicStorefront = {
   openingHours?: Array<{ day: number; open: string; close: string; closed?: boolean }>;
   estimatedMinutes: number;
   deliveryFee: number;
+  deliveryArea?: DeliveryAreaConfig;
   acceptDelivery: boolean;
   acceptPickup: boolean;
   acceptTableOrders?: boolean;
@@ -164,6 +166,8 @@ export type PlaceOnlineOrderInput = {
     neighborhood?: string;
     city?: string;
     state?: string;
+    lat?: number;
+    lng?: number;
   };
   deliveryType: OnlineOrderDeliveryType;
   tableCode?: string;
@@ -413,12 +417,13 @@ export function lookupPublicCustomerByPhoneCf(
 
 export function listPublicOrdersByPhoneCf(
   slug: string,
-  phone: string
-): Promise<{ orders: PublicOrderTracking[] }> {
-  return call<{ slug: string; phone: string }, { orders: PublicOrderTracking[] }>(
-    'listPublicOrdersByPhone',
-    { slug, phone }
-  );
+  phone: string,
+  firstName?: string
+): Promise<{ orders: PublicOrderTracking[]; matchedCustomerName?: string }> {
+  return call<
+    { slug: string; phone: string; firstName?: string },
+    { orders: PublicOrderTracking[]; matchedCustomerName?: string }
+  >('listPublicOrdersByPhone', { slug, phone, firstName });
 }
 
 export type PublicTableSessionOrder = {

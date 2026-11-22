@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 
+import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 
 import { SvgColor, svgColorClasses } from '../../svg-color';
@@ -10,21 +11,38 @@ import { SvgColor, svgColorClasses } from '../../svg-color';
 // ----------------------------------------------------------------------
 
 export function FullScreenButton() {
+  const { t } = useTranslate('common');
   const [fullscreen, setFullscreen] = useState(false);
+
+  useEffect(() => {
+    const syncState = () => {
+      setFullscreen(Boolean(document.fullscreenElement));
+    };
+
+    document.addEventListener('fullscreenchange', syncState);
+    return () => document.removeEventListener('fullscreenchange', syncState);
+  }, []);
 
   const onToggleFullScreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
-      setFullscreen(true);
+      document.documentElement.requestFullscreen?.().catch(() => {
+        // ignore browser rejection
+      });
     } else if (document.exitFullscreen) {
-      document.exitFullscreen();
-      setFullscreen(false);
+      document.exitFullscreen().catch(() => {
+        // ignore browser rejection
+      });
     }
   }, []);
 
+  const label = fullscreen
+    ? t('settingsDrawer.exitFullscreen', { defaultValue: 'Sair da tela cheia' })
+    : t('settingsDrawer.fullscreen', { defaultValue: 'Tela cheia' });
+
   return (
-    <Tooltip title={fullscreen ? 'Exit' : 'Full Screen'}>
+    <Tooltip title={label}>
       <IconButton
+        aria-label={label}
         onClick={onToggleFullScreen}
         sx={{
           [`& .${svgColorClasses.root}`]: {

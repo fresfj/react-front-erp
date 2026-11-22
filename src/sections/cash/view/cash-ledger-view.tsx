@@ -1,3 +1,4 @@
+import type { Sale } from 'src/api/firestore/sales';
 import type { CashSession } from 'src/api/firestore/cash-sessions';
 
 import dayjs from 'dayjs';
@@ -6,6 +7,7 @@ import { useMemo, useState, useEffect, useCallback } from 'react';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Card from '@mui/material/Card';
+import Chip from '@mui/material/Chip';
 import Table from '@mui/material/Table';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
@@ -27,6 +29,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
+import { listSales } from 'src/api/firestore/sales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { listCashSessions } from 'src/api/firestore/cash-sessions';
 
@@ -34,6 +37,7 @@ import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
+import { CustomTabs } from 'src/components/custom-tabs';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 import { CustomBreadcrumbs } from 'src/components/custom-breadcrumbs';
 import { ErpTableToolbar, ErpTableAnalytic } from 'src/components/erp-table';
@@ -58,9 +62,14 @@ import {
 import { useAuthContext } from 'src/auth/hooks';
 
 import { buildCashLedger } from '../cash-ledger';
+import { BankReconciliationPanel } from '../bank-reconciliation-panel';
 import { TYPE_CONFIG, CashLedgerTableRow } from '../cash-ledger-table-row';
 
-import type { CashLedgerLine, CashLedgerLineType } from '../cash-ledger';
+import type {
+  CashLedgerLine,
+  CashLedgerLineType,
+  CashLedgerAccountBucket,
+} from '../cash-ledger';
 
 // ----------------------------------------------------------------------
 
@@ -94,14 +103,17 @@ export function CashLedgerView() {
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const [sessions, setSessions] = useState<CashSession[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState<'ledger' | 'reconciliation'>('ledger');
+  const [accountFilter, setAccountFilter] = useState<'all' | CashLedgerAccountBucket>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentTab, setCurrentTab] = useState<'all' | 'inflow' | 'outflow'>('all');
   const [typeFilters, setTypeFilters] = useState<string[]>([]);
   const [visibleColumns, setVisibleColumns] =
     useState<Record<string, boolean>>(DEFAULT_VISIBLE_COLUMNS);
-  const [preset, setPreset] = useState<DateFilterPreset>('30d');
-  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+  const [preset, setPreset] = useState<DateFilterPreset>('7d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(6, 'day'), dayjs());
 
   const bounds = useMemo(
     () => resolvePeriodBounds(preset, rangePicker.startDate, rangePicker.endDate),
@@ -111,13 +123,18 @@ export function CashLedgerView() {
   const loadSessions = useCallback(async () => {
     if (!enterpriseId) {
       setSessions([]);
+      setSales([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const rows = await listCashSessions(enterpriseId);
-      setSessions(rows);
+      const [sessionRows, saleRows] = await Promise.all([
+        listCashSessions(enterpriseId),
+        listSales(enterpriseId),
+      ]);
+      setSessions(sessionRows);
+      setSales(saleRows);
     } catch (error) {
       console.error(error);
       toast.error(
@@ -129,6 +146,7 @@ export function CashLedgerView() {
         )
       );
       setSessions([]);
+      setSales([]);
     } finally {
       setLoading(false);
     }
@@ -138,7 +156,30 @@ export function CashLedgerView() {
     loadSessions();
   }, [loadSessions]);
 
-  const ledger = useMemo(() => buildCashLedger(sessions, bounds), [sessions, bounds]);
+  const ledger = useMemo(
+    () =>
+      buildCashLedger(sessions, bounds, {
+        sales,
+        excludeOpeningFromBalance: true,
+        accountFilter,
+      }),
+    [sessions, bounds, sales, accountFilter]
+  );
+
+  const bankLedgerForReconciliation = useMemo(
+    () =>
+      buildCashLedger(sessions, undefined, {
+        sales,
+        excludeOpeningFromBalance: true,
+        accountFilter: 'bank_pix',
+      }),
+    [sessions, sales]
+  );
+
+  const openSession = useMemo(
+    () => sessions.find((s) => s.status === 'open') ?? null,
+    [sessions]
+  );
 
   const inflowLines = useMemo(
     () => ledger.lines.filter((l) => l.signedAmount >= 0),
@@ -276,14 +317,132 @@ export function CashLedgerView() {
           sx={{ mb: { xs: 3, md: 5 } }}
         />
 
-        <PeriodFilterBar
-          preset={preset}
-          onPresetChange={setPreset}
-          rangePicker={rangePicker}
-          title="Filtrar Período do Extrato"
-        />
+        <Stack
+          direction={{ xs: 'column', md: 'row' }}
+          spacing={2}
+          alignItems={{ xs: 'stretch', md: 'center' }}
+          justifyContent="space-between"
+          sx={{ mb: 2.5 }}
+        >
+          <CustomTabs
+            value={activeView}
+            onChange={(_, val: 'ledger' | 'reconciliation') => {
+              if (val) setActiveView(val);
+            }}
+            sx={{ borderRadius: 1.5, bgcolor: 'background.neutral', minHeight: 46 }}
+            slotProps={{
+              indicator: { borderRadius: 1, boxShadow: (th) => th.customShadows.z4 },
+              tab: { minHeight: 38, py: 0.75, px: 2, typography: 'subtitle2' },
+            }}
+          >
+            <Tab
+              value="ledger"
+              label="Livro Caixa / Extrato"
+              icon={<Iconify icon="solar:bill-list-bold-duotone" width={18} />}
+              iconPosition="start"
+            />
+            <Tab
+              value="reconciliation"
+              label="Conciliação Bancária (OFX / CSV)"
+              icon={<Iconify icon="solar:scale-bold-duotone" width={18} />}
+              iconPosition="start"
+            />
+          </CustomTabs>
 
-        <Card>
+          {activeView === 'ledger' && (
+            <CustomTabs
+              value={accountFilter}
+              onChange={(_, val: 'all' | CashLedgerAccountBucket) => {
+                if (val) {
+                  table.onResetPage();
+                  setAccountFilter(val);
+                }
+              }}
+              sx={{ borderRadius: 1.5, bgcolor: 'background.neutral', minHeight: 42 }}
+              slotProps={{
+                indicator: { borderRadius: 1, boxShadow: (th) => th.customShadows.z4 },
+                tab: { minHeight: 34, py: 0.5, px: 1.5, typography: 'caption', fontWeight: 700 },
+              }}
+            >
+              <Tab value="all" label="Todas as Contas" />
+              <Tab
+                value="bank_pix"
+                label="Banco · PIX · Débito"
+                icon={<Iconify icon="solar:card-bold" width={16} />}
+                iconPosition="start"
+              />
+              <Tab
+                value="cash_drawer"
+                label="Gaveta · Dinheiro"
+                icon={<Iconify icon="solar:wad-of-money-bold" width={16} />}
+                iconPosition="start"
+              />
+            </CustomTabs>
+          )}
+        </Stack>
+
+        {activeView === 'reconciliation' && enterpriseId ? (
+          <BankReconciliationPanel
+            enterpriseId={enterpriseId}
+            ledgerLines={bankLedgerForReconciliation.lines}
+            systemBankBalance={bankLedgerForReconciliation.summary.closingBalance}
+            openSession={openSession}
+            onRefreshLedger={loadSessions}
+          />
+        ) : (
+          <>
+            <PeriodFilterBar
+              preset={preset}
+              onPresetChange={setPreset}
+              rangePicker={rangePicker}
+              title="Filtrar Período do Extrato"
+            />
+
+            {/* Resumo por forma de pagamento à vista (PIX, Débito, Dinheiro) + Saldo Anterior */}
+            <Stack
+              direction="row"
+              spacing={1}
+              flexWrap="wrap"
+              useFlexGap
+              sx={{ mb: 2 }}
+            >
+              <Chip
+                size="small"
+                variant="soft"
+                color="info"
+                label={`Saldo anterior: ${fCurrency(summary.previousBalance)}`}
+                sx={{ fontWeight: 700 }}
+              />
+              <Chip
+                size="small"
+                variant="soft"
+                color="success"
+                label={`PIX (vendas): ${fCurrency(summary.byMethod.pix)}`}
+                sx={{ fontWeight: 700 }}
+              />
+              <Chip
+                size="small"
+                variant="soft"
+                color="primary"
+                label={`Cartão Débito: ${fCurrency(summary.byMethod.debit_card)}`}
+                sx={{ fontWeight: 700 }}
+              />
+              <Chip
+                size="small"
+                variant="soft"
+                color="warning"
+                label={`Dinheiro (líq. troco): ${fCurrency(summary.byMethod.cash)}`}
+                sx={{ fontWeight: 700 }}
+              />
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`Saldo final: ${fCurrency(summary.closingBalance)}`}
+                sx={{ fontWeight: 700 }}
+              />
+            </Stack>
+
+            <Card>
           {/* 4 Indicadores Rápidos integrados no topo do Card da tabela */}
           <Scrollbar sx={{ minHeight: 108 }}>
             <Stack
@@ -469,6 +628,8 @@ export function CashLedgerView() {
             onChangeDense={table.onChangeDense}
           />
         </Card>
+          </>
+        )}
       </DashboardContent>
 
       <ConfirmDialog

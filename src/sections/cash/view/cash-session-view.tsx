@@ -72,6 +72,7 @@ import { useAuthContext } from 'src/auth/hooks';
 
 import {
   emptyTotalsByMethod,
+  calculateMethodDifferences,
   calculateCashSessionExpected,
   calculateBlindCloseDifference,
 } from '../cash-calculator';
@@ -300,6 +301,11 @@ export function CashSessionView() {
         debit_card: countedDebit,
       };
 
+      const digitalDiffs = calculateMethodDifferences(
+        expectedCalc.expectedTotals,
+        countedTotals
+      );
+
       await closeCashSessionBlind(enterpriseId, activeSession.id, {
         expectedTotals: expectedCalc.expectedTotals,
         countedTotals,
@@ -309,9 +315,21 @@ export function CashSessionView() {
         notes: closeNotes.trim() || undefined,
       });
 
-      toast.success(
-        `Caixa fechado! Diferença apurada na gaveta: ${fCurrency(diff.differenceAmount)}`
-      );
+      if (digitalDiffs.hasDigitalDivergence) {
+        const parts: string[] = [];
+        if (Math.abs(digitalDiffs.pix) >= 0.01) parts.push(`PIX: ${fCurrency(digitalDiffs.pix)}`);
+        if (Math.abs(digitalDiffs.debit_card) >= 0.01)
+          parts.push(`Débito: ${fCurrency(digitalDiffs.debit_card)}`);
+        if (Math.abs(digitalDiffs.credit_card) >= 0.01)
+          parts.push(`Crédito: ${fCurrency(digitalDiffs.credit_card)}`);
+        toast.warning(
+          `Caixa fechado! Gaveta: ${fCurrency(diff.differenceAmount)} | Divergência digital → ${parts.join(', ')}`
+        );
+      } else {
+        toast.success(
+          `Caixa fechado! Diferença apurada na gaveta: ${fCurrency(diff.differenceAmount)}`
+        );
+      }
       blindCloseModal.onFalse();
       await loadData();
     } catch (error) {

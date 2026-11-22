@@ -1,11 +1,12 @@
+import Tab from '@mui/material/Tab';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
-import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 
 import { useTranslate } from 'src/locales';
 
 import { Iconify } from 'src/components/iconify';
+import { CustomTabs } from 'src/components/custom-tabs';
 import {
   CustomDateRangePicker,
   type UseDateRangePickerReturn,
@@ -29,7 +30,7 @@ export function PeriodFilterBar({ preset, onPresetChange, rangePicker, title }: 
 
   const presetLabels: Record<Exclude<DateFilterPreset, 'custom'>, string> = {
     today: t('periodFilter.today', { defaultValue: 'Hoje' }),
-    '7d': t('periodFilter.last7Days', { defaultValue: 'Últimos 7 dias' }),
+    '7d': t('periodFilter.last7Days', { defaultValue: '7 dias' }),
     '30d': t('periodFilter.last30Days', { defaultValue: '30 dias' }),
     '90d': t('periodFilter.last90Days', { defaultValue: '90 dias' }),
     all: t('periodFilter.all', { defaultValue: 'Todo o período' }),
@@ -39,12 +40,12 @@ export function PeriodFilterBar({ preset, onPresetChange, rangePicker, title }: 
     <>
       <Card sx={{ p: 2, mb: 3 }}>
         <Stack
-          direction={{ xs: 'column', md: 'row' }}
-          alignItems={{ md: 'center' }}
+          direction={{ xs: 'column', lg: 'row' }}
+          alignItems={{ lg: 'center' }}
           justifyContent="space-between"
           spacing={2}
         >
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexShrink: 0 }}>
             <Iconify
               icon="solar:calendar-mark-bold-duotone"
               width={24}
@@ -58,34 +59,57 @@ export function PeriodFilterBar({ preset, onPresetChange, rangePicker, title }: 
             </Typography>
           </Stack>
 
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+          <CustomTabs
+            value={preset}
+            onChange={(_, next: DateFilterPreset) => {
+              if (!next) return;
+              onPresetChange(next);
+              if (next === 'custom') {
+                rangePicker.onOpen?.();
+              }
+            }}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              borderRadius: 1.25,
+              bgcolor: 'background.neutral',
+              minHeight: 42,
+              maxWidth: '100%',
+            }}
+            slotProps={{
+              indicator: {
+                borderRadius: 1,
+                boxShadow: (theme) => theme.customShadows.z4,
+              },
+              tab: {
+                minHeight: 34,
+                py: 0.5,
+                px: 1.5,
+                typography: 'caption',
+                fontWeight: 700,
+              },
+            }}
+          >
             {PRESET_KEYS.map((key) => (
-              <Button
-                key={key}
-                size="small"
-                variant={preset === key ? 'contained' : 'soft'}
-                color={preset === key ? 'primary' : 'inherit'}
-                onClick={() => onPresetChange(key)}
-              >
-                {presetLabels[key]}
-              </Button>
+              <Tab key={key} value={key} label={presetLabels[key]} />
             ))}
 
-            <Button
-              size="small"
-              variant={preset === 'custom' ? 'contained' : 'outlined'}
-              color={preset === 'custom' ? 'primary' : 'inherit'}
-              startIcon={<Iconify icon="solar:calendar-date-bold" />}
+            <Tab
+              value="custom"
+              label={
+                preset === 'custom' && rangePicker.shortLabel
+                  ? rangePicker.shortLabel
+                  : t('periodFilter.custom', { defaultValue: 'Personalizado' })
+              }
+              icon={<Iconify icon="solar:calendar-date-bold" width={16} />}
+              iconPosition="start"
               onClick={() => {
-                onPresetChange('custom');
-                rangePicker.onOpen?.();
+                if (preset === 'custom') {
+                  rangePicker.onOpen?.();
+                }
               }}
-            >
-              {preset === 'custom' && rangePicker.shortLabel
-                ? rangePicker.shortLabel
-                : t('periodFilter.custom', { defaultValue: 'Personalizado' })}
-            </Button>
-          </Stack>
+            />
+          </CustomTabs>
         </Stack>
       </Card>
 

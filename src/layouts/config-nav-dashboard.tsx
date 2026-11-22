@@ -111,6 +111,10 @@ export function useNavData(options?: { onlineOrdersCount?: number }): NavSection
                   title: t('nav.tables', { defaultValue: 'Mesas' }),
                   path: paths.dashboard.pos.tables,
                 },
+                {
+                  title: t('nav.kitchen', { defaultValue: 'Cozinha (KDS)' }),
+                  path: paths.dashboard.pos.kitchen,
+                },
               ],
             },
           ]

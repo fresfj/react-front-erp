@@ -31,6 +31,154 @@ function roundMoney(n) {
   return Math.round(Number(n || 0) * 100) / 100;
 }
 
+function normalizeAreaTextServer(value) {
+  return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeFirstName(value) {
+  const withoutTable = String(value ?? '').replace(/^mesa\s+\S+\s*[·•-]\s*/i, '').trim();
+  const clean = normalizeAreaTextServer(withoutTable);
+  return clean.split(' ')[0] || '';
+}
+
+function calculateHaversineKmServer(lat1, lng1, lat2, lng2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+function sanitizeDeliveryArea(raw) {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const mode = raw.mode === 'radius' || raw.mode === 'neighborhood' ? raw.mode : 'fixed';
+  const radiusTiers = Array.isArray(raw.radiusTiers)
+    ? raw.radiusTiers
+        .filter((t) => t && typeof t === 'object')
+        .slice(0, 20)
+        .map((t, idx) => ({
+          id: String(t.id || `tier-${idx + 1}`),
+          maxKm: Math.max(0.1, Number(t.maxKm || 0)),
+          fee: Math.max(0, roundMoney(Number(t.fee || 0))),
+          estimatedMinutes: Math.max(1, Math.round(Number(t.estimatedMinutes || 35))),
+          active: t.active !== false,
+          color: t.color ? String(t.color).slice(0, 24) : undefined,
+        }))
+    : [];
+  const neighborhoods = Array.isArray(raw.neighborhoods)
+    ? raw.neighborhoods
+        .filter((n) => n && typeof n === 'object' && String(n.name || '').trim() !== '')
+        .slice(0, 200)
+        .map((n, idx) => ({
+          id: String(n.id || `nb-${idx + 1}`),
+          name: String(n.name || '').trim().slice(0, 120),
+          city: n.city ? String(n.city).trim().slice(0, 120) : undefined,
+          fee: Math.max(0, roundMoney(Number(n.fee || 0))),
+          estimatedMinutes: Math.max(1, Math.round(Number(n.estimatedMinutes || 35))),
+          active: n.active !== false,
+        }))
+    : [];
+  const out = {
+    mode,
+    distanceFactor:
+      typeof raw.distanceFactor === 'number' && Number.isFinite(raw.distanceFactor) && raw.distanceFactor >= 1
+        ? raw.distanceFactor
+        : 1.25,
+    radiusTiers,
+    neighborhoods,
+    blockOutsideArea: raw.blockOutsideArea !== false,
+  };
+  if (typeof raw.originLat === 'number' && Number.isFinite(raw.originLat)) {
+    out.originLat = raw.originLat;
+  }
+  if (typeof raw.originLng === 'number' && Number.isFinite(raw.originLng)) {
+    out.originLng = raw.originLng;
+  }
+  if (raw.originLabel) {
+    out.originLabel = String(raw.originLabel).trim().slice(0, 240);
+  }
+  return out;
+}
+
+function resolveDeliveryQuoteServer(area, fallbackFee, addrFields) {
+  const safeFallback = Math.max(0, roundMoney(Number(fallbackFee || 0)));
+  if (!area || area.mode === 'fixed') {
+    return { deliverable: true, fee: safeFallback, distanceKm: undefined };
+  }
+  if (area.mode === 'radius') {
+    const hasOrigin =
+      typeof area.originLat === 'number' &&
+      Number.isFinite(area.originLat) &&
+      typeof area.originLng === 'number' &&
+      Number.isFinite(area.originLng);
+    if (!hasOrigin) {
+      return { deliverable: !area.blockOutsideArea, fee: safeFallback, reason: 'origin_not_configured' };
+    }
+    const activeTiers = (area.radiusTiers || [])
+      .filter((t) => t.active !== false && Number(t.maxKm) > 0)
+      .sort((a, b) => Number(a.maxKm) - Number(b.maxKm));
+    if (activeTiers.length === 0) {
+      return { deliverable: true, fee: safeFallback };
+    }
+    const lat = Number(addrFields?.lat);
+    const lng = Number(addrFields?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return {
+        deliverable: !area.blockOutsideArea,
+        fee: safeFallback,
+        reason: 'address_coords_missing',
+      };
+    }
+    const factor =
+      typeof area.distanceFactor === 'number' && area.distanceFactor >= 1 ? area.distanceFactor : 1.25;
+    const distanceKm = Math.round(calculateHaversineKmServer(area.originLat, area.originLng, lat, lng) * factor * 100) / 100;
+    const matched = activeTiers.find((t) => distanceKm <= Number(t.maxKm));
+    if (matched) {
+      return { deliverable: true, fee: roundMoney(matched.fee), distanceKm };
+    }
+    return {
+      deliverable: !area.blockOutsideArea,
+      fee: roundMoney(activeTiers[activeTiers.length - 1].fee),
+      distanceKm,
+      reason: 'outside_radius',
+    };
+  }
+  // mode === 'neighborhood'
+  const activeRules = (area.neighborhoods || []).filter(
+    (n) => n.active !== false && normalizeAreaTextServer(n.name).length > 0
+  );
+  if (activeRules.length === 0) {
+    return { deliverable: true, fee: safeFallback };
+  }
+  const targetNb = normalizeAreaTextServer(addrFields?.neighborhood);
+  const targetCity = normalizeAreaTextServer(addrFields?.city);
+  if (!targetNb) {
+    return { deliverable: !area.blockOutsideArea, fee: safeFallback, reason: 'neighborhood_not_served' };
+  }
+  const matchedRule = activeRules.find((rule) => {
+    const rName = normalizeAreaTextServer(rule.name);
+    const rCity = normalizeAreaTextServer(rule.city);
+    const nameMatch = rName === targetNb || targetNb.includes(rName) || rName.includes(targetNb);
+    if (!nameMatch) return false;
+    if (rCity && targetCity) return rCity === targetCity;
+    return true;
+  });
+  if (matchedRule) {
+    return { deliverable: true, fee: roundMoney(matchedRule.fee) };
+  }
+  return { deliverable: !area.blockOutsideArea, fee: safeFallback, reason: 'neighborhood_not_served' };
+}
+
 function computeEffectiveProductPrice(product) {
   const basePrice = Math.max(0, roundMoney(Number(product?.salePrice || 0)));
   const rawDiscount = Math.max(0, Number(product?.discountValue || 0));
@@ -277,6 +425,7 @@ exports.getPublicStorefront = onCall(async (request) => {
     openingHours: Array.isArray(store.openingHours) ? store.openingHours : [],
     estimatedMinutes: Number(store.estimatedMinutes || 40),
     deliveryFee: Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0),
+    deliveryArea: sanitizeDeliveryArea(store.deliveryArea),
     acceptDelivery: store.acceptDelivery !== false,
     acceptPickup: store.acceptPickup !== false,
     acceptTableOrders: store.acceptTableOrders !== false,
@@ -309,7 +458,9 @@ exports.getPublicStorefront = onCall(async (request) => {
   };
 });
 
-exports.placeOnlineOrder = onCall(async (request) => {
+const LOW_CPU_CALLABLE_OPTS = { maxInstances: 2, memory: '256MiB', concurrency: 1 };
+
+exports.placeOnlineOrder = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
   const slug = normalizeStoreSlug(request.data?.slug);
   const ctx = await loadStoreContextBySlug(slug);
   if (!ctx.isOpen) {
@@ -356,10 +507,35 @@ exports.placeOnlineOrder = onCall(async (request) => {
     throw new HttpsError('failed-precondition', 'table_orders_disabled');
   }
 
-  const deliveryFee =
+  const rawAddrFieldsForQuote =
+    request.data?.customerAddressFields && typeof request.data.customerAddressFields === 'object'
+      ? request.data.customerAddressFields
+      : null;
+
+  if (deliveryType === 'delivery') {
+    const reqStreet = String(rawAddrFieldsForQuote?.street || '').trim();
+    const reqNumber = String(rawAddrFieldsForQuote?.number || '').trim();
+    const reqNeighborhood = String(rawAddrFieldsForQuote?.neighborhood || '').trim();
+    const reqCity = String(rawAddrFieldsForQuote?.city || '').trim();
+    if (!reqStreet || !reqNumber || !reqNeighborhood || !reqCity) {
+      throw new HttpsError(
+        'invalid-argument',
+        'Informe rua, número, bairro e cidade completos para entrega.'
+      );
+    }
+  }
+
+  const baseDeliveryFee = Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0);
+  const deliveryQuote =
     deliveryType === 'delivery'
-      ? Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0)
-      : 0;
+      ? resolveDeliveryQuoteServer(store.deliveryArea, baseDeliveryFee, rawAddrFieldsForQuote)
+      : { deliverable: true, fee: 0, distanceKm: undefined };
+
+  if (deliveryType === 'delivery' && !deliveryQuote.deliverable) {
+    throw new HttpsError('failed-precondition', 'out_of_delivery_area');
+  }
+
+  const deliveryFee = deliveryType === 'delivery' ? Number(deliveryQuote.fee || 0) : 0;
 
   const validatedItems = [];
   for (const line of rawItems) {
@@ -405,6 +581,8 @@ exports.placeOnlineOrder = onCall(async (request) => {
   const timestamp = nowIso();
   const ref = db().collection(`enterprises/${ctx.enterpriseId}/onlineOrders`).doc();
   const rawAddrFields = request.data?.customerAddressFields;
+  const parsedLat = Number(rawAddrFields?.lat);
+  const parsedLng = Number(rawAddrFields?.lng);
   const customerAddressFields =
     rawAddrFields && typeof rawAddrFields === 'object'
       ? {
@@ -415,6 +593,9 @@ exports.placeOnlineOrder = onCall(async (request) => {
           neighborhood: rawAddrFields.neighborhood ? String(rawAddrFields.neighborhood) : '',
           city: rawAddrFields.city ? String(rawAddrFields.city) : '',
           state: rawAddrFields.state ? String(rawAddrFields.state) : '',
+          ...(Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
+            ? { lat: parsedLat, lng: parsedLng }
+            : {}),
         }
       : null;
 
@@ -596,7 +777,7 @@ exports.placeOnlineOrder = onCall(async (request) => {
   return { orderId: ref.id, code };
 });
 
-exports.upsertOnlineStoreConfig = onCall(async (request) => {
+exports.upsertOnlineStoreConfig = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
   const enterpriseId = String(request.data?.enterpriseId || '').trim();
   if (!enterpriseId) throw new HttpsError('invalid-argument', 'enterpriseId required');
   assertTenantAdminOrGestor(request, enterpriseId);
@@ -651,6 +832,7 @@ exports.upsertOnlineStoreConfig = onCall(async (request) => {
         ? Math.min(100, Math.max(0, Math.round(onlineStore.bannerPositionY)))
         : 50,
     logoFit: onlineStore.logoFit === 'contain' ? 'contain' : 'cover',
+    deliveryArea: sanitizeDeliveryArea(onlineStore.deliveryArea),
   };
   [
     'pixKey',
@@ -1032,12 +1214,13 @@ exports.lookupPublicCustomerByPhone = onCall(async (request) => {
   return { found: false };
 });
 
-exports.listPublicOrdersByPhone = onCall(async (request) => {
+exports.listPublicOrdersByPhone = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
   const { enterpriseId, enterprise } = await resolveEnterpriseBySlug(request.data?.slug);
   const digits = phoneDigits(request.data?.phone);
   if (digits.length < 10) {
     throw new HttpsError('invalid-argument', 'Informe um telefone válido com DDD');
   }
+  const requestedFirstName = normalizeFirstName(request.data?.firstName || '');
 
   const snap = await db()
     .collection(`enterprises/${enterpriseId}/onlineOrders`)
@@ -1045,15 +1228,26 @@ exports.listPublicOrdersByPhone = onCall(async (request) => {
     .limit(150)
     .get();
 
-  const orders = snap.docs
-    .filter((d) => {
-      const data = d.data() || {};
-      return phonesMatch(data.customerPhoneDigits || data.customerPhone, digits);
-    })
-    .slice(0, 20)
+  const matchedDocs = snap.docs.filter((d) => {
+    const data = d.data() || {};
+    if (!phonesMatch(data.customerPhoneDigits || data.customerPhone, digits)) {
+      return false;
+    }
+    if (requestedFirstName) {
+      const orderFirstName = normalizeFirstName(data.customerName || '');
+      if (!orderFirstName) return false;
+      return orderFirstName === requestedFirstName;
+    }
+    return true;
+  });
+
+  const latestOrders = matchedDocs
+    .slice(0, 5)
     .map((d) => mapPublicOrderSummary(d.id, d.data() || {}, enterprise));
 
-  return { orders };
+  const matchedCustomerName = latestOrders[0]?.customerName || undefined;
+
+  return { orders: latestOrders, matchedCustomerName };
 });
 
 async function loadPublicTableStatus(enterpriseId, enterprise, rawTableCodeInput, rawCustomerPhone) {

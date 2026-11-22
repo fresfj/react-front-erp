@@ -17,6 +17,7 @@ import { varAlpha, stylesMode } from 'src/theme/styles';
 
 import { bulletColor } from 'src/components/nav-section';
 import { useSettingsContext } from 'src/components/settings';
+import { PwaInstallButton } from 'src/components/pwa-install-button/pwa-install-button';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -104,6 +105,7 @@ export function DashboardLayout({ sx, children, data }: DashboardLayoutProps) {
               notifications: true,
             }}
             slots={{
+              rightAreaStart: <PwaInstallButton variant="icon" label="Instalar App" />,
               topArea: (
                 <>
                   <UserSwitchBanner />

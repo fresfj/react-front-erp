@@ -69,6 +69,47 @@ service cloud.firestore {
         && (!('internalNotes' in data) || (data.internalNotes is string && data.internalNotes.size() <= 500));
     }
 
+    // Assumed Data Model: enterprises/{enterpriseId}/bankReconciliations/{entryId}
+    // Required: fitid (string <=160), date (YYYY-MM-DD), amount (number != 0),
+    //           memo (string <=500), status ('pending'|'reconciled'|'ignored'), createdAt (string <=64)
+    // Optional: bankName (<=120), matchedLedgerId (<=128), matchedLedgerReason (<=300),
+    //           reconciledAt (<=64), reconciledBy (<=128)
+    // Immutable after create: fitid, date, amount, memo, bankName, createdAt
+    function isValidBankReconciliationEntry(data) {
+      return data.keys().hasOnly([
+          'fitid',
+          'date',
+          'amount',
+          'memo',
+          'bankName',
+          'status',
+          'matchedLedgerId',
+          'matchedLedgerReason',
+          'reconciledAt',
+          'reconciledBy',
+          'createdAt'
+        ])
+        && data.keys().hasAll(['fitid', 'date', 'amount', 'memo', 'status', 'createdAt'])
+        && data.fitid is string
+        && data.fitid.size() > 0
+        && data.fitid.size() <= 160
+        && data.date is string
+        && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        && data.amount is number
+        && data.amount != 0
+        && data.memo is string
+        && data.memo.size() <= 500
+        && data.status in ['pending', 'reconciled', 'ignored']
+        && data.createdAt is string
+        && data.createdAt.size() > 0
+        && data.createdAt.size() <= 64
+        && (!('bankName' in data) || (data.bankName is string && data.bankName.size() <= 120))
+        && (!('matchedLedgerId' in data) || (data.matchedLedgerId is string && data.matchedLedgerId.size() <= 128))
+        && (!('matchedLedgerReason' in data) || (data.matchedLedgerReason is string && data.matchedLedgerReason.size() <= 300))
+        && (!('reconciledAt' in data) || (data.reconciledAt is string && data.reconciledAt.size() <= 64))
+        && (!('reconciledBy' in data) || (data.reconciledBy is string && data.reconciledBy.size() <= 128));
+    }
+
     match /enterprises/{enterpriseId} {
       allow read: if signedIn() && (
         isPlatformAdmin() || (sameEnterprise(enterpriseId) && roleOk())
@@ -169,6 +210,26 @@ service cloud.firestore {
 
     match /enterprises/{enterpriseId}/receivables/{id} {
       allow read, write: if hasPerm(enterpriseId, 'dre');
+    }
+
+    match /enterprises/{enterpriseId}/bankReconciliations/{entryId} {
+      allow read: if hasPerm(enterpriseId, 'cash_close')
+        || hasPerm(enterpriseId, 'dre');
+      allow create: if (hasPerm(enterpriseId, 'cash_close') || hasPerm(enterpriseId, 'dre'))
+        && isValidBankReconciliationEntry(request.resource.data)
+        && request.resource.data.status == 'pending';
+      allow update: if (hasPerm(enterpriseId, 'cash_close') || hasPerm(enterpriseId, 'dre'))
+        && isValidBankReconciliationEntry(request.resource.data)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'fitid',
+          'date',
+          'amount',
+          'memo',
+          'bankName',
+          'createdAt'
+        ]);
+      allow delete: if hasPerm(enterpriseId, 'cash_close')
+        || hasPerm(enterpriseId, 'dre');
     }
 
     match /enterprises/{enterpriseId}/processingOrders/{id} {

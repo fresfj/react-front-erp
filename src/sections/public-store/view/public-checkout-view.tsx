@@ -3,8 +3,8 @@ import type {
   OnlinePayOnDeliveryMethod,
 } from 'src/api/firestore/online-orders';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
@@ -41,10 +41,19 @@ import { Iconify } from 'src/components/iconify';
 import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
 import { IncrementerButton } from 'src/sections/product/components/incrementer-button';
+import {
+  geocodeAddressBrazil,
+  resolveDeliveryQuote,
+  getMaxActiveRadiusKm,
+  buildAddressSearchQuery,
+} from 'src/sections/online-store/delivery-area-domain';
 
 import { usePublicCart } from '../public-cart-context';
 import { CheckoutSkeleton } from '../public-store-skeletons';
 import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
+import { validateCheckoutForm } from '../public-store-validation';
+
+import type { CheckoutFieldName, CheckoutFormErrors } from '../public-store-validation';
 
 // ----------------------------------------------------------------------
 
@@ -99,6 +108,11 @@ export function PublicCheckoutView() {
   const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geocodingAddress, setGeocodingAddress] = useState(false);
+  const [formErrors, setFormErrors] = useState<CheckoutFormErrors>({});
+  const fieldRefs = useRef<Partial<Record<CheckoutFieldName, HTMLInputElement | null>>>({});
+  const lastGeocodedQueryRef = useRef('');
 
   const handleLookupCustomer = useCallback(
     async (phoneVal: string) => {
@@ -192,11 +206,107 @@ export function PublicCheckoutView() {
     navigate(paths.publicStore.root(slug));
   };
 
-  const deliveryFee = deliveryType === 'delivery' ? Number(store?.deliveryFee || 0) : 0;
+  const deliveryAreaMode = store?.deliveryArea?.mode || 'fixed';
+
+  // Geocodifica automaticamente no modo raio quando o endereço mínimo estiver preenchido
+  useEffect(() => {
+    if (isTableMode || deliveryType !== 'delivery' || deliveryAreaMode !== 'radius') {
+      return undefined;
+    }
+    const cleanStreet = street.trim();
+    const cleanCity = city.trim();
+    const cleanNb = neighborhood.trim();
+    if (cleanStreet.length < 3 || (!cleanCity && !cleanNb)) {
+      return undefined;
+    }
+    const query = buildAddressSearchQuery({
+      street: cleanStreet,
+      number: number.trim(),
+      neighborhood: cleanNb,
+      city: cleanCity,
+      state: state.trim(),
+      cep: digitsOnly(cep),
+    });
+    if (!query || query === lastGeocodedQueryRef.current) {
+      return undefined;
+    }
+    const timer = setTimeout(async () => {
+      lastGeocodedQueryRef.current = query;
+      setGeocodingAddress(true);
+      try {
+        const res = await geocodeAddressBrazil(query);
+        if (res) {
+          setAddressCoords({ lat: res.lat, lng: res.lng });
+        } else {
+          setAddressCoords(null);
+        }
+      } finally {
+        setGeocodingAddress(false);
+      }
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [isTableMode, deliveryType, deliveryAreaMode, street, number, neighborhood, city, state, cep]);
+
+  const deliveryQuote = useMemo(() => {
+    if (isTableMode || deliveryType !== 'delivery') {
+      return {
+        deliverable: true,
+        fee: 0,
+        estimatedMinutes: store?.estimatedMinutes || 40,
+      };
+    }
+    return resolveDeliveryQuote(
+      store?.deliveryArea,
+      Number(store?.deliveryFee || 0),
+      Number(store?.estimatedMinutes || 40),
+      {
+        lat: addressCoords?.lat,
+        lng: addressCoords?.lng,
+        neighborhood,
+        city,
+      }
+    );
+  }, [
+    isTableMode,
+    deliveryType,
+    store?.deliveryArea,
+    store?.deliveryFee,
+    store?.estimatedMinutes,
+    addressCoords,
+    neighborhood,
+    city,
+  ]);
+
+  const deliveryFee = deliveryType === 'delivery' ? Number(deliveryQuote.fee || 0) : 0;
   const total = Math.round((cart.subtotal + deliveryFee) * 100) / 100;
   const isBelowMinOrder = Boolean(
     store?.minOrderAmount && store.minOrderAmount > 0 && cart.subtotal < store.minOrderAmount
   );
+
+  const clearFieldError = (field: CheckoutFieldName) => {
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const validateSingleField = (
+    field: CheckoutFieldName,
+    override?: Partial<Record<CheckoutFieldName, string>>
+  ) => {
+    const check = validateCheckoutForm({
+      isTableMode,
+      deliveryType,
+      customerPhone: override?.customerPhone ?? customerPhone,
+      customerName: override?.customerName ?? customerName,
+      cep: override?.cep ?? cep,
+      street: override?.street ?? street,
+      number: override?.number ?? number,
+      neighborhood: override?.neighborhood ?? neighborhood,
+      city: override?.city ?? city,
+      state: override?.state ?? state,
+    });
+    setFormErrors((prev) => ({ ...prev, [field]: check.errors[field] }));
+  };
 
   const handlePlaceOrder = async () => {
     if (!store?.isOpen) {
@@ -207,17 +317,46 @@ export function PublicCheckoutView() {
       toast.error(`O valor mínimo para pedidos nesta loja é de ${fCurrency(store.minOrderAmount)}.`);
       return;
     }
-    if (!customerName.trim() || (!isTableMode && !customerPhone.trim())) {
-      toast.error(
-        isTableMode
-          ? 'Por favor, informe seu nome para identificar o pedido na mesa.'
-          : 'Por favor, informe seu nome e WhatsApp para contato.'
-      );
+
+    const validation = validateCheckoutForm({
+      isTableMode,
+      deliveryType,
+      customerPhone,
+      customerName,
+      cep,
+      street,
+      number,
+      neighborhood,
+      city,
+      state,
+    });
+
+    if (!validation.valid) {
+      setFormErrors(validation.errors);
+      toast.error('Preencha corretamente os campos obrigatórios destacados em vermelho.');
+      if (validation.firstErrorField) {
+        const el = fieldRefs.current[validation.firstErrorField];
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+      }
       return;
     }
+
+    setFormErrors({});
+
     if (!isTableMode && deliveryType === 'delivery') {
-      if (!street.trim() || !number.trim() || !neighborhood.trim()) {
-        toast.error('Informe rua, número e bairro para a entrega.');
+      if (geocodingAddress) {
+        toast.info('Aguarde a validação da área de entrega...');
+        return;
+      }
+      if (!deliveryQuote.deliverable) {
+        toast.error(
+          deliveryQuote.reason === 'address_coords_missing'
+            ? 'Não conseguimos localizar o endereço no mapa. Verifique rua, número e cidade.'
+            : 'Este endereço está fora da área de entrega desta loja.'
+        );
         return;
       }
     }
@@ -260,7 +399,9 @@ export function PublicCheckoutView() {
                 complement: complement.trim(),
                 neighborhood: neighborhood.trim(),
                 city: city.trim(),
-                state: state.trim(),
+                state: state.trim().toUpperCase(),
+                lat: addressCoords?.lat,
+                lng: addressCoords?.lng,
               }
             : undefined,
         deliveryType: isTableMode ? 'table' : deliveryType,
@@ -273,6 +414,17 @@ export function PublicCheckoutView() {
 
       try {
         localStorage.setItem(`onlineStore:customerPhone:${slug}`, customerPhone.trim());
+        const firstName = customerName.trim().split(/\s+/)[0] || '';
+        if (firstName && customerPhone.trim()) {
+          localStorage.setItem(
+            `onlineStore:customerIdentity:${slug}`,
+            JSON.stringify({
+              phone: customerPhone.trim(),
+              firstName,
+              fullName: customerName.trim(),
+            })
+          );
+        }
       } catch {
         // ignore storage error
       }
@@ -544,16 +696,29 @@ export function PublicCheckoutView() {
                   <Stack spacing={2}>
                     <TextField
                       fullWidth
+                      inputRef={(el) => {
+                        fieldRefs.current.customerPhone = el;
+                      }}
                       type="tel"
                       inputMode="tel"
                       autoComplete="tel"
                       label="WhatsApp para contato"
                       placeholder="(91) 98888-7777"
                       value={customerPhone}
-                      onChange={(e) => handlePhoneChange(e.target.value)}
-                      onBlur={() => handleLookupCustomer(customerPhone)}
-                      required
-                      helperText="Informe seu WhatsApp — se já comprou conosco, preencheremos seus dados automaticamente"
+                      onChange={(e) => {
+                        handlePhoneChange(e.target.value);
+                        clearFieldError('customerPhone');
+                      }}
+                      onBlur={() => {
+                        handleLookupCustomer(customerPhone);
+                        validateSingleField('customerPhone');
+                      }}
+                      required={!isTableMode}
+                      error={Boolean(formErrors.customerPhone)}
+                      helperText={
+                        formErrors.customerPhone ||
+                        'Informe seu WhatsApp — se já comprou conosco, preencheremos seus dados automaticamente'
+                      }
                       InputProps={{
                         startAdornment: (
                           <InputAdornment position="start">
@@ -587,10 +752,19 @@ export function PublicCheckoutView() {
 
                     <TextField
                       fullWidth
-                      label="Seu nome completo"
+                      inputRef={(el) => {
+                        fieldRefs.current.customerName = el;
+                      }}
+                      label={isTableMode ? 'Seu nome (identificação na mesa)' : 'Seu nome completo'}
                       placeholder="Ex: João da Silva"
                       value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
+                      onChange={(e) => {
+                        setCustomerName(e.target.value);
+                        clearFieldError('customerName');
+                      }}
+                      onBlur={() => validateSingleField('customerName')}
+                      error={Boolean(formErrors.customerName)}
+                      helperText={formErrors.customerName}
                       required
                     />
                   </Stack>
@@ -606,14 +780,25 @@ export function PublicCheckoutView() {
                     <Stack spacing={2}>
                       <TextField
                         fullWidth
+                        inputRef={(el) => {
+                          fieldRefs.current.cep = el;
+                        }}
                         type="tel"
                         inputMode="numeric"
                         autoComplete="postal-code"
-                        label="CEP (opcional - busca automática)"
+                        label="CEP (busca automática de endereço)"
                         placeholder="00000-000"
                         value={cep}
-                        onChange={(e) => setCep(formatCep(e.target.value))}
-                        onBlur={handleCepBlur}
+                        onChange={(e) => {
+                          setCep(formatCep(e.target.value));
+                          clearFieldError('cep');
+                        }}
+                        onBlur={() => {
+                          handleCepBlur();
+                          validateSingleField('cep');
+                        }}
+                        error={Boolean(formErrors.cep)}
+                        helperText={formErrors.cep}
                         InputProps={{
                           endAdornment: cepLoading ? (
                             <InputAdornment position="end">
@@ -625,28 +810,44 @@ export function PublicCheckoutView() {
 
                       <TextField
                         fullWidth
+                        inputRef={(el) => {
+                          fieldRefs.current.street = el;
+                        }}
                         label="Rua / Logradouro"
                         placeholder="Ex: Rua das Flores"
                         value={street}
-                        onChange={(e) => setStreet(e.target.value)}
+                        onChange={(e) => {
+                          setStreet(e.target.value);
+                          clearFieldError('street');
+                        }}
+                        onBlur={() => validateSingleField('street')}
+                        error={Boolean(formErrors.street)}
+                        helperText={formErrors.street}
                         required
                       />
 
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                           fullWidth
-                          type="tel"
-                          inputMode="numeric"
+                          inputRef={(el) => {
+                            fieldRefs.current.number = el;
+                          }}
                           label="Número"
-                          placeholder="123"
+                          placeholder="123 ou S/N"
                           value={number}
-                          onChange={(e) => setNumber(e.target.value)}
+                          onChange={(e) => {
+                            setNumber(e.target.value);
+                            clearFieldError('number');
+                          }}
+                          onBlur={() => validateSingleField('number')}
+                          error={Boolean(formErrors.number)}
+                          helperText={formErrors.number}
                           required
                           sx={{ flex: 1 }}
                         />
                         <TextField
                           fullWidth
-                          label="Complemento (apto, bloco)"
+                          label="Complemento (apto, bloco, ref.)"
                           placeholder="Apto 101"
                           value={complement}
                           onChange={(e) => setComplement(e.target.value)}
@@ -656,31 +857,112 @@ export function PublicCheckoutView() {
 
                       <TextField
                         fullWidth
+                        inputRef={(el) => {
+                          fieldRefs.current.neighborhood = el;
+                        }}
                         label="Bairro"
                         placeholder="Ex: Centro"
                         value={neighborhood}
-                        onChange={(e) => setNeighborhood(e.target.value)}
+                        onChange={(e) => {
+                          setNeighborhood(e.target.value);
+                          clearFieldError('neighborhood');
+                        }}
+                        onBlur={() => validateSingleField('neighborhood')}
+                        error={Boolean(formErrors.neighborhood)}
+                        helperText={formErrors.neighborhood}
                         required
                       />
 
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                           fullWidth
+                          inputRef={(el) => {
+                            fieldRefs.current.city = el;
+                          }}
                           label="Cidade"
                           placeholder="Cidade"
                           value={city}
-                          onChange={(e) => setCity(e.target.value)}
+                          onChange={(e) => {
+                            setCity(e.target.value);
+                            clearFieldError('city');
+                          }}
+                          onBlur={() => validateSingleField('city')}
+                          error={Boolean(formErrors.city)}
+                          helperText={formErrors.city}
+                          required
                           sx={{ flex: 3 }}
                         />
                         <TextField
                           fullWidth
+                          inputRef={(el) => {
+                            fieldRefs.current.state = el;
+                          }}
                           label="UF"
-                          placeholder="UF"
+                          placeholder="PA"
+                          inputProps={{ maxLength: 2 }}
                           value={state}
-                          onChange={(e) => setState(e.target.value)}
+                          onChange={(e) => {
+                            setState(e.target.value.toUpperCase());
+                            clearFieldError('state');
+                          }}
+                          onBlur={() => validateSingleField('state')}
+                          error={Boolean(formErrors.state)}
+                          helperText={formErrors.state}
+                          required
                           sx={{ flex: 1 }}
                         />
                       </Stack>
+
+                      {/* Feedback em tempo real da área de entrega */}
+                      {deliveryAreaMode !== 'fixed' && (
+                        <>
+                          {geocodingAddress && (
+                            <Alert severity="info" icon={<CircularProgress size={18} />}>
+                              Calculando distância e taxa de entrega para o seu endereço...
+                            </Alert>
+                          )}
+                          {!geocodingAddress && deliveryQuote.deliverable && (
+                            <Alert severity="success">
+                              Entrega disponível para este endereço
+                              {deliveryQuote.distanceKm != null
+                                ? ` (~${deliveryQuote.distanceKm.toFixed(1)} km)`
+                                : ''}
+                              {deliveryQuote.matchedLabel ? ` • ${deliveryQuote.matchedLabel}` : ''}
+                              {' • '}
+                              <strong>
+                                {deliveryQuote.fee === 0
+                                  ? 'Entrega grátis'
+                                  : fCurrency(deliveryQuote.fee)}
+                              </strong>{' '}
+                              ({deliveryQuote.estimatedMinutes} min)
+                            </Alert>
+                          )}
+                          {!geocodingAddress &&
+                            !deliveryQuote.deliverable &&
+                            (street.trim().length >= 3 || neighborhood.trim().length >= 2) && (
+                              <Alert
+                                severity="error"
+                                action={
+                                  store.acceptPickup ? (
+                                    <Button
+                                      color="inherit"
+                                      size="small"
+                                      onClick={() => setDeliveryType('pickup')}
+                                    >
+                                      Retirar no local
+                                    </Button>
+                                  ) : undefined
+                                }
+                              >
+                                {deliveryQuote.reason === 'outside_radius'
+                                  ? `Endereço a ~${deliveryQuote.distanceKm?.toFixed(1)} km — fora do raio máximo de entrega (${getMaxActiveRadiusKm(store.deliveryArea)} km).`
+                                  : deliveryQuote.reason === 'neighborhood_not_served'
+                                    ? 'O bairro informado está fora da área de entrega desta loja.'
+                                    : 'Informe rua, número e cidade válidos para confirmarmos a área de entrega.'}
+                              </Alert>
+                            )}
+                        </>
+                      )}
                     </Stack>
                   </Card>
                 )}

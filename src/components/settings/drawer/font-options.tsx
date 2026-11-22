@@ -2,11 +2,12 @@ import Box from '@mui/material/Box';
 import Slider from '@mui/material/Slider';
 import ButtonBase from '@mui/material/ButtonBase';
 
+import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 import { setFont, varAlpha, stylesMode } from 'src/theme/styles';
 
-import { Block } from './styles';
 import { SvgColor } from '../../svg-color';
+import { Block, SmallBlock } from './styles';
 
 // ----------------------------------------------------------------------
 
@@ -16,6 +17,10 @@ type Props = {
   options: string[];
   onClickOption: (newValue: string) => void;
   onChangeFontSize?: (newValue: number) => void;
+  canResetFamily?: boolean;
+  onResetFamily?: () => void;
+  canResetSize?: boolean;
+  onResetSize?: () => void;
 };
 
 export function FontOptions({
@@ -24,22 +29,20 @@ export function FontOptions({
   options,
   onClickOption,
   onChangeFontSize,
+  canResetFamily,
+  onResetFamily,
+  canResetSize,
+  onResetSize,
 }: Props) {
-  const labelStyles = {
-    lineHeight: '14px',
-    color: 'text.secondary',
-    alignSelf: 'flex-start',
-    fontWeight: 'fontWeightSemiBold',
-    fontSize: (theme: any) => theme.typography.pxToRem(11),
-  };
+  const { t } = useTranslate('common');
 
   return (
-    <Block title="Font" sx={{ gap: 2.5 }}>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        <ButtonBase component="button" type="button" disableRipple sx={labelStyles}>
-          Family
-        </ButtonBase>
-
+    <Block title={t('settingsDrawer.font', { defaultValue: 'Fonte' })} sx={{ gap: 2.5 }}>
+      <SmallBlock
+        label={t('settingsDrawer.family', { defaultValue: 'Família' })}
+        canReset={canResetFamily}
+        onReset={onResetFamily}
+      >
         <Box component="ul" gap={1.5} display="grid" gridTemplateColumns="repeat(2, 1fr)">
           {options.map((option) => {
             const selected = value === option;
@@ -94,14 +97,15 @@ export function FontOptions({
             );
           })}
         </Box>
-      </Box>
+      </SmallBlock>
 
       {onChangeFontSize && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <ButtonBase component="button" type="button" disableRipple sx={labelStyles}>
-            Size
-          </ButtonBase>
-
+        <SmallBlock
+          label={t('settingsDrawer.size', { defaultValue: 'Tamanho' })}
+          canReset={canResetSize}
+          onReset={onResetSize}
+          sx={{ gap: 3 }}
+        >
           <Slider
             size="small"
             step={1}
@@ -110,14 +114,14 @@ export function FontOptions({
             marks
             value={fontSize}
             valueLabelDisplay="on"
-            aria-label="Change font size"
+            aria-label={t('settingsDrawer.size', { defaultValue: 'Tamanho' })}
             valueLabelFormat={(val) => `${val}px`}
             onChange={(_event: Event, newValue: number | number[]) =>
               onChangeFontSize(newValue as number)
             }
             sx={{ width: 1, mt: 2, mb: 0.5 }}
           />
-        </Box>
+        </SmallBlock>
       )}
     </Block>
   );

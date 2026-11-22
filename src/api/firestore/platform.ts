@@ -1,4 +1,10 @@
 import type { TenantRole } from 'src/auth/firebase-claims';
+import type {
+  DeliveryAreaConfig,
+  DeliveryRadiusTier,
+  DeliveryPricingMode,
+  DeliveryNeighborhoodRule,
+} from 'src/sections/online-store/delivery-area-domain';
 
 import { httpsCallable } from 'firebase/functions';
 import {
@@ -57,6 +63,7 @@ export type OnlineStoreConfig = {
   bannerPositionY?: number;
   logoFit?: 'cover' | 'contain';
   minOrderAmount?: number;
+  deliveryArea?: DeliveryAreaConfig;
 };
 
 /** Tema / layout da empresa (Settings Minimals por tenant). */
@@ -128,6 +135,57 @@ export type EnterpriseMember = {
   updatedAt?: string;
 };
 
+function mapDeliveryArea(raw: unknown): DeliveryAreaConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const d = raw as Record<string, unknown>;
+  const rawMode = String(d.mode ?? 'fixed');
+  const mode: DeliveryPricingMode =
+    rawMode === 'radius' || rawMode === 'neighborhood' ? rawMode : 'fixed';
+  const radiusTiers: DeliveryRadiusTier[] = Array.isArray(d.radiusTiers)
+    ? d.radiusTiers
+        .filter((t) => t && typeof t === 'object')
+        .map((t, idx) => {
+          const item = t as Record<string, unknown>;
+          return {
+            id: String(item.id || `tier-${idx + 1}`),
+            maxKm: Number(item.maxKm ?? 0),
+            fee: Number(item.fee ?? 0),
+            estimatedMinutes: Number(item.estimatedMinutes ?? 35),
+            active: item.active !== false,
+            color: optStr(item.color),
+          };
+        })
+    : [];
+  const neighborhoods: DeliveryNeighborhoodRule[] = Array.isArray(d.neighborhoods)
+    ? d.neighborhoods
+        .filter((n) => n && typeof n === 'object')
+        .map((n, idx) => {
+          const item = n as Record<string, unknown>;
+          return {
+            id: String(item.id || `nb-${idx + 1}`),
+            name: String(item.name ?? ''),
+            city: optStr(item.city),
+            fee: Number(item.fee ?? 0),
+            estimatedMinutes: Number(item.estimatedMinutes ?? 35),
+            active: item.active !== false,
+          };
+        })
+    : [];
+  return {
+    mode,
+    originLat: typeof d.originLat === 'number' && Number.isFinite(d.originLat) ? d.originLat : undefined,
+    originLng: typeof d.originLng === 'number' && Number.isFinite(d.originLng) ? d.originLng : undefined,
+    originLabel: optStr(d.originLabel),
+    distanceFactor:
+      typeof d.distanceFactor === 'number' && Number.isFinite(d.distanceFactor)
+        ? d.distanceFactor
+        : 1.25,
+    radiusTiers,
+    neighborhoods,
+    blockOutsideArea: d.blockOutsideArea !== false,
+  };
+}
+
 function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const data = raw as Record<string, unknown>;
@@ -152,12 +210,17 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
     estimatedMinutes: Number(data.estimatedMinutes ?? 40),
     acceptDelivery: data.acceptDelivery !== false,
     acceptPickup: data.acceptPickup !== false,
+    acceptTableOrders: data.acceptTableOrders !== false,
     defaultDeliveryFee: Number(data.defaultDeliveryFee ?? 0),
     paymentMethodsOnDelivery: methodsRaw
       .map((m) => String(m))
       .filter((m): m is OnlinePayOnDeliveryMethod =>
         m === 'cash' || m === 'pix' || m === 'debit_card' || m === 'credit_card'
       ),
+    acceptOnlinePix: data.acceptOnlinePix !== false,
+    pixKey: optStr(data.pixKey),
+    pixMerchantName: optStr(data.pixMerchantName),
+    pixMerchantCity: optStr(data.pixMerchantCity),
     whatsapp: optStr(data.whatsapp),
     description: optStr(data.description),
     instagramUrl: optStr(data.instagramUrl),
@@ -168,6 +231,7 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
     bannerPositionY: typeof data.bannerPositionY === 'number' ? data.bannerPositionY : 50,
     logoFit: data.logoFit === 'contain' ? 'contain' : 'cover',
     minOrderAmount: Number(data.minOrderAmount || 0),
+    deliveryArea: mapDeliveryArea(data.deliveryArea),
   };
 }
 

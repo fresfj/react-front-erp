@@ -5,10 +5,11 @@ import Stack from '@mui/material/Stack';
 import { useTheme } from '@mui/material/styles';
 import ButtonBase from '@mui/material/ButtonBase';
 
+import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 import { varAlpha, stylesMode } from 'src/theme/styles';
 
-import { Block } from './styles';
+import { Block, SmallBlock } from './styles';
 import { SvgColor, svgColorClasses } from '../../svg-color';
 
 import type { SettingsState } from '../types';
@@ -28,12 +29,27 @@ type Props = {
     color: (newValue: SettingsState['navColor']) => void;
     layout: (newValue: SettingsState['navLayout']) => void;
   };
+  canResetLayout?: boolean;
+  onResetLayout?: () => void;
+  canResetColor?: boolean;
+  onResetColor?: () => void;
   hideNavColor?: boolean;
   hideNavLayout?: boolean;
 };
 
-export function NavOptions({ options, value, onClickOption, hideNavColor, hideNavLayout }: Props) {
+export function NavOptions({
+  options,
+  value,
+  onClickOption,
+  canResetLayout,
+  onResetLayout,
+  canResetColor,
+  onResetColor,
+  hideNavColor,
+  hideNavLayout,
+}: Props) {
   const theme = useTheme();
+  const { t } = useTranslate('common');
 
   const cssVars = {
     '--item-radius': '12px',
@@ -44,20 +60,18 @@ export function NavOptions({ options, value, onClickOption, hideNavColor, hideNa
     '--item-active-shadow-dark': `-8px 8px 20px -4px ${varAlpha(theme.vars.palette.common.blackChannel, 0.12)}`,
   };
 
-  const labelStyles: React.CSSProperties = {
-    display: 'block',
-    lineHeight: '14px',
-    color: 'text.secondary',
-    fontWeight: 'fontWeightSemiBold',
-    fontSize: theme.typography.pxToRem(11),
+  const colorLabels: Record<string, string> = {
+    integrate: t('settingsDrawer.integrate', { defaultValue: 'Integrado' }),
+    apparent: t('settingsDrawer.apparent', { defaultValue: 'Aparente' }),
   };
 
   const renderLayout = (
-    <div>
-      <Box component="span" sx={labelStyles}>
-        Layout
-      </Box>
-      <Box gap={1.5} display="flex" sx={{ mt: 1.5 }}>
+    <SmallBlock
+      label={t('settingsDrawer.layout', { defaultValue: 'Layout' })}
+      canReset={canResetLayout}
+      onReset={onResetLayout}
+    >
+      <Box gap={1.5} display="flex">
         {options.layouts.map((option) => (
           <LayoutOption
             key={option}
@@ -67,29 +81,35 @@ export function NavOptions({ options, value, onClickOption, hideNavColor, hideNa
           />
         ))}
       </Box>
-    </div>
+    </SmallBlock>
   );
 
   const renderColor = (
-    <div>
-      <Box component="span" sx={labelStyles}>
-        Color
-      </Box>
-      <Box gap={1.5} display="flex" sx={{ mt: 1.5 }}>
+    <SmallBlock
+      label={t('settingsDrawer.color', { defaultValue: 'Cor' })}
+      canReset={canResetColor}
+      onReset={onResetColor}
+    >
+      <Box gap={1.5} display="flex">
         {options.colors.map((option) => (
           <ColorOption
             key={option}
             option={option}
+            label={colorLabels[option] || option}
             selected={value.color === option}
             onClick={() => onClickOption.color(option)}
           />
         ))}
       </Box>
-    </div>
+    </SmallBlock>
   );
 
   return (
-    <Block title="Nav" tooltip="Dashboard only" sx={{ ...cssVars, gap: 2.5 }}>
+    <Block
+      title={t('settingsDrawer.nav', { defaultValue: 'Navegação' })}
+      tooltip={t('settingsDrawer.navTooltip', { defaultValue: 'Somente no painel' })}
+      sx={{ ...cssVars, gap: 2.5 }}
+    >
       {!hideNavLayout && renderLayout}
       {!hideNavColor && renderColor}
     </Block>
@@ -100,6 +120,7 @@ export function NavOptions({ options, value, onClickOption, hideNavColor, hideNa
 
 type OptionProps = ButtonBaseProps & {
   option: string;
+  label?: string;
   selected: boolean;
 };
 
@@ -223,7 +244,7 @@ export function LayoutOption({ option, selected, sx, ...other }: OptionProps) {
 
 // ----------------------------------------------------------------------
 
-export function ColorOption({ option, selected, sx, ...other }: OptionProps) {
+export function ColorOption({ option, label, selected, sx, ...other }: OptionProps) {
   return (
     <ButtonBase
       disableRipple
@@ -263,7 +284,7 @@ export function ColorOption({ option, selected, sx, ...other }: OptionProps) {
           fontSize: (theme) => theme.typography.pxToRem(13),
         }}
       >
-        {option}
+        {label || option}
       </Box>
     </ButtonBase>
   );

@@ -38,11 +38,13 @@ export type AccrualDreDailyPoint = {
 export type AccrualDreReport = {
   salesCount: number;
   grossRevenue: number;
+  deliveryAndServiceFees: number;
   discounts: number;
   netRevenue: number;
   cogs: number;
   grossProfit: number;
   grossMarginPercent: number;
+  paymentFees: number;
   operatingExpenses: number;
   salesFees: number;
   expenseLines: AccrualDreExpenseLine[];
@@ -91,6 +93,7 @@ export function buildAccrualDre(params: {
   );
 
   let grossRevenue = 0;
+  let deliveryAndServiceFees = 0;
   let discounts = 0;
   let netRevenue = 0;
   let cogs = 0;
@@ -107,42 +110,50 @@ export function buildAccrualDre(params: {
   };
 
   completed.forEach((s) => {
-    grossRevenue += Number(s.subtotal) || 0;
-    discounts += Number(s.discountAmount) || 0;
-    netRevenue += Number(s.total) || 0;
+    const sub = Number(s.subtotal) || 0;
+    const disc = Number(s.discountAmount) || 0;
+    const extras = (Number(s.deliveryFee) || 0) + (Number(s.surchargeAmount) || 0);
+    const total = Number(s.total) || round2(sub + extras - disc);
+
+    grossRevenue += sub;
+    deliveryAndServiceFees += extras;
+    discounts += disc;
+    netRevenue += total;
     cogs += Number(s.totalCost) || 0;
 
     if (s.createdAt) {
       const day = ensureDay(saleDayKey(s.createdAt));
-      day.revenue = round2(day.revenue + (Number(s.total) || 0));
+      day.revenue = round2(day.revenue + total);
       day.cogs = round2(day.cogs + (Number(s.totalCost) || 0));
     }
   });
 
   grossRevenue = round2(grossRevenue);
+  deliveryAndServiceFees = round2(deliveryAndServiceFees);
   discounts = round2(discounts);
   netRevenue = round2(netRevenue);
   cogs = round2(cogs);
 
   const expenseByCategory = new Map<FinancialCategory, number>();
   let operatingExpenses = 0;
-  let salesFees = 0;
+  let paymentFees = 0;
 
-  // Taxas de maquininha/intermediação não repassadas ao cliente são despesas da loja no DRE
+  // Taxas de maquininha/PIX são sempre custo de intermediação da operadora (mesmo quando repassadas ao cliente,
+  // pois o acréscimo já entrou em surchargeAmount na receita líquida — evitando lucro líquido fantasma).
   completed.forEach((s) => {
-    if (!s.feesPassedToCustomer && s.paymentFeeAmount && s.paymentFeeAmount > 0) {
-      salesFees += s.paymentFeeAmount;
+    const fee = Number(s.paymentFeeAmount) || 0;
+    if (fee > 0) {
+      paymentFees += fee;
       if (s.createdAt) {
         const day = ensureDay(saleDayKey(s.createdAt));
-        day.operatingExpenses = round2(day.operatingExpenses + s.paymentFeeAmount);
+        day.operatingExpenses = round2(day.operatingExpenses + fee);
       }
     }
   });
 
-  salesFees = round2(salesFees);
-  if (salesFees > 0) {
-    operatingExpenses += salesFees;
-    expenseByCategory.set('tax', (expenseByCategory.get('tax') || 0) + salesFees);
+  paymentFees = round2(paymentFees);
+  if (paymentFees > 0) {
+    operatingExpenses += paymentFees;
   }
 
   params.payables.forEach((p) => {
@@ -192,13 +203,15 @@ export function buildAccrualDre(params: {
   return {
     salesCount: completed.length,
     grossRevenue,
+    deliveryAndServiceFees,
     discounts,
     netRevenue,
     cogs,
     grossProfit,
     grossMarginPercent,
+    paymentFees,
     operatingExpenses,
-    salesFees,
+    salesFees: paymentFees,
     expenseLines,
     netProfit,
     netMarginPercent,

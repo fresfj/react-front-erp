@@ -17,6 +17,7 @@ export type PublicCartLine = {
 type PublicCartContextValue = {
   lines: PublicCartLine[];
   addLine: (product: PublicStorefrontProduct, qty: number, notes?: string) => void;
+  replaceLines: (nextLines: PublicCartLine[]) => void;
   updateQty: (productId: string, qty: number) => void;
   removeLine: (productId: string) => void;
   clear: () => void;
@@ -65,13 +66,17 @@ export function PublicCartProvider({ children }: { children: ReactNode }) {
     setLines((prev) => prev.filter((l) => l.productId !== productId));
   }, []);
 
+  const replaceLines = useCallback((nextLines: PublicCartLine[]) => {
+    setLines(nextLines.filter((l) => l.qty > 0));
+  }, []);
+
   const clear = useCallback(() => setLines([]), []);
 
   const value = useMemo(() => {
     const subtotal = Math.round(lines.reduce((s, l) => s + l.qty * l.unitPrice, 0) * 100) / 100;
     const itemCount = lines.reduce((s, l) => s + l.qty, 0);
-    return { lines, addLine, updateQty, removeLine, clear, itemCount, subtotal };
-  }, [lines, addLine, updateQty, removeLine, clear]);
+    return { lines, addLine, replaceLines, updateQty, removeLine, clear, itemCount, subtotal };
+  }, [lines, addLine, replaceLines, updateQty, removeLine, clear]);
 
   return <PublicCartContext.Provider value={value}>{children}</PublicCartContext.Provider>;
 }

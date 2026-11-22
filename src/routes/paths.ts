@@ -112,6 +112,7 @@ export const paths = {
       saleDetails: (id: string) => `${ROOTS.DASHBOARD}/pos/sales/${id}`,
       onlineOrders: `${ROOTS.DASHBOARD}/pos/online-orders`,
       tables: `${ROOTS.DASHBOARD}/pos/tables`,
+      kitchen: `${ROOTS.DASHBOARD}/pos/kitchen`,
     },
     cash: {
       root: `${ROOTS.DASHBOARD}/cash`,

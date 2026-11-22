@@ -3,6 +3,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  arrayUnion,
   writeBatch,
 } from 'firebase/firestore';
 
@@ -251,22 +252,19 @@ export async function markReceivablePaid(
     });
   }
 
-  const nextMovements = [
-    ...opts.session.movements,
-    omitUndefined({
-      id: `mov-${Date.now()}`,
-      type: 'RECEIPT' as const,
-      amount: receivable.amount,
-      reason: `Recebimento: ${receivable.description} (${receivable.installmentIndex}/${receivable.installmentCount})`,
-      createdAt: timestamp,
-      createdBy: opts.createdBy,
-      refType: 'receivable' as const,
-      refId: receivable.id,
-    }),
-  ];
+  const movementEntry = omitUndefined({
+    id: `mov-${Date.now()}-${receivable.id.slice(0, 6)}`,
+    type: 'RECEIPT' as const,
+    amount: receivable.amount,
+    reason: `Recebimento: ${receivable.description} (${receivable.installmentIndex}/${receivable.installmentCount})`,
+    createdAt: timestamp,
+    createdBy: opts.createdBy,
+    refType: 'receivable' as const,
+    refId: receivable.id,
+  });
 
   wb.update(sessionRef(enterpriseId, opts.session.id), {
-    movements: nextMovements,
+    movements: arrayUnion(movementEntry),
     updatedAt: timestamp,
   });
 
@@ -352,23 +350,20 @@ export async function settleCustomerDebtWithSession(
     updatedAt: timestamp,
   });
 
-  // 3. Movimentação no Caixa
-  const nextMovements = [
-    ...opts.session.movements,
-    omitUndefined({
-      id: `mov-${Date.now()}`,
-      type: 'RECEIPT' as const,
-      amount: roundAmount,
-      reason: `Recebimento Débito: ${customer.name || 'Cliente'}`,
-      createdAt: timestamp,
-      createdBy: opts.createdBy,
-      refType: 'receivable' as const,
-      refId: newRecRef.id,
-    }),
-  ];
+  // 3. Movimentação no Caixa (arrayUnion evita perda em baixas simultâneas)
+  const movementEntry = omitUndefined({
+    id: `mov-${Date.now()}-${newRecRef.id.slice(0, 6)}`,
+    type: 'RECEIPT' as const,
+    amount: roundAmount,
+    reason: `Recebimento Débito: ${customer.name || 'Cliente'}`,
+    createdAt: timestamp,
+    createdBy: opts.createdBy,
+    refType: 'receivable' as const,
+    refId: newRecRef.id,
+  });
 
   wb.update(sessionRef(enterpriseId, opts.session.id), {
-    movements: nextMovements,
+    movements: arrayUnion(movementEntry),
     updatedAt: timestamp,
   });
 

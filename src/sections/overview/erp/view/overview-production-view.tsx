@@ -72,8 +72,8 @@ export function OverviewProductionView() {
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const [loading, setLoading] = useState(true);
-  const [preset, setPreset] = useState<DateFilterPreset>('30d');
-  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+  const [preset, setPreset] = useState<DateFilterPreset>('7d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(6, 'day'), dayjs());
 
   const [orders, setOrders] = useState<ProcessingOrder[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);

@@ -55,8 +55,8 @@ export function DreView() {
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [payables, setPayables] = useState<Payable[]>([]);
-  const [preset, setPreset] = useState<DateFilterPreset>('30d');
-  const rangePicker = useDateRangePicker(dayjs().subtract(29, 'day'), dayjs());
+  const [preset, setPreset] = useState<DateFilterPreset>('7d');
+  const rangePicker = useDateRangePicker(dayjs().subtract(6, 'day'), dayjs());
 
   const bounds = useMemo(
     () => resolvePeriodBounds(preset, rangePicker.startDate, rangePicker.endDate),
@@ -197,6 +197,18 @@ export function DreView() {
                   </TableCell>
                 </TableRow>
 
+                {dre.deliveryAndServiceFees > 0 && (
+                  <TableRow>
+                    <TableCell sx={{ color: 'info.main' }}>
+                      (+) Taxas de Entrega / Serviço / Acréscimos
+                    </TableCell>
+                    <TableCell align="right" sx={{ color: 'info.main' }}>
+                      + {fCurrency(dre.deliveryAndServiceFees)}
+                    </TableCell>
+                    <TableCell align="right">{av(dre.deliveryAndServiceFees)}</TableCell>
+                  </TableRow>
+                )}
+
                 <TableRow>
                   <TableCell sx={{ color: 'error.main' }}>(-) Descontos Concedidos</TableCell>
                   <TableCell align="right" sx={{ color: 'error.main' }}>
@@ -238,6 +250,18 @@ export function DreView() {
                     </Label>
                   </TableCell>
                 </TableRow>
+
+                {dre.paymentFees > 0 && (
+                  <TableRow>
+                    <TableCell sx={{ color: 'error.main', pl: 4 }}>
+                      (-) Taxas de Pagamento (Cartão / PIX)
+                    </TableCell>
+                    <TableCell align="right" sx={{ color: 'error.main' }}>
+                      - {fCurrency(dre.paymentFees)}
+                    </TableCell>
+                    <TableCell align="right">{av(dre.paymentFees)}</TableCell>
+                  </TableRow>
+                )}
 
                 {dre.expenseLines.map((line) => (
                   <TableRow key={line.category}>
@@ -291,8 +315,8 @@ export function DreView() {
         <Grid xs={12} md={4}>
           <Card>
             <CardHeader
-              title="Recebimentos por Meio de Pagamento"
-              subheader="Líquido de troco (PDV)"
+              title="Faturamento por Meio de Pagamento"
+              subheader="Líquido de troco (PDV + Pedidos Online + Mesas)"
               sx={{ mb: 3 }}
             />
             <Divider sx={{ borderStyle: 'dashed' }} />

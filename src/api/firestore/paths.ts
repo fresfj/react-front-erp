@@ -23,7 +23,8 @@ export type EnterpriseCollectionName =
   | 'subscriptionInvoices'
   | 'onlineOrders'
   | 'tables'
-  | 'tableSessions';
+  | 'tableSessions'
+  | 'bankReconciliations';
 
 export function enterpriseDoc(enterpriseId: string): DocumentReference {
   return doc(FIRESTORE, ENTERPRISES, enterpriseId);

@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  arrayUnion,
   writeBatch,
 } from 'firebase/firestore';
 
@@ -236,7 +237,7 @@ export async function createPayableWithInstallments(
       amount: amounts[i],
       startDate: input.startDate,
       dueDate: dueDates[i],
-      competenceDate: input.competenceDate || input.startDate,
+      competenceDate: count > 1 ? dueDates[i] : input.competenceDate || input.startDate,
       dreClass: input.dreClass,
       supplierId: input.supplierId,
       supplierName: input.supplierName,
@@ -291,22 +292,19 @@ export async function markPayablePaid(
     updatedAt: timestamp,
   });
 
-  const nextMovements = [
-    ...opts.session.movements,
-    omitUndefined({
-      id: `mov-${Date.now()}`,
-      type: 'PAYMENT' as const,
-      amount: payable.amount,
-      reason: `Pagamento: ${payable.description} (${payable.installmentIndex}/${payable.installmentCount})`,
-      createdAt: timestamp,
-      createdBy: opts.createdBy,
-      refType: 'payable' as const,
-      refId: payable.id,
-    }),
-  ];
+  const movementEntry = omitUndefined({
+    id: `mov-${Date.now()}-${payable.id.slice(0, 6)}`,
+    type: 'PAYMENT' as const,
+    amount: payable.amount,
+    reason: `Pagamento: ${payable.description} (${payable.installmentIndex}/${payable.installmentCount})`,
+    createdAt: timestamp,
+    createdBy: opts.createdBy,
+    refType: 'payable' as const,
+    refId: payable.id,
+  });
 
   wb.update(sessionRef(enterpriseId, opts.session.id), {
-    movements: nextMovements,
+    movements: arrayUnion(movementEntry),
     updatedAt: timestamp,
   });
 

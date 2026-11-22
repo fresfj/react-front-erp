@@ -20,7 +20,6 @@ import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
-import { alpha } from '@mui/material/styles';
 import MenuList from '@mui/material/MenuList';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
@@ -28,6 +27,8 @@ import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
 import ButtonBase from '@mui/material/ButtonBase';
 import DialogTitle from '@mui/material/DialogTitle';
+import { alpha, useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -52,7 +53,9 @@ import {
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
+import { Lightbox, useLightBox } from 'src/components/lightbox';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
+import { PwaInstallButton } from 'src/components/pwa-install-button/pwa-install-button';
 import { ProductImageBadges } from 'src/components/product-badges/product-image-badges';
 import { PaymentMethodIcon, PaymentBrandLogos } from 'src/components/payment-method-icon';
 
@@ -143,9 +146,26 @@ export function PublicStorefrontView() {
   }, [isTableMode, loadTableStatus]);
 
   // Modal de detalhe / personalização de produto
+  const muiTheme = useTheme();
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
   const [selectedProduct, setSelectedProduct] = useState<PublicStorefrontProduct | null>(null);
   const [qty, setQty] = useState(1);
   const [itemNotes, setItemNotes] = useState('');
+
+  // Slides do Lightbox para ampliação fullscreen das fotos dos produtos
+  const lightboxSlides = useMemo(
+    () =>
+      (store?.products || [])
+        .filter((p) => Boolean(p.imageUrl))
+        .map((p) => ({
+          src: p.imageUrl as string,
+          alt: p.name,
+          title: p.name,
+          description: p.description || fCurrency(p.salePrice),
+        })),
+    [store?.products]
+  );
+  const lightbox = useLightBox(lightboxSlides);
 
   // Refs para Scrollspy e IntersectionObserver
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -464,10 +484,11 @@ export function PublicStorefrontView() {
           }}
         >
           <Box sx={{ position: 'relative' }}>
-            {/* Ações flutuantes sobre o banner: WhatsApp, Instagram e Compartilhar */}
+            {/* Ações flutuantes sobre o banner: Instalar App, WhatsApp, Instagram e Compartilhar */}
             <Stack
               direction="row"
               spacing={1}
+              alignItems="center"
               sx={{
                 position: 'absolute',
                 top: 12,
@@ -475,6 +496,7 @@ export function PublicStorefrontView() {
                 zIndex: 12,
               }}
             >
+              <PwaInstallButton variant="button" label="Instalar" />
               {store.whatsapp && (
                 <Tooltip title="Falar no WhatsApp">
                   <IconButton
@@ -995,8 +1017,31 @@ export function PublicStorefrontView() {
                         }}
                       >
                         <Stack direction="row" spacing={1.5} sx={{ flex: 1 }}>
-                          {/* Foto do Produto com Badges Flutuantes (Gelado/Quente + Desconto) */}
+                          {/* Foto do Produto com Badges Flutuantes (clicável para Lightbox fullscreen) */}
                           <Box
+                            onClick={
+                              product.imageUrl
+                                ? (e) => {
+                                    e.stopPropagation();
+                                    lightbox.onOpen(product.imageUrl as string);
+                                  }
+                                : undefined
+                            }
+                            role={product.imageUrl ? 'button' : undefined}
+                            tabIndex={product.imageUrl ? 0 : undefined}
+                            aria-label={
+                              product.imageUrl ? `Ampliar foto de ${product.name}` : undefined
+                            }
+                            onKeyDown={
+                              product.imageUrl
+                                ? (e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      lightbox.onOpen(product.imageUrl as string);
+                                    }
+                                  }
+                                : undefined
+                            }
                             sx={{
                               position: 'relative',
                               width: 92,
@@ -1005,21 +1050,48 @@ export function PublicStorefrontView() {
                               overflow: 'hidden',
                               flexShrink: 0,
                               bgcolor: 'background.neutral',
+                              cursor: product.imageUrl ? 'zoom-in' : 'default',
+                              '&:hover .zoom-hint': { opacity: 1 },
                             }}
                           >
                             {product.imageUrl ? (
-                              <Box
-                                component="img"
-                                src={product.imageUrl}
-                                alt={product.name}
-                                loading="lazy"
-                                decoding="async"
-                                sx={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
-                              />
+                              <>
+                                <Box
+                                  component="img"
+                                  src={product.imageUrl}
+                                  alt={product.name}
+                                  loading="lazy"
+                                  decoding="async"
+                                  sx={{
+                                    width: '100%',
+                                    height: '100%',
+                                    objectFit: 'cover',
+                                    transition: 'transform 0.2s',
+                                    '&:hover': { transform: 'scale(1.04)' },
+                                  }}
+                                />
+                                <Box
+                                  className="zoom-hint"
+                                  sx={{
+                                    position: 'absolute',
+                                    right: 4,
+                                    bottom: 4,
+                                    width: 22,
+                                    height: 22,
+                                    borderRadius: '50%',
+                                    bgcolor: 'rgba(0,0,0,0.55)',
+                                    color: 'common.white',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    opacity: { xs: 0.85, sm: 0.65 },
+                                    transition: 'opacity 0.2s',
+                                    pointerEvents: 'none',
+                                  }}
+                                >
+                                  <Iconify icon="eva:expand-fill" width={13} />
+                                </Box>
+                              </>
                             ) : (
                               <Box
                                 sx={{
@@ -1303,25 +1375,69 @@ export function PublicStorefrontView() {
         />
       )}
 
-      {/* 5. Modal de Personalização e Quantidade do Item */}
+      {/* 5. Modal de Personalização e Quantidade do Item (Fullscreen no celular) */}
       <Dialog
         open={Boolean(selectedProduct)}
         onClose={() => setSelectedProduct(null)}
+        fullScreen={isMobile}
         fullWidth
         maxWidth="xs"
+        PaperProps={{
+          sx: isMobile
+            ? {
+                display: 'flex',
+                flexDirection: 'column',
+                height: '100dvh',
+              }
+            : undefined,
+        }}
       >
-        <DialogTitle sx={{ pb: 1 }}>{selectedProduct?.name}</DialogTitle>
+        <DialogTitle
+          sx={{
+            pb: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 1,
+            borderBottom: isMobile
+              ? (theme) => `1px solid ${theme.vars.palette.divider}`
+              : 'none',
+          }}
+        >
+          <Typography variant="h6" component="span" sx={{ fontWeight: 700 }} noWrap>
+            {selectedProduct?.name}
+          </Typography>
+          <IconButton
+            aria-label="Fechar"
+            onClick={() => setSelectedProduct(null)}
+            size="small"
+            edge="end"
+          >
+            <Iconify icon="mingcute:close-line" width={22} />
+          </IconButton>
+        </DialogTitle>
 
-        <DialogContent>
+        <DialogContent sx={{ flex: 1, pt: isMobile ? 2 : undefined }}>
           {selectedProduct?.imageUrl && (
             <Box
+              onClick={() => lightbox.onOpen(selectedProduct.imageUrl as string)}
+              role="button"
+              tabIndex={0}
+              aria-label={`Ampliar foto de ${selectedProduct.name}`}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  lightbox.onOpen(selectedProduct.imageUrl as string);
+                }
+              }}
               sx={{
                 position: 'relative',
                 width: '100%',
-                height: 200,
+                height: isMobile ? 240 : 200,
                 borderRadius: 1.5,
                 overflow: 'hidden',
                 mb: 2,
+                cursor: 'zoom-in',
               }}
             >
               <Box
@@ -1334,6 +1450,26 @@ export function PublicStorefrontView() {
                   objectFit: 'cover',
                 }}
               />
+              <Box
+                sx={{
+                  position: 'absolute',
+                  right: 10,
+                  bottom: 10,
+                  px: 1,
+                  py: 0.5,
+                  borderRadius: 1,
+                  bgcolor: 'rgba(0,0,0,0.58)',
+                  color: 'common.white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  typography: 'caption',
+                  fontWeight: 600,
+                }}
+              >
+                <Iconify icon="eva:expand-fill" width={14} />
+                Ampliar
+              </Box>
               <ProductImageBadges
                 servingTemperature={selectedProduct.servingTemperature}
                 isCombo={selectedProduct.isCombo}
@@ -1447,7 +1583,16 @@ export function PublicStorefrontView() {
           />
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 3 }}>
+        <DialogActions
+          sx={{
+            px: 3,
+            pt: 1.5,
+            pb: isMobile ? 'calc(16px + env(safe-area-inset-bottom))' : 3,
+            borderTop: isMobile
+              ? (theme) => `1px solid ${theme.vars.palette.divider}`
+              : 'none',
+          }}
+        >
           <Button
             fullWidth
             size="large"
@@ -1459,6 +1604,18 @@ export function PublicStorefrontView() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Lightbox fullscreen para ampliação de fotos dos produtos */}
+      <Lightbox
+        index={lightbox.selected}
+        slides={lightboxSlides}
+        open={lightbox.open}
+        close={lightbox.onClose}
+        disableThumbnails
+        disableSlideshow
+        disableVideo
+        disableTotal
+      />
 
       {/* 6. Perfil da Loja Drawer (Mais Informações - Padrão Anota AI) */}
       <Drawer

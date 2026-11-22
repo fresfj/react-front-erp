@@ -1,4 +1,5 @@
 import type { Enterprise, OnlineStoreConfig } from 'src/api/firestore/platform';
+import type { DeliveryAreaConfig } from 'src/sections/online-store/delivery-area-domain';
 
 import { z as zod } from 'zod';
 import { useForm } from 'react-hook-form';
@@ -36,8 +37,11 @@ import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 
 import { normalizeStoreSlug } from 'src/sections/online-store/online-store-domain';
+import { createDefaultDeliveryAreaConfig } from 'src/sections/online-store/delivery-area-domain';
 
 import { useAuthContext } from 'src/auth/hooks';
+
+import { AccountDeliveryAreaEditor } from './account-delivery-area-editor';
 
 // ----------------------------------------------------------------------
 
@@ -132,6 +136,9 @@ export function AccountOnlineStoreForm() {
 
   const [loading, setLoading] = useState(true);
   const [enterprise, setEnterprise] = useState<Enterprise | null>(null);
+  const [deliveryArea, setDeliveryArea] = useState<DeliveryAreaConfig>(() =>
+    createDefaultDeliveryAreaConfig()
+  );
   const openBranding = useBoolean(true);
   const openSettings = useBoolean(true);
 
@@ -167,6 +174,7 @@ export function AccountOnlineStoreForm() {
       .then((data) => {
         if (!alive) return;
         setEnterprise(data);
+        setDeliveryArea(data?.onlineStore?.deliveryArea ?? createDefaultDeliveryAreaConfig());
       })
       .catch((err) => {
         console.error(err);
@@ -269,11 +277,13 @@ export function AccountOnlineStoreForm() {
         whatsapp: data.whatsapp?.trim() || undefined,
         instagramUrl: data.instagramUrl?.trim() || undefined,
         googleReviewUrl: data.googleReviewUrl?.trim() || undefined,
+        deliveryArea,
       };
       await upsertOnlineStoreConfigCf(enterpriseId, config);
       toast.success(t('onlineStore.saveSuccess'));
       const next = await getEnterprise(enterpriseId);
       setEnterprise(next);
+      setDeliveryArea(next?.onlineStore?.deliveryArea ?? createDefaultDeliveryAreaConfig());
     } catch (error) {
       console.error(error);
       toast.error(getFirebaseErrorMessage(error, t('onlineStore.saveError')));
@@ -751,6 +761,13 @@ export function AccountOnlineStoreForm() {
             </Stack>
           </Collapse>
         </Card>
+
+        <AccountDeliveryAreaEditor
+          value={deliveryArea}
+          onChange={setDeliveryArea}
+          enterprise={enterprise}
+          disabled={!canEdit}
+        />
 
         {canEdit && (
           <Stack direction="row" justifyContent="flex-end">

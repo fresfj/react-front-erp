@@ -2,6 +2,7 @@ import Box from '@mui/material/Box';
 import ButtonBase from '@mui/material/ButtonBase';
 import { alpha as hexAlpha } from '@mui/material/styles';
 
+import { useTranslate } from 'src/locales';
 import { CONFIG } from 'src/config-global';
 
 import { Block } from './styles';
@@ -17,11 +18,19 @@ type Props = {
   value: Value;
   options: { name: Value; value: string }[];
   onClickOption: (newValue: Value) => void;
+  canReset?: boolean;
+  onReset?: () => void;
 };
 
-export function PresetsOptions({ value, options, onClickOption }: Props) {
+export function PresetsOptions({ value, options, onClickOption, canReset, onReset }: Props) {
+  const { t } = useTranslate('common');
+
   return (
-    <Block title="Presets">
+    <Block
+      title={t('settingsDrawer.presets', { defaultValue: 'Cores' })}
+      canReset={canReset}
+      onReset={onReset}
+    >
       <Box component="ul" gap={1.5} display="grid" gridTemplateColumns="repeat(3, 1fr)">
         {options.map((option) => {
           const selected = value === option.name;
