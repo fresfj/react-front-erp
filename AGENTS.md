@@ -79,6 +79,7 @@ O projeto roda `vite-plugin-checker` em tempo real no `vite dev`. Qualquer warni
 | **code-quality-guardian** | `.agents/skills/code-quality-guardian/SKILL.md` | Sempre ao criar/editar `.ts`/`.tsx` (ESLint zero-warnings, `perfectionist/sort-imports`, `tsc`) |
 | **erp-crud-builder** | `.agents/skills/erp-crud-builder/SKILL.md` | Qualquer CRUD / módulo ERP (lista DataGrid, form CardHeader, Firestore, i18n) |
 | **superpowers-sdd** | `.agents/skills/superpowers-sdd/SKILL.md` | Spec → plan → fatias SDD; ledger `.superpowers/sdd/` |
+| **tax-reform-pricing** | `.agents/skills/tax-reform-pricing/SKILL.md` | Precificação IBS/CBS (custo econômico, margem); simula — não altera preço ERP; refs LC 214/2025 |
 | **erp-firebase-forms** (Cursor rule) | `.cursor/rules/erp-firebase-forms.mdc` | Sempre: auth Firebase, i18n pt/en/es, padrão CRUD e ESLint zero-warnings |
 | **Handoff Antigravity** | `docs/agents/antigravity-erp-handoff.md` | Continuidade de sessão / status feito-pendente |
 | **Visão PDV / beneficiamento** | `docs/deepseek_markdown_20261115_78aa86.md` | Roadmap produto (stack oficial = Firebase, não Nest) |
