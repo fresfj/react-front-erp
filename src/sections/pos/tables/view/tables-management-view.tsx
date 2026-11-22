@@ -386,11 +386,11 @@ export function TablesManagementView() {
   return (
     <DashboardContent>
       <CustomBreadcrumbs
-        heading="Mesas & Salão (Garçom)"
+        heading="Mesas"
         links={[
           { name: 'Dashboard', href: paths.dashboard.root },
           { name: 'PDV', href: paths.dashboard.pos.root },
-          { name: 'Mesas & Garçom' },
+          { name: 'Mesas' },
         ]}
         action={
           <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">

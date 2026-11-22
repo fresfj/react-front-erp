@@ -41,7 +41,8 @@
     "pos": "PDV e Vendas",
     "posCheckout": "Frente de Caixa (PDV)",
     "salesHistory": "Histórico de vendas",
-    "onlineOrders": "Pedidos online",
+    "onlineOrders": "Pedidos",
+    "tables": "Mesas",
     "cash": "Financeiro e Caixa",
     "cashSession": "Caixa (Fechamento Cego)",
     "dre": "DRE Financeiro",
@@ -522,8 +523,8 @@
     }
   },
   "onlineOrders": {
-    "heading": "Pedidos online",
-    "newOrderToast": "Novo pedido online!",
+    "heading": "Pedidos",
+    "newOrderToast": "Novo pedido!",
     "accept": "Aceitar",
     "reject": "Recusar",
     "viewSale": "Ver venda",
@@ -774,7 +775,7 @@
     "customersShortcut": "Clientes",
     "customersSecondary": "Cadastro rápido",
     "openPos": "Abrir PDV",
-    "onlineOrders": "Pedidos online",
+    "onlineOrders": "Pedidos",
     "salesHistory": "Histórico de vendas",
     "openOrdersTitle": "Pedidos online abertos",
     "todaySalesTitle": "Vendas da loja hoje",
@@ -1024,5 +1025,27 @@
       "createdAt": "Data/Hora",
       "notes": "Observações"
     }
+  },
+  "settingsDrawer": {
+    "title": "Configurações",
+    "resetAll": "Restaurar tudo",
+    "close": "Fechar",
+    "fullscreen": "Tela cheia",
+    "exitFullscreen": "Sair da tela cheia",
+    "darkMode": "Modo escuro",
+    "contrast": "Contraste",
+    "rtl": "Direita p/ esquerda",
+    "compact": "Compacto",
+    "compactTooltip": "Somente no painel em telas grandes (> 1600px)",
+    "nav": "Navegação",
+    "navTooltip": "Somente no painel",
+    "layout": "Layout",
+    "color": "Cor",
+    "integrate": "Integrado",
+    "apparent": "Aparente",
+    "presets": "Cores",
+    "font": "Fonte",
+    "family": "Família",
+    "size": "Tamanho"
   }
 }

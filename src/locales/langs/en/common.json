@@ -41,7 +41,8 @@
     "pos": "POS & Sales",
     "posCheckout": "POS Checkout",
     "salesHistory": "Sales history",
-    "onlineOrders": "Online orders",
+    "onlineOrders": "Orders",
+    "tables": "Tables",
     "cash": "Finance & Cash",
     "cashSession": "Cash (blind close)",
     "dre": "P&L (DRE)",
@@ -522,8 +523,8 @@
     }
   },
   "onlineOrders": {
-    "heading": "Online orders",
-    "newOrderToast": "New online order!",
+    "heading": "Orders",
+    "newOrderToast": "New order!",
     "accept": "Accept",
     "reject": "Reject",
     "viewSale": "View sale",
@@ -774,7 +775,7 @@
     "customersShortcut": "Customers",
     "customersSecondary": "Quick access",
     "openPos": "Open POS",
-    "onlineOrders": "Online orders",
+    "onlineOrders": "Orders",
     "salesHistory": "Sales history",
     "openOrdersTitle": "Open online orders",
     "todaySalesTitle": "Store sales today",
@@ -1024,5 +1025,27 @@
       "createdAt": "Date/Time",
       "notes": "Notes"
     }
+  },
+  "settingsDrawer": {
+    "title": "Settings",
+    "resetAll": "Reset all",
+    "close": "Close",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "darkMode": "Dark mode",
+    "contrast": "Contrast",
+    "rtl": "Right to left",
+    "compact": "Compact",
+    "compactTooltip": "Dashboard only and available at large resolutions > 1600px (xl)",
+    "nav": "Nav",
+    "navTooltip": "Dashboard only",
+    "layout": "Layout",
+    "color": "Color",
+    "integrate": "Integrate",
+    "apparent": "Apparent",
+    "presets": "Presets",
+    "font": "Font",
+    "family": "Family",
+    "size": "Size"
   }
 }

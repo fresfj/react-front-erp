@@ -103,13 +103,17 @@ export function useNavData(options?: { onlineOrdersCount?: number }): NavSection
                 { title: t('nav.posCheckout'), path: paths.dashboard.pos.checkout },
                 { title: t('nav.salesHistory'), path: paths.dashboard.pos.sales },
                 {
-                  title: t('nav.onlineOrders', { defaultValue: 'Pedidos online' }),
+                  title: t('nav.onlineOrders', { defaultValue: 'Pedidos' }),
                   path: paths.dashboard.pos.onlineOrders,
                   ...(onlineOrdersBadge ? { info: onlineOrdersBadge } : {}),
                 },
                 {
-                  title: t('nav.tables', { defaultValue: 'Mesas & Garçom' }),
+                  title: t('nav.tables', { defaultValue: 'Mesas' }),
                   path: paths.dashboard.pos.tables,
+                },
+                {
+                  title: t('nav.kitchen', { defaultValue: 'Cozinha (KDS)' }),
+                  path: paths.dashboard.pos.kitchen,
                 },
               ],
             },

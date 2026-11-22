@@ -645,6 +645,9 @@ export async function seedDemoPayables(enterpriseId: string): Promise<void> {
   });
 
   await wb.commit();
+
+  // Unificado: também cadastra os produtos de vitrine (Combos, Promoções, Gelado e Quente)
+  await seedDemoOnlineCatalogOffers(enterpriseId);
 }
 
 // ----------------------------------------------------------------------

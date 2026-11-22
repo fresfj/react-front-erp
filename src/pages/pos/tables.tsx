@@ -6,7 +6,7 @@ import { TablesManagementView } from 'src/sections/pos/tables/view/tables-manage
 
 // ----------------------------------------------------------------------
 
-const metadata = { title: `Mesas & Salão | ${CONFIG.site.name}` };
+const metadata = { title: `Mesas | ${CONFIG.site.name}` };
 
 export default function TablesManagementPage() {
   return (

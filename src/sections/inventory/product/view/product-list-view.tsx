@@ -22,15 +22,13 @@ import { RouterLink } from 'src/routes/components';
 import { useBoolean } from 'src/hooks/use-boolean';
 
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
+import { exportProductsToCsv } from 'src/utils/product-import-export';
 
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { listProducts, deactivateProduct } from 'src/api/firestore/products';
-import {
-  seedDemoErpCatalog,
-  seedDemoOnlineCatalogOffers,
-} from 'src/api/firestore/seed-demo';
 
 import { Label } from 'src/components/label';
 import { toast } from 'src/components/snackbar';
@@ -55,6 +53,7 @@ import {
 import { useAuthContext } from 'src/auth/hooks';
 
 import { ProductTableRow } from '../product-table-row';
+import { ProductImportDialog } from '../product-import-dialog';
 
 // ----------------------------------------------------------------------
 
@@ -94,6 +93,7 @@ export function ProductListView() {
 
   const confirmSingle = useBoolean();
   const confirmMultiple = useBoolean();
+  const importDialog = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -275,26 +275,12 @@ export function ProductListView() {
   }, []);
 
   const handleExportCsv = useCallback(() => {
-    const headers = ['Produto', 'SKU', 'Tipo', 'Unidade', 'Preço Venda', 'Preço Custo', 'Status'];
-    const csvRows = [
-      headers.join(';'),
-      ...dataFiltered.map((r) =>
-        [
-          `"${r.name || ''}"`,
-          `"${r.sku || ''}"`,
-          r.type === 'raw' ? 'Matéria-prima' : 'Produto Acabado',
-          `"${r.unit || ''}"`,
-          (r.salePrice || 0).toFixed(2),
-          (r.costPrice || 0).toFixed(2),
-          r.active ? 'Ativo' : 'Inativo',
-        ].join(';')
-      ),
-    ];
-    const blob = new Blob([`\uFEFF${csvRows.join('\n')}`], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = exportProductsToCsv(dataFiltered);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `produtos-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `produtos-catalogo-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   }, [dataFiltered]);
@@ -314,25 +300,14 @@ export function ProductListView() {
             { name: t('products.listHeading', { defaultValue: 'Lista de Produtos' }) },
           ]}
           action={
-            <Stack direction="row" spacing={1.5}>
+            <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
               <Button
-                variant="soft"
-                color="warning"
-                startIcon={<Iconify icon="solar:flame-bold-duotone" />}
-                onClick={async () => {
-                  if (!enterpriseId) return;
-                  try {
-                    await seedDemoOnlineCatalogOffers(enterpriseId);
-                    toast.success(
-                      '6 produtos demo (Combos, Descontos, Gelado e Quente) cadastrados na vitrine!'
-                    );
-                    await loadProducts();
-                  } catch (error) {
-                    toast.error(getFirebaseErrorMessage(error, 'Erro ao gerar combos demo'));
-                  }
-                }}
+                variant="outlined"
+                color="inherit"
+                startIcon={<Iconify icon="solar:cloud-upload-bold-duotone" />}
+                onClick={importDialog.onTrue}
               >
-                Combos & Promoções Demo
+                Importar / Exportar
               </Button>
               <Button
                 variant="soft"
@@ -342,7 +317,9 @@ export function ProductListView() {
                   if (!enterpriseId) return;
                   try {
                     await seedDemoErpCatalog(enterpriseId);
-                    toast.success('Produtos, Fornecedor e Lotes de teste carregados com sucesso!');
+                    toast.success(
+                      'Produtos, Combos, Promoções, Fornecedor e Lotes de teste carregados com sucesso!'
+                    );
                     await loadProducts();
                   } catch (error) {
                     toast.error(getFirebaseErrorMessage(error, 'Erro ao carregar produtos demo'));
@@ -599,6 +576,16 @@ export function ProductListView() {
           </Button>
         }
       />
+
+      {enterpriseId && (
+        <ProductImportDialog
+          open={importDialog.value}
+          enterpriseId={enterpriseId}
+          existingProducts={tableData}
+          onClose={importDialog.onFalse}
+          onImported={loadProducts}
+        />
+      )}
     </>
   );
 }
