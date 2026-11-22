@@ -392,6 +392,9 @@ export async function seedDemoErpCatalog(enterpriseId: string): Promise<void> {
 
   // Popula os títulos e clientes de contas a receber de demonstração
   await seedDemoReceivables(enterpriseId);
+
+  // Unificado: também cadastra os produtos de vitrine (Combos, Promoções, Gelado e Quente)
+  await seedDemoOnlineCatalogOffers(enterpriseId);
 }
 
 // ----------------------------------------------------------------------
@@ -645,9 +648,6 @@ export async function seedDemoPayables(enterpriseId: string): Promise<void> {
   });
 
   await wb.commit();
-
-  // Unificado: também cadastra os produtos de vitrine (Combos, Promoções, Gelado e Quente)
-  await seedDemoOnlineCatalogOffers(enterpriseId);
 }
 
 // ----------------------------------------------------------------------
