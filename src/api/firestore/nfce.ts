@@ -24,10 +24,24 @@ export function saveEnterpriseFiscalSecrets(input: {
   apiToken?: string;
   cscId?: string;
   cscToken?: string;
-  provider?: 'focus';
+  provider?: 'focus' | 'sefaz-direct';
 }) {
   return call<typeof input, { ok: boolean; hasFiscalSecrets: boolean }>(
     'saveEnterpriseFiscalSecrets',
+    input
+  );
+}
+
+export function uploadEnterpriseFiscalCert(input: {
+  enterpriseId: string;
+  pfxBase64: string;
+  password: string;
+  cscId?: string;
+  cscToken?: string;
+  provider?: 'sefaz-direct';
+}) {
+  return call<typeof input, { ok: boolean; a1Thumbprint: string; a1ExpiresAt?: string | null }>(
+    'uploadEnterpriseFiscalCert',
     input
   );
 }

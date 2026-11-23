@@ -159,7 +159,9 @@ function mapNfceHttpsError(error) {
     code === 'missing_fiscal_config' ||
     code === 'missing_fiscal_product_data' ||
     code === 'provider_reject' ||
-    code === 'provider_not_implemented'
+    code === 'provider_not_implemented' ||
+    code === 'uf_not_supported' ||
+    code === 'cert_expired'
   ) {
     return new HttpsError('failed-precondition', error.message);
   }
@@ -1766,6 +1768,34 @@ exports.saveEnterpriseFiscalSecrets = onCall(async (request) => {
     throw mapNfceHttpsError(error);
   }
 });
+
+exports.uploadEnterpriseFiscalCert = onCall(
+  {
+    // Cert payload can be large; keep timeout generous for PKCS#12 parse.
+    timeoutSeconds: 60,
+    memory: '512MiB',
+  },
+  async (request) => {
+    const enterpriseId = String(request.data?.enterpriseId || '').trim();
+    if (!enterpriseId) {
+      throw new HttpsError('invalid-argument', 'enterpriseId is required');
+    }
+    assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId);
+    try {
+      return await nfceService.uploadEnterpriseFiscalCert(db, {
+        enterpriseId,
+        pfxBase64: request.data?.pfxBase64,
+        password: request.data?.password,
+        cscId: request.data?.cscId,
+        cscToken: request.data?.cscToken,
+        provider: request.data?.provider || 'sefaz-direct',
+        uid: request.auth.uid,
+      });
+    } catch (error) {
+      throw mapNfceHttpsError(error);
+    }
+  }
+);
 
 exports.enqueueSaleNfce = onCall(async (request) => {
   const enterpriseId = String(request.data?.enterpriseId || '').trim();

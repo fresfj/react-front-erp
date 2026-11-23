@@ -93,10 +93,17 @@ function productSnapshots(products) {
   }));
 }
 
+const MAX_PFX_BYTES = 2 * 1024 * 1024;
+
+function estimateDecodedBytes(b64) {
+  return Math.floor(String(b64 || '').replace(/\s/g, '').length * 0.75);
+}
+
 async function saveEnterpriseFiscalSecrets(db, { enterpriseId, provider, apiToken, cscId, cscToken, uid }) {
   const now = nowIso();
+  const resolvedProvider = provider || 'focus';
   const payload = {
-    provider: provider || 'focus',
+    provider: resolvedProvider,
     updatedAt: now,
     updatedByUid: uid,
   };
@@ -106,16 +113,20 @@ async function saveEnterpriseFiscalSecrets(db, { enterpriseId, provider, apiToke
 
   const ref = secretsRef(db, enterpriseId);
   const existing = await ref.get();
-  if (!existing.exists && !apiToken) {
+  const existingData = existing.exists ? existing.data() || {} : {};
+  if (!existing.exists && resolvedProvider !== 'sefaz-direct' && !apiToken) {
     const err = new Error('apiToken is required on first save');
     err.code = 'invalid-argument';
     throw err;
   }
 
   await ref.set(payload, { merge: true });
+  const hasFiscalSecrets = Boolean(
+    apiToken || existingData.apiToken || existingData.a1PfxBase64 || payload.a1PfxBase64
+  );
   await enterpriseRef(db, enterpriseId).set(
     {
-      hasFiscalSecrets: true,
+      ...(hasFiscalSecrets ? { hasFiscalSecrets: true } : {}),
       fiscalIssuerProvider: payload.provider,
       ...(cscId !== undefined ? { nfceCscId: String(cscId || '') } : {}),
       updatedAt: now,
@@ -123,7 +134,69 @@ async function saveEnterpriseFiscalSecrets(db, { enterpriseId, provider, apiToke
     { merge: true }
   );
 
-  return { ok: true, hasFiscalSecrets: true };
+  return { ok: true, hasFiscalSecrets };
+}
+
+/**
+ * Store per-tenant A1 PFX in secrets/fiscal. Never return password or pfx.
+ */
+async function uploadEnterpriseFiscalCert(
+  db,
+  { enterpriseId, pfxBase64, password, cscId, cscToken, uid, provider }
+) {
+  if (!pfxBase64 || !password) {
+    const err = new Error('pfxBase64 and password are required');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+  if (estimateDecodedBytes(pfxBase64) > MAX_PFX_BYTES) {
+    const err = new Error('PFX exceeds 2MB limit');
+    err.code = 'invalid-argument';
+    throw err;
+  }
+
+  const { loadPfx } = require('./a1-signer');
+  let loaded;
+  try {
+    loaded = loadPfx({ pfxBase64: String(pfxBase64), password: String(password) });
+  } catch (error) {
+    const err = new Error(error?.message || 'Invalid A1 certificate or password');
+    err.code = error?.code || 'invalid-argument';
+    throw err;
+  }
+
+  const now = nowIso();
+  const resolvedProvider = provider || 'sefaz-direct';
+  const payload = {
+    provider: resolvedProvider,
+    a1PfxBase64: String(pfxBase64).replace(/\s/g, ''),
+    a1Password: String(password),
+    a1Thumbprint: loaded.thumbprint,
+    a1ExpiresAt: loaded.a1ExpiresAt || null,
+    updatedAt: now,
+    updatedByUid: uid,
+  };
+  if (cscId !== undefined) payload.cscId = String(cscId || '');
+  if (cscToken) payload.cscToken = String(cscToken);
+
+  await secretsRef(db, enterpriseId).set(payload, { merge: true });
+  await enterpriseRef(db, enterpriseId).set(
+    {
+      hasFiscalSecrets: true,
+      fiscalIssuerProvider: resolvedProvider,
+      a1Thumbprint: loaded.thumbprint,
+      a1ExpiresAt: loaded.a1ExpiresAt || null,
+      ...(cscId !== undefined ? { nfceCscId: String(cscId || '') } : {}),
+      updatedAt: now,
+    },
+    { merge: true }
+  );
+
+  return {
+    ok: true,
+    a1Thumbprint: loaded.thumbprint,
+    a1ExpiresAt: loaded.a1ExpiresAt || null,
+  };
 }
 
 async function enqueueSaleNfce(db, { enterpriseId, saleId }) {
@@ -313,6 +386,7 @@ async function processPendingNfceBatch(db, { enterpriseId, limit = 10 }) {
 
 module.exports = {
   saveEnterpriseFiscalSecrets,
+  uploadEnterpriseFiscalCert,
   enqueueSaleNfce,
   issueSaleNfceForEnterprise,
   cancelSaleNfceForEnterprise,

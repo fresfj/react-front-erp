@@ -147,7 +147,8 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // NFC-e issuer tokens / CSC — Admin SDK only (Cloud Functions)
+    // NFC-e issuer tokens / CSC / A1 PFX — Admin SDK only (Cloud Functions).
+    // Client must use callables (saveEnterpriseFiscalSecrets / uploadEnterpriseFiscalCert).
     match /enterprises/{enterpriseId}/secrets/{docId} {
       allow read, write: if false;
     }
