@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
+import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Collapse from '@mui/material/Collapse';
@@ -23,6 +24,7 @@ import { useBoolean } from 'src/hooks/use-boolean';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
+import { saveEnterpriseFiscalSecrets } from 'src/api/firestore/nfce';
 import { getEnterprise, updateEnterpriseSettings } from 'src/api/firestore/platform';
 
 import { toast } from 'src/components/snackbar';
@@ -39,6 +41,12 @@ const numberOrZero = zod.preprocess(
 );
 
 export const AccountFiscalSchema = zod.object({
+  taxRegime: zod.enum(['simples', 'presumido', 'real', 'mei']),
+  nfceEnabled: zod.boolean(),
+  fiscalIssuerProvider: zod.enum(['focus', 'plugnotas', 'nuvemfiscal']),
+  nfceCscId: zod.string().optional().or(zod.literal('')),
+  apiToken: zod.string().optional().or(zod.literal('')),
+  cscToken: zod.string().optional().or(zod.literal('')),
   nfceSeries: zod.string().min(1),
   nfceEnvironment: zod.enum(['homologation', 'production']),
   receiptDefaultModel: zod.enum(['58mm', '80mm', 'a5']),
@@ -66,6 +74,10 @@ export function AccountFiscalForm() {
   const enterpriseId = user?.enterpriseId as string | undefined;
 
   const [loading, setLoading] = useState(true);
+  const [hasFiscalSecrets, setHasFiscalSecrets] = useState(false);
+  const [savedEnvironment, setSavedEnvironment] = useState<'homologation' | 'production'>(
+    'homologation'
+  );
   const openFiscal = useBoolean(true);
   const openFees = useBoolean(true);
 
@@ -74,6 +86,12 @@ export function AccountFiscalForm() {
 
   const defaultValues = useMemo<AccountFiscalSchemaType>(
     () => ({
+      taxRegime: 'simples',
+      nfceEnabled: false,
+      fiscalIssuerProvider: 'focus',
+      nfceCscId: '',
+      apiToken: '',
+      cscToken: '',
       nfceSeries: '1',
       nfceEnvironment: 'homologation',
       receiptDefaultModel: '58mm',
@@ -101,6 +119,7 @@ export function AccountFiscalForm() {
 
   const {
     reset,
+    setValue,
     handleSubmit,
     formState: { isSubmitting },
   } = methods;
@@ -114,7 +133,15 @@ export function AccountFiscalForm() {
     getEnterprise(enterpriseId)
       .then((data) => {
         if (!alive || !data) return;
+        setHasFiscalSecrets(Boolean(data.hasFiscalSecrets));
+        setSavedEnvironment(data.nfceEnvironment || 'homologation');
         reset({
+          taxRegime: data.taxRegime || 'simples',
+          nfceEnabled: Boolean(data.nfceEnabled),
+          fiscalIssuerProvider: data.fiscalIssuerProvider || 'focus',
+          nfceCscId: data.nfceCscId || '',
+          apiToken: '',
+          cscToken: '',
           nfceSeries: data.nfceSeries || '1',
           nfceEnvironment: data.nfceEnvironment || 'homologation',
           receiptDefaultModel: data.receiptDefaultModel || '58mm',
@@ -147,8 +174,37 @@ export function AccountFiscalForm() {
 
   const onSubmit = handleSubmit(async (data) => {
     if (!enterpriseId || !canEdit) return;
+
+    if (
+      data.nfceEnvironment === 'production' &&
+      savedEnvironment !== 'production' &&
+      !window.confirm(t('fiscal.homologToProdConfirm'))
+    ) {
+      return;
+    }
+
+    if (data.nfceEnabled && (!data.nfceSeries || !data.taxRegime)) {
+      toast.error(t('fiscal.missingSecrets'));
+      return;
+    }
+
     try {
+      if (data.apiToken?.trim() || data.cscToken?.trim() || data.nfceCscId?.trim()) {
+        await saveEnterpriseFiscalSecrets({
+          enterpriseId,
+          provider: 'focus',
+          apiToken: data.apiToken?.trim() || undefined,
+          cscId: data.nfceCscId?.trim() || undefined,
+          cscToken: data.cscToken?.trim() || undefined,
+        });
+        setHasFiscalSecrets(true);
+      }
+
       await updateEnterpriseSettings(enterpriseId, {
+        taxRegime: data.taxRegime,
+        nfceEnabled: data.nfceEnabled,
+        fiscalIssuerProvider: data.fiscalIssuerProvider,
+        nfceCscId: data.nfceCscId || undefined,
         nfceSeries: data.nfceSeries,
         nfceEnvironment: data.nfceEnvironment,
         receiptDefaultModel: data.receiptDefaultModel as ReceiptModelType,
@@ -165,6 +221,9 @@ export function AccountFiscalForm() {
         creditTabFeeRate: Number(data.creditTabFeeRate ?? 0),
         minInstallmentAmount: Number(data.minInstallmentAmount ?? 15),
       });
+      setSavedEnvironment(data.nfceEnvironment);
+      setValue('apiToken', '');
+      setValue('cscToken', '');
       toast.success(t('account.fiscalSaveSuccess'));
     } catch (error) {
       console.error(error);
@@ -201,21 +260,35 @@ export function AccountFiscalForm() {
           <Collapse in={openFiscal.value}>
             <Divider />
             <Stack spacing={3} sx={{ p: 3 }}>
+              {!hasFiscalSecrets && (
+                <Alert severity="warning">{t('fiscal.missingSecrets')}</Alert>
+              )}
               <Box
                 columnGap={2}
                 rowGap={3}
                 display="grid"
                 gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(3, 1fr)' }}
               >
+                <Field.Select name="taxRegime" label={t('fiscal.taxRegime')} disabled={!canEdit}>
+                  <MenuItem value="simples">Simples Nacional</MenuItem>
+                  <MenuItem value="presumido">Lucro Presumido</MenuItem>
+                  <MenuItem value="real">Lucro Real</MenuItem>
+                  <MenuItem value="mei">MEI</MenuItem>
+                </Field.Select>
                 <Field.Select
-                  name="receiptDefaultModel"
-                  label={t('account.fields.receiptDefaultModel')}
+                  name="fiscalIssuerProvider"
+                  label={t('fiscal.provider')}
                   disabled={!canEdit}
                 >
-                  <MenuItem value="58mm">58mm</MenuItem>
-                  <MenuItem value="80mm">80mm</MenuItem>
-                  <MenuItem value="a5">A5</MenuItem>
+                  <MenuItem value="focus">Focus NFe</MenuItem>
+                  <MenuItem value="plugnotas" disabled>
+                    PlugNotas
+                  </MenuItem>
+                  <MenuItem value="nuvemfiscal" disabled>
+                    NuvemFiscal
+                  </MenuItem>
                 </Field.Select>
+                <Field.Switch name="nfceEnabled" label={t('fiscal.nfceEnabled')} disabled={!canEdit} />
                 <Field.Text
                   name="nfceSeries"
                   label={t('account.fields.nfceSeries')}
@@ -229,6 +302,29 @@ export function AccountFiscalForm() {
                   <MenuItem value="homologation">{t('account.nfceHomologation')}</MenuItem>
                   <MenuItem value="production">{t('account.nfceProduction')}</MenuItem>
                 </Field.Select>
+                <Field.Select
+                  name="receiptDefaultModel"
+                  label={t('account.fields.receiptDefaultModel')}
+                  disabled={!canEdit}
+                >
+                  <MenuItem value="58mm">58mm</MenuItem>
+                  <MenuItem value="80mm">80mm</MenuItem>
+                  <MenuItem value="a5">A5</MenuItem>
+                </Field.Select>
+                <Field.Text name="nfceCscId" label={t('fiscal.cscId')} disabled={!canEdit} />
+                <Field.Text
+                  name="apiToken"
+                  label={t('fiscal.apiToken')}
+                  type="password"
+                  disabled={!canEdit}
+                  helperText={hasFiscalSecrets ? 'Token já configurado — deixe em branco para manter' : undefined}
+                />
+                <Field.Text
+                  name="cscToken"
+                  label={t('fiscal.cscToken')}
+                  type="password"
+                  disabled={!canEdit}
+                />
               </Box>
               <Field.Text
                 name="receiptFooterMessage"

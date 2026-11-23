@@ -98,6 +98,11 @@ export type Enterprise = {
   state?: string;
   stateRegistration?: string;
   // Configuração Fiscal e Impressão de Cupom (NFC-e / Recibo)
+  taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
+  nfceEnabled?: boolean;
+  hasFiscalSecrets?: boolean;
+  fiscalIssuerProvider?: 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
+  nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';
   receiptFooterMessage?: string;
@@ -253,6 +258,22 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     city: optStr(data.city),
     state: optStr(data.state),
     stateRegistration: optStr(data.stateRegistration),
+  taxRegime:
+      data.taxRegime === 'presumido' ||
+      data.taxRegime === 'real' ||
+      data.taxRegime === 'mei' ||
+      data.taxRegime === 'simples'
+        ? data.taxRegime
+        : undefined,
+    nfceEnabled: data.nfceEnabled === true,
+    hasFiscalSecrets: data.hasFiscalSecrets === true,
+    fiscalIssuerProvider:
+      data.fiscalIssuerProvider === 'focus' ||
+      data.fiscalIssuerProvider === 'plugnotas' ||
+      data.fiscalIssuerProvider === 'nuvemfiscal'
+        ? data.fiscalIssuerProvider
+        : null,
+    nfceCscId: optStr(data.nfceCscId),
     nfceSeries: optStr(data.nfceSeries) ?? '1',
     nfceEnvironment:
       data.nfceEnvironment === 'production' ? 'production' : 'homologation',
@@ -339,6 +360,10 @@ export type EnterpriseAddressInput = {
   city?: string;
   state?: string;
   stateRegistration?: string;
+  taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
+  nfceEnabled?: boolean;
+  fiscalIssuerProvider?: 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
+  nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';
   receiptFooterMessage?: string;
