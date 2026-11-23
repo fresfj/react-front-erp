@@ -1,5 +1,4 @@
 import type { Sale } from 'src/api/firestore/sales';
-import type { Product } from 'src/api/firestore/products';
 import type { Enterprise } from 'src/api/firestore/platform';
 import type { DiningTable, TableSession } from 'src/api/firestore/tables';
 import type {
@@ -28,12 +27,13 @@ import Typography from '@mui/material/Typography';
 import { paths } from 'src/routes/paths';
 import { RouterLink } from 'src/routes/components';
 
+import { useEnterpriseProductsStore } from 'src/hooks/use-enterprise-products-store';
+
 import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { varAlpha } from 'src/theme/styles';
 import { DashboardContent } from 'src/layouts/dashboard';
-import { listProducts } from 'src/api/firestore/products';
 import { getEnterprise } from 'src/api/firestore/platform';
 import { listCashSessions } from 'src/api/firestore/cash-sessions';
 import { subscribeOnlineOrders } from 'src/api/firestore/online-orders';
@@ -77,7 +77,7 @@ export function TablesManagementView() {
   const [tables, setTables] = useState<DiningTable[]>([]);
   const [openSessions, setOpenSessions] = useState<TableSession[]>([]);
   const [orders, setOrders] = useState<OnlineOrder[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
+  const { products, productsLoading } = useEnterpriseProductsStore(enterpriseId);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingTable, setEditingTable] = useState<DiningTable | null>(null);
@@ -103,10 +103,6 @@ export function TablesManagementView() {
         setEnterprise(ent);
         setGlobalTablesEnabled(ent?.onlineStore?.acceptTableOrders !== false);
       })
-      .catch(() => {});
-
-    listProducts(enterpriseId)
-      .then((prods) => setProducts(prods))
       .catch(() => {});
 
     listCashSessions(enterpriseId)
@@ -455,7 +451,7 @@ export function TablesManagementView() {
                   primaryValue={`${tables.length}`}
                   secondaryValue="Mesas digitais ativas"
                   percent={100}
-                  icon="solar:plate-bold-duotone"
+                  icon="ic:round-table-restaurant"
                   color={theme.vars.palette.info.main}
                 />
                 <ErpTableAnalytic
@@ -540,20 +536,44 @@ export function TablesManagementView() {
                       '&:hover': { boxShadow: theme.customShadows.z8 },
                     }}
                   >
-                    <Stack spacing={2}>
-                      <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
-                        <Box>
-                          <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                            Mesa {tbl.number}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {[tbl.area, tbl.capacity ? `${tbl.capacity} lugares` : null]
-                              .filter(Boolean)
-                              .join(' · ') || 'Salão principal'}
-                          </Typography>
+                    <Stack spacing={1.5}>
+                      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                        <Box
+                          sx={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 1.25,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            color:
+                              !tbl.acceptingOrders || !globalTablesEnabled
+                                ? 'error.main'
+                                : isOccupied
+                                  ? 'warning.main'
+                                  : 'success.main',
+                            bgcolor: varAlpha(
+                              !tbl.acceptingOrders || !globalTablesEnabled
+                                ? theme.vars.palette.error.mainChannel
+                                : isOccupied
+                                  ? theme.vars.palette.warning.mainChannel
+                                  : theme.vars.palette.success.mainChannel,
+                              0.12
+                            ),
+                          }}
+                        >
+                          <Iconify
+                            icon={
+                              /bar|balc/i.test(tbl.area || '')
+                                ? 'ic:baseline-table-bar'
+                                : 'ic:round-table-restaurant'
+                            }
+                            width={24}
+                          />
                         </Box>
 
-                        <Stack direction="row" spacing={0.75} alignItems="center">
+                        <Stack direction="row" spacing={0.75} alignItems="center" sx={{ flexShrink: 0 }}>
                           <Tooltip
                             title={
                               tbl.acceptingOrders
@@ -596,6 +616,17 @@ export function TablesManagementView() {
                           </Label>
                         </Stack>
                       </Stack>
+
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="h5" noWrap sx={{ fontWeight: 800 }}>
+                          Mesa {tbl.number}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap display="block">
+                          {[tbl.area, tbl.capacity ? `${tbl.capacity} lugares` : null]
+                            .filter(Boolean)
+                            .join(' · ') || 'Salão principal'}
+                        </Typography>
+                      </Box>
 
                       {isOccupied && tableSessions.length > 0 ? (
                         <Box
@@ -643,7 +674,6 @@ export function TablesManagementView() {
                       <Stack direction="row" spacing={0.75}>
                         <Button
                           fullWidth
-                          size="small"
                           variant={isOccupied ? 'contained' : 'soft'}
                           color={isOccupied ? 'warning' : 'primary'}
                           onClick={() => {
@@ -652,7 +682,7 @@ export function TablesManagementView() {
                           }}
                           startIcon={<Iconify icon="solar:clipboard-list-bold-duotone" width={17} />}
                         >
-                          {isOccupied ? 'Comandas' : 'Abrir / Pedir'}
+                          {isOccupied ? 'Comandas' : 'Pedir'}
                         </Button>
 
                         {isOccupied && firstSess && (
@@ -664,7 +694,6 @@ export function TablesManagementView() {
                             }
                           >
                             <IconButton
-                              size="small"
                               color="primary"
                               onClick={(e) => {
                                 if (tableSessions.length === 1) {
@@ -689,7 +718,6 @@ export function TablesManagementView() {
 
                         <Tooltip title="QR Code exclusivo da mesa">
                           <IconButton
-                            size="small"
                             color="info"
                             onClick={() => setQrTable(tbl)}
                             sx={{
@@ -700,18 +728,18 @@ export function TablesManagementView() {
                             <Iconify icon="solar:qr-code-bold" width={18} />
                           </IconButton>
                         </Tooltip>
-
+                        {!isOccupied && !firstSess && (
                         <Tooltip title="Editar mesa">
                           <IconButton
-                            size="small"
                             onClick={() => {
                               setEditingTable(tbl);
                               setFormOpen(true);
                             }}
                           >
-                            <Iconify icon="solar:pen-bold" width={17} />
+                            <Iconify icon="solar:pen-bold" />
                           </IconButton>
                         </Tooltip>
+                        )}
                       </Stack>
                     </Stack>
                   </Card>
@@ -748,6 +776,7 @@ export function TablesManagementView() {
         selectedSessionId={selectedSession?.id || null}
         sessionOrders={selectedSessionOrders}
         products={products}
+        productsLoading={productsLoading}
         busy={busy}
         onSelectSession={(id) => setSelectedSessionId(id)}
         onCreateSession={handleCreateIndividualSession}

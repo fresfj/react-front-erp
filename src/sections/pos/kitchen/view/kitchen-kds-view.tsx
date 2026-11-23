@@ -1,3 +1,4 @@
+import type { ColorType } from 'src/theme/core/palette';
 import type { OnlineOrder } from 'src/api/firestore/online-orders';
 
 import { useRef, useMemo, useState, useEffect, useCallback } from 'react';
@@ -9,7 +10,6 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
@@ -186,6 +186,49 @@ export function KitchenKdsView() {
 
   const demandCfg = DEMAND_CONFIG[demand.demandLevel];
 
+  const kdsMetricCards: Array<{
+    label: string;
+    value: string;
+    sub: string;
+    color: ColorType;
+    icon: string;
+  }> = [
+    {
+      label: 'Na fila',
+      value: String(demand.queueCount),
+      sub:
+        demand.delayedCount > 0
+          ? `${demand.delayedCount} pedido(s) atrasado(s)`
+          : 'Aguardando início do preparo',
+      color: demand.delayedCount > 0 ? 'error' : 'warning',
+      icon: 'solar:hourglass-line-bold-duotone',
+    },
+    {
+      label: 'Em preparo',
+      value: String(demand.preparingCount),
+      sub: 'Pedidos ativos na cozinha',
+      color: 'info',
+      icon: 'solar:chef-hat-heart-bold-duotone',
+    },
+    {
+      label: 'Itens a preparar',
+      value: String(demand.totalItems),
+      sub:
+        productionSummary.length > 0
+          ? `${productionSummary.length} item(ns) distinto(s)`
+          : 'Nenhum item pendente',
+      color: 'primary',
+      icon: 'material-symbols-light:restaurant-rounded',
+    },
+    {
+      label: 'Tempo médio espera',
+      value: `${demand.avgWaitMinutes} min`,
+      sub: `Meta SLA: ${targetMinutes} min`,
+      color: demand.avgWaitMinutes >= targetMinutes * 0.8 ? 'error' : 'success',
+      icon: 'solar:stopwatch-bold-duotone',
+    },
+  ];
+
   return (
     <DashboardContent maxWidth={false}>
       <CustomBreadcrumbs
@@ -243,69 +286,89 @@ export function KitchenKdsView() {
           <EmptyContent filled title="Nenhuma empresa vinculada" />
         ) : (
           <Stack spacing={2.5}>
-            {/* Barra de indicadores de demanda + filtro de canal */}
-            <Card sx={{ p: 2 }}>
-              <Stack
-                direction={{ xs: 'column', lg: 'row' }}
-                spacing={2}
-                alignItems={{ xs: 'stretch', lg: 'center' }}
-                justifyContent="space-between"
-              >
-                <Stack direction="row" spacing={2.5} flexWrap="wrap" useFlexGap>
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Na fila
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                      {demand.queueCount}
-                    </Typography>
-                  </Box>
-                  <Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Em preparo
-                    </Typography>
-                    <Typography variant="h5" color="info.main" sx={{ fontWeight: 800 }}>
-                      {demand.preparingCount}
-                    </Typography>
-                  </Box>
-                  <Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Itens a preparar
-                    </Typography>
-                    <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                      {demand.totalItems}
-                    </Typography>
-                  </Box>
-                  <Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />
-                  <Box>
-                    <Typography variant="caption" color="text.secondary">
-                      Tempo médio espera
+            {/* 4 KPIs de Demanda da Cozinha — padrão CourseWidgetSummary (Minimals v6) */}
+            <Box
+              display="grid"
+              gridTemplateColumns={{
+                xs: 'repeat(1, 1fr)',
+                sm: 'repeat(2, 1fr)',
+                md: 'repeat(4, 1fr)',
+              }}
+              sx={{ gap: 2.5 }}
+            >
+              {kdsMetricCards.map((item) => (
+                <Card
+                  key={item.label}
+                  sx={{
+                    py: 3,
+                    pl: 3,
+                    pr: 2.5,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box sx={{ flexGrow: 1, pr: 4 }}>
+                    <Box sx={{ typography: 'h3', mb: 0.5 }}>{item.value}</Box>
+                    <Typography
+                      noWrap
+                      variant="subtitle2"
+                      component="div"
+                      sx={{ color: 'text.secondary' }}
+                    >
+                      {item.label}
                     </Typography>
                     <Typography
-                      variant="h5"
-                      color={demand.avgWaitMinutes >= targetMinutes * 0.8 ? 'error.main' : 'primary.main'}
-                      sx={{ fontWeight: 800 }}
+                      noWrap
+                      variant="caption"
+                      component="div"
+                      sx={{
+                        mt: 0.5,
+                        color: item.color === 'error' ? 'error.main' : 'text.disabled',
+                      }}
                     >
-                      {demand.avgWaitMinutes} min
+                      {item.sub}
                     </Typography>
                   </Box>
-                  {demand.delayedCount > 0 && (
-                    <>
-                      <Divider orientation="vertical" flexItem sx={{ borderStyle: 'dashed' }} />
-                      <Box>
-                        <Typography variant="caption" color="error.main">
-                          Atrasados
-                        </Typography>
-                        <Typography variant="h5" color="error.main" sx={{ fontWeight: 800 }}>
-                          {demand.delayedCount}
-                        </Typography>
-                      </Box>
-                    </>
-                  )}
-                </Stack>
 
+                  <Iconify
+                    icon={item.icon}
+                    width={36}
+                    sx={{
+                      top: 24,
+                      right: 20,
+                      position: 'absolute',
+                      color: `${item.color}.main`,
+                    }}
+                  />
+
+                  <Box
+                    sx={{
+                      top: -44,
+                      width: 160,
+                      zIndex: 0,
+                      height: 160,
+                      right: -104,
+                      opacity: 0.14,
+                      borderRadius: 3,
+                      position: 'absolute',
+                      pointerEvents: 'none',
+                      transform: 'rotate(40deg)',
+                      background: (th) =>
+                        `linear-gradient(to right, ${th.vars.palette[item.color].main} 0%, ${varAlpha(th.vars.palette[item.color].mainChannel, 0)} 100%)`,
+                    }}
+                  />
+                </Card>
+              ))}
+            </Box>
+
+            {/* Barra de filtro por canal */}
+            <Card sx={{ p: 1.5 }}>
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.5}
+                alignItems={{ xs: 'stretch', sm: 'center' }}
+                justifyContent="space-between"
+              >
                 <CustomTabs
                   value={channelFilter}
                   onChange={(_, val: ChannelFilter) => {
@@ -333,7 +396,7 @@ export function KitchenKdsView() {
                   <Tab
                     value="table"
                     label={`Mesas (${allKitchenOrders.filter((o) => o.deliveryType === 'table').length})`}
-                    icon={<Iconify icon="solar:plate-bold" width={16} />}
+                    icon={<Iconify icon="ic:round-table-restaurant" width={18} />}
                     iconPosition="start"
                   />
                   <Tab
@@ -349,6 +412,17 @@ export function KitchenKdsView() {
                     iconPosition="start"
                   />
                 </CustomTabs>
+
+                {demand.delayedCount > 0 && (
+                  <Label
+                    variant="soft"
+                    color="error"
+                    startIcon={<Iconify icon="solar:danger-triangle-bold" width={16} />}
+                    sx={{ px: 1.5, py: 2 }}
+                  >
+                    {demand.delayedCount} pedido(s) acima do SLA ({targetMinutes} min)
+                  </Label>
+                )}
               </Stack>
             </Card>
 

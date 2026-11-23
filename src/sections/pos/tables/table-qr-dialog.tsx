@@ -45,6 +45,38 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+      <style>
+        {`
+          @media print {
+            body * {
+              visibility: hidden !important;
+            }
+            #table-qr-printable-area,
+            #table-qr-printable-area * {
+              visibility: visible !important;
+            }
+            #table-qr-printable-area {
+              position: fixed !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 73.5mm !important;
+              max-width: 73.5mm !important;
+              box-sizing: border-box !important;
+              margin: 0 !important;
+              padding: 2mm !important;
+              border: 1px dashed #222 !important;
+              border-radius: 4px !important;
+              background: #FFFFFF !important;
+              color: #000000 !important;
+              box-shadow: none !important;
+            }
+            @page {
+              margin: 3mm;
+            }
+          }
+        `}
+      </style>
+
       <DialogTitle sx={{ textAlign: 'center' }}>
         QR Code · Mesa {table.number}
       </DialogTitle>
@@ -59,8 +91,9 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
           ) : (
             <>
               <Box
+                id="table-qr-printable-area"
                 sx={{
-                  p: 3,
+                  p: 2.5,
                   borderRadius: 2,
                   bgcolor: 'common.white',
                   color: 'grey.900',
@@ -70,19 +103,23 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
                 }}
               >
                 {storeName && (
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 0.5 }}>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 0.25 }}>
                     {storeName}
                   </Typography>
                 )}
-                <Typography variant="h5" color="primary.main" sx={{ fontWeight: 800, mb: 2 }}>
+                <Typography variant="h5" color="primary.main" sx={{ fontWeight: 800, mb: 1.25 }}>
                   MESA {table.number}
                 </Typography>
 
-                <Box sx={{ display: 'inline-block', p: 1.5, bgcolor: 'common.white', borderRadius: 1.5 }}>
-                  <QRCodeSVG value={tableUrl} size={200} includeMargin={false} />
+                <Box sx={{ display: 'inline-block', p: 0.5, bgcolor: 'common.white' }}>
+                  <QRCodeSVG value={tableUrl} size={184} includeMargin={false} />
                 </Box>
 
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5 }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: 'block', mt: 1, lineHeight: 1.1 }}
+                >
                   Aponte a câmera do celular para ver o cardápio e fazer seu pedido direto da mesa!
                 </Typography>
               </Box>

@@ -18,6 +18,7 @@ import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import MenuItem from '@mui/material/MenuItem';
+import Skeleton from '@mui/material/Skeleton';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
@@ -28,6 +29,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import { formatPhoneBr } from 'src/utils/br-docs';
 import { fCurrency } from 'src/utils/format-number';
 import { getEffectiveProductPrice } from 'src/utils/product-pricing';
+import { getHighlightParts, smartSearchProducts } from 'src/utils/smart-product-search';
 
 import { varAlpha } from 'src/theme/styles';
 
@@ -45,6 +47,7 @@ type Props = {
   selectedSessionId: string | null;
   sessionOrders: OnlineOrder[];
   products: Product[];
+  productsLoading?: boolean;
   busy?: boolean;
   onSelectSession: (sessionId: string) => void;
   onCreateSession: (customerName: string, customerPhone?: string) => Promise<void>;
@@ -62,6 +65,7 @@ export function TableSessionDrawer({
   selectedSessionId,
   sessionOrders,
   products,
+  productsLoading,
   busy,
   onSelectSession,
   onCreateSession,
@@ -72,6 +76,9 @@ export function TableSessionDrawer({
   onPrintSingleOrder,
 }: Props) {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('__featured__');
   const [draftItems, setDraftItems] = useState<OnlineOrderItem[]>([]);
   const [notes, setNotes] = useState('');
   const [showCloseBox, setShowCloseBox] = useState(false);
@@ -85,6 +92,9 @@ export function TableSessionDrawer({
   useEffect(() => {
     if (open) {
       setSearch('');
+      setDebouncedSearch('');
+      setIsSearching(false);
+      setSelectedCategory('__featured__');
       setDraftItems([]);
       setNotes('');
       setShowCloseBox(false);
@@ -95,6 +105,20 @@ export function TableSessionDrawer({
     }
   }, [open, table?.id]);
 
+  useEffect(() => {
+    const trimmed = search.trim();
+    if (trimmed === debouncedSearch) {
+      setIsSearching(false);
+      return undefined;
+    }
+    setIsSearching(true);
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(trimmed);
+      setIsSearching(false);
+    }, 140);
+    return () => window.clearTimeout(timer);
+  }, [search, debouncedSearch]);
+
   const activeSession = useMemo(
     () =>
       sessions.find((s) => s.id === selectedSessionId) ||
@@ -103,19 +127,35 @@ export function TableSessionDrawer({
     [selectedSessionId, sessions]
   );
 
+  const activeFinishedProducts = useMemo(
+    () => products.filter((p) => p.active && p.type === 'finished'),
+    [products]
+  );
+
+  const categoryChips = useMemo(() => {
+    const cats = Array.from(
+      new Set(activeFinishedProducts.map((p) => p.category).filter(Boolean))
+    ) as string[];
+    return cats.slice(0, 6);
+  }, [activeFinishedProducts]);
+
+  const hasSearchQuery = debouncedSearch.length > 0;
+
   const filteredProducts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const list = products.filter((p) => p.active && p.type === 'finished');
-    if (!q) return list.slice(0, 20);
-    return list
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.sku && p.sku.toLowerCase().includes(q)) ||
-          (p.category && p.category.toLowerCase().includes(q))
-      )
-      .slice(0, 20);
-  }, [products, search]);
+    if (hasSearchQuery) {
+      return smartSearchProducts(activeFinishedProducts, debouncedSearch, {
+        limit: 12,
+        category: 'all',
+      });
+    }
+    // Sem busca: nunca listar o catálogo inteiro — exibe no máximo 6 sugestões da categoria/destaques
+    const scoped = smartSearchProducts(activeFinishedProducts, '', {
+      limit: 6,
+      category: selectedCategory,
+    });
+    if (scoped.length > 0) return scoped;
+    return smartSearchProducts(activeFinishedProducts, '', { limit: 6, category: 'all' });
+  }, [activeFinishedProducts, debouncedSearch, hasSearchQuery, selectedCategory]);
 
   if (!table) {
     return <Drawer open={false} anchor="right" onClose={onClose} />;
@@ -471,7 +511,7 @@ export function TableSessionDrawer({
             <TextField
               fullWidth
               size="small"
-              placeholder="Buscar produto ou combo..."
+              placeholder={`Buscar entre ${activeFinishedProducts.length} produtos (nome, SKU, categoria)...`}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               InputProps={{
@@ -480,15 +520,60 @@ export function TableSessionDrawer({
                     <Iconify icon="eva:search-fill" sx={{ color: 'text.disabled' }} />
                   </InputAdornment>
                 ),
+                endAdornment: search ? (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      edge="end"
+                      onClick={() => {
+                        setSearch('');
+                        setDebouncedSearch('');
+                      }}
+                    >
+                      <Iconify icon="mingcute:close-line" width={16} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
               }}
             />
 
-            <Stack spacing={1} sx={{ maxHeight: 240, overflowY: 'auto', pr: 0.5 }}>
-              {filteredProducts.map((prod) => {
-                const pricing = getEffectiveProductPrice(prod);
-                return (
+            {!hasSearchQuery && categoryChips.length > 0 && (
+              <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                <Chip
+                  size="small"
+                  label="Destaques"
+                  color={selectedCategory === '__featured__' ? 'primary' : 'default'}
+                  variant={selectedCategory === '__featured__' ? 'filled' : 'outlined'}
+                  onClick={() => setSelectedCategory('__featured__')}
+                />
+                {categoryChips.map((cat) => (
+                  <Chip
+                    key={cat}
+                    size="small"
+                    label={cat}
+                    color={selectedCategory === cat ? 'primary' : 'default'}
+                    variant={selectedCategory === cat ? 'filled' : 'outlined'}
+                    onClick={() => setSelectedCategory(cat)}
+                  />
+                ))}
+              </Stack>
+            )}
+
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography variant="caption" color="text.secondary">
+                {productsLoading || isSearching
+                  ? 'Buscando produtos...'
+                  : hasSearchQuery
+                    ? `${filteredProducts.length} resultado(s) para "${debouncedSearch}"`
+                    : `Exibindo ${filteredProducts.length} de ${activeFinishedProducts.length} produtos — digite para buscar`}
+              </Typography>
+            </Stack>
+
+            <Stack spacing={1}>
+              {productsLoading || isSearching ? (
+                [...Array(4)].map((_, idx) => (
                   <Stack
-                    key={prod.id}
+                    key={idx}
                     direction="row"
                     alignItems="center"
                     justifyContent="space-between"
@@ -499,39 +584,114 @@ export function TableSessionDrawer({
                       border: (theme) => `1px solid ${theme.vars.palette.divider}`,
                     }}
                   >
-                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                      <Box sx={{ position: 'relative', flexShrink: 0 }}>
-                        <Avatar
-                          src={prod.imageUrl}
-                          variant="rounded"
-                          sx={{ width: 42, height: 42, bgcolor: 'background.neutral' }}
-                        >
-                          {prod.name.charAt(0)}
-                        </Avatar>
-                        <ProductImageBadges compact servingTemperature={prod.servingTemperature} />
-                      </Box>
-                      <Box sx={{ minWidth: 0 }}>
-                        <Typography variant="subtitle2" noWrap>
-                          {prod.name}
-                        </Typography>
-                        <Typography variant="caption" color="primary.main" sx={{ fontWeight: 700 }}>
-                          {fCurrency(pricing.effectivePrice)}
-                        </Typography>
+                    <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flex: 1 }}>
+                      <Skeleton animation="wave" variant="rounded" width={42} height={42} />
+                      <Box sx={{ flex: 1 }}>
+                        <Skeleton animation="wave" variant="text" width="72%" height={20} />
+                        <Skeleton animation="wave" variant="text" width="38%" height={16} />
                       </Box>
                     </Stack>
-
-                    <Button
-                      size="small"
-                      variant="soft"
-                      color="primary"
-                      onClick={() => handleAddProduct(prod)}
-                      sx={{ flexShrink: 0 }}
-                    >
-                      + Add
-                    </Button>
+                    <Skeleton animation="wave" variant="rounded" width={58} height={30} />
                   </Stack>
-                );
-              })}
+                ))
+              ) : filteredProducts.length === 0 ? (
+                <Box
+                  sx={{
+                    py: 3,
+                    px: 2,
+                    textAlign: 'center',
+                    borderRadius: 1.25,
+                    bgcolor: 'background.neutral',
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    Nenhum produto encontrado para &ldquo;{debouncedSearch}&rdquo;.
+                  </Typography>
+                </Box>
+              ) : (
+                filteredProducts.map((prod) => {
+                  const pricing = getEffectiveProductPrice(prod);
+                  const nameParts = getHighlightParts(prod.name, debouncedSearch);
+                  return (
+                    <Stack
+                      key={prod.id}
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      spacing={1.25}
+                      sx={{
+                        p: 1,
+                        borderRadius: 1.25,
+                        border: (theme) => `1px solid ${theme.vars.palette.divider}`,
+                      }}
+                    >
+                      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+                        <Box sx={{ position: 'relative', flexShrink: 0 }}>
+                          <Avatar
+                            src={prod.imageUrl}
+                            variant="rounded"
+                            sx={{ width: 42, height: 42, bgcolor: 'background.neutral' }}
+                          >
+                            {prod.name.charAt(0)}
+                          </Avatar>
+                          <ProductImageBadges
+                            compact
+                            servingTemperature={prod.servingTemperature}
+                          />
+                        </Box>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography variant="subtitle2" noWrap>
+                            {nameParts.map((part, pIdx) => (
+                              <Box
+                                key={pIdx}
+                                component="span"
+                                sx={
+                                  part.highlight
+                                    ? {
+                                        color: 'primary.main',
+                                        fontWeight: 800,
+                                        bgcolor: (theme) =>
+                                          varAlpha(theme.vars.palette.primary.mainChannel, 0.14),
+                                        borderRadius: 0.5,
+                                        px: 0.25,
+                                      }
+                                    : undefined
+                                }
+                              >
+                                {part.text}
+                              </Box>
+                            ))}
+                          </Typography>
+                          <Stack direction="row" spacing={0.75} alignItems="center">
+                            <Typography
+                              variant="caption"
+                              color="primary.main"
+                              sx={{ fontWeight: 700 }}
+                            >
+                              {fCurrency(pricing.effectivePrice)}
+                            </Typography>
+                            {prod.category && (
+                              <Typography variant="caption" color="text.disabled" noWrap>
+                                · {prod.category}
+                              </Typography>
+                            )}
+                          </Stack>
+                        </Box>
+                      </Stack>
+
+                      <Button
+                        size="small"
+                        variant="soft"
+                        color="primary"
+                        onClick={() => handleAddProduct(prod)}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        + Add
+                      </Button>
+                    </Stack>
+                  );
+                })
+              )}
             </Stack>
           </Stack>
 

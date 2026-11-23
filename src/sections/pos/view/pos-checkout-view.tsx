@@ -830,7 +830,15 @@ export function PosCheckoutView() {
             </Grid>
 
             {/* Right column (md=4): Customer + Discount (CheckoutSummary style) + Payment */}
-            <Grid xs={12} md={4}>
+            <Grid
+              xs={12}
+              md={4}
+              sx={{
+                position: { md: 'sticky' },
+                top: { md: 88 },
+                alignSelf: { md: 'flex-start' },
+              }}
+            >
               <Card>
                 {/* Section 1: Customer Info */}
                 <CardHeader

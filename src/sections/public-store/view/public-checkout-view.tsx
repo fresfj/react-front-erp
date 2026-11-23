@@ -52,6 +52,8 @@ import { usePublicCart } from '../public-cart-context';
 import { CheckoutSkeleton } from '../public-store-skeletons';
 import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { validateCheckoutForm } from '../public-store-validation';
+import { isPhoneVerifiedForSlug } from '../public-customer-phone-auth';
+import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
 
 import type { CheckoutFieldName, CheckoutFormErrors } from '../public-store-validation';
 
@@ -76,6 +78,7 @@ export function PublicCheckoutView() {
   const [store, setStore] = useState<PublicStorefront | null>(stateStore);
   const [loading, setLoading] = useState(!stateStore);
   const [submitting, setSubmitting] = useState(false);
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
 
   // Formulário de Checkout
   const [customerName, setCustomerName] = useState('');
@@ -361,6 +364,18 @@ export function PublicCheckoutView() {
       }
     }
 
+    // Identificação e registro seguro via Firebase Phone Auth (OTP 6 dígitos)
+    if (!isPhoneVerifiedForSlug(slug, customerPhone)) {
+      setPhoneVerifyOpen(true);
+      return;
+    }
+
+    await submitOrderAfterVerification();
+  };
+
+  const submitOrderAfterVerification = async () => {
+    if (!store) return;
+
     const fullAddress =
       !isTableMode && deliveryType === 'delivery'
         ? `${street.trim()}, nº ${number.trim()}${
@@ -414,6 +429,9 @@ export function PublicCheckoutView() {
 
       try {
         localStorage.setItem(`onlineStore:customerPhone:${slug}`, customerPhone.trim());
+        if (fullAddress) {
+          localStorage.setItem(`onlineStore:customerAddress:${slug}`, fullAddress);
+        }
         const firstName = customerName.trim().split(/\s+/)[0] || '';
         if (firstName && customerPhone.trim()) {
           localStorage.setItem(
@@ -444,6 +462,50 @@ export function PublicCheckoutView() {
       setSubmitting(false);
     }
   };
+
+  // Faixa de valor de entrega (min - max) antes de obter o endereço + valor exato depois
+  const deliveryFeeSummaryLabel = useMemo(() => {
+    const hasCalculatedAddress =
+      deliveryType === 'delivery' &&
+      !geocodingAddress &&
+      deliveryQuote.deliverable &&
+      Boolean(addressCoords || deliveryQuote.matchedLabel);
+
+    if (hasCalculatedAddress) {
+      const feeText = deliveryQuote.fee > 0 ? fCurrency(deliveryQuote.fee) : 'Grátis';
+      return `${feeText} • ~${deliveryQuote.estimatedMinutes} min`;
+    }
+
+    const fees: number[] = [];
+    const area = store?.deliveryArea;
+    if (area?.mode === 'radius' && Array.isArray(area.radiusTiers)) {
+      area.radiusTiers.forEach((tier) => {
+        if (tier.active !== false && Number.isFinite(tier.fee)) fees.push(Number(tier.fee));
+      });
+    } else if (area?.mode === 'neighborhood' && Array.isArray(area.neighborhoods)) {
+      area.neighborhoods.forEach((n) => {
+        if (n.active !== false && Number.isFinite(n.fee)) fees.push(Number(n.fee));
+      });
+    }
+    if (fees.length === 0 && store) {
+      fees.push(Number(store.deliveryFee || 0));
+    }
+
+    const minFee = Math.min(...fees);
+    const maxFee = Math.max(...fees);
+    if (maxFee <= 0) return 'Grátis';
+    if (minFee === maxFee) return fCurrency(minFee);
+    return `De ${fCurrency(minFee)} a ${fCurrency(maxFee)}`;
+  }, [
+    addressCoords,
+    deliveryQuote.deliverable,
+    deliveryQuote.estimatedMinutes,
+    deliveryQuote.fee,
+    deliveryQuote.matchedLabel,
+    deliveryType,
+    geocodingAddress,
+    store,
+  ]);
 
   // --------------------------------------------------------------------
   // Estados de carregamento (Skeleton) / loja não encontrada / carrinho vazio
@@ -638,10 +700,10 @@ export function PublicCheckoutView() {
                           }}
                         />
                         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                          Receber por Entrega
+                          Receber em casa
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {store.deliveryFee > 0 ? fCurrency(store.deliveryFee) : 'Grátis'}
+                          {deliveryFeeSummaryLabel}
                         </Typography>
                       </ButtonBase>
                     )}
@@ -921,22 +983,6 @@ export function PublicCheckoutView() {
                               Calculando distância e taxa de entrega para o seu endereço...
                             </Alert>
                           )}
-                          {!geocodingAddress && deliveryQuote.deliverable && (
-                            <Alert severity="success">
-                              Entrega disponível para este endereço
-                              {deliveryQuote.distanceKm != null
-                                ? ` (~${deliveryQuote.distanceKm.toFixed(1)} km)`
-                                : ''}
-                              {deliveryQuote.matchedLabel ? ` • ${deliveryQuote.matchedLabel}` : ''}
-                              {' • '}
-                              <strong>
-                                {deliveryQuote.fee === 0
-                                  ? 'Entrega grátis'
-                                  : fCurrency(deliveryQuote.fee)}
-                              </strong>{' '}
-                              ({deliveryQuote.estimatedMinutes} min)
-                            </Alert>
-                          )}
                           {!geocodingAddress &&
                             !deliveryQuote.deliverable &&
                             (street.trim().length >= 3 || neighborhood.trim().length >= 2) && (
@@ -966,6 +1012,80 @@ export function PublicCheckoutView() {
                     </Stack>
                   </Card>
                 )}
+
+                {/* 3.5. Card Dedicado de Entrega (Motoboy + Valor Selecionado + Tempo Estimado) */}
+                {!isTableMode &&
+                  deliveryType === 'delivery' &&
+                  !geocodingAddress &&
+                  deliveryQuote.deliverable &&
+                  (street.trim().length >= 3 || neighborhood.trim().length >= 2 || Boolean(addressCoords)) && (
+                    <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
+                      <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                        Entrega
+                      </Typography>
+
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: 1.5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 2,
+                          border: (theme) => `1.5px solid ${theme.vars.palette.primary.main}`,
+                          bgcolor: (theme) =>
+                            varAlpha(theme.vars.palette.primary.mainChannel, 0.08),
+                        }}
+                      >
+                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Box
+                            sx={{
+                              width: 44,
+                              height: 44,
+                              borderRadius: 1.5,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              bgcolor: 'primary.main',
+                              color: 'common.white',
+                            }}
+                          >
+                            <Iconify icon="mdi:moped" width={26} />
+                          </Box>
+
+                          <Box sx={{ minWidth: 0 }}>
+                            <Stack direction="row" spacing={0.75} alignItems="center">
+                              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                                Motoboy
+                              </Typography>
+                              <Iconify
+                                icon="solar:check-circle-bold"
+                                width={16}
+                                sx={{ color: 'success.main' }}
+                              />
+                            </Stack>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              Tempo estimado: <strong>{deliveryQuote.estimatedMinutes} min</strong>
+                              {deliveryQuote.distanceKm != null
+                                ? ` • ~${deliveryQuote.distanceKm.toFixed(1)} km`
+                                : ''}
+                              {deliveryQuote.matchedLabel ? ` • ${deliveryQuote.matchedLabel}` : ''}
+                            </Typography>
+                          </Box>
+                        </Stack>
+
+                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                          <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 800 }}>
+                            {deliveryQuote.fee === 0 ? 'Grátis' : fCurrency(deliveryQuote.fee)}
+                          </Typography>
+                          <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+                            Selecionado
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </Card>
+                  )}
 
                 {/* 4. Forma de Pagamento (Online vs. Na Entrega) e Observações */}
                 <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
@@ -1267,6 +1387,20 @@ export function PublicCheckoutView() {
           </>
         )}
       </Box>
+
+      <PublicPhoneVerifyDialog
+        open={phoneVerifyOpen}
+        slug={slug}
+        phone={customerPhone}
+        customerName={customerName}
+        title="Confirme seu celular para finalizar"
+        subtitle={`Enviamos um código SMS de 6 dígitos para ${customerPhone}. Após digitar os números, seu pedido será confirmado automaticamente.`}
+        onClose={() => setPhoneVerifyOpen(false)}
+        onVerified={() => {
+          setPhoneVerifyOpen(false);
+          submitOrderAfterVerification();
+        }}
+      />
     </Box>
   );
 }

@@ -38,7 +38,12 @@ import { usePublicCart } from '../public-cart-context';
 import { OrderCardSkeleton } from '../public-store-skeletons';
 import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { PublicOrdersLookupSchema } from '../public-store-validation';
+import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
 import { getFulfillmentLabel, OrderProgressStepper } from '../order-progress-stepper';
+import {
+  signOutPublicCustomer,
+  isPhoneVerifiedForSlug,
+} from '../public-customer-phone-auth';
 
 import type { PublicCartLine } from '../public-cart-context';
 import type { PublicOrdersLookupValues } from '../public-store-validation';
@@ -120,6 +125,10 @@ export function PublicOrdersView() {
   const [reorderingId, setReorderingId] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const [orders, setOrders] = useState<PublicOrderTracking[]>([]);
+  const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+  const [pendingLookup, setPendingLookup] = useState<{ phone: string; firstName: string } | null>(
+    null
+  );
 
   const methods = useForm<PublicOrdersLookupValues>({
     resolver: zodResolver(PublicOrdersLookupSchema),
@@ -183,13 +192,23 @@ export function PublicOrdersView() {
   );
 
   useEffect(() => {
-    if (identifiedCustomer && isCompletePhoneBr(identifiedCustomer.phone) && identifiedCustomer.firstName) {
+    if (
+      identifiedCustomer &&
+      isCompletePhoneBr(identifiedCustomer.phone) &&
+      identifiedCustomer.firstName &&
+      isPhoneVerifiedForSlug(slug, identifiedCustomer.phone)
+    ) {
       handleSearch(identifiedCustomer.phone, identifiedCustomer.firstName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const onFormSubmit = handleSubmit((data) => {
+    if (!isPhoneVerifiedForSlug(slug, data.phone)) {
+      setPendingLookup({ phone: data.phone, firstName: data.firstName });
+      setPhoneVerifyOpen(true);
+      return;
+    }
     handleSearch(data.phone, data.firstName);
   });
 
@@ -200,6 +219,7 @@ export function PublicOrdersView() {
     } catch {
       // ignore storage error
     }
+    signOutPublicCustomer(slug);
     setIdentifiedCustomer(null);
     reset({ phone: '', firstName: '' });
     setOrders([]);
@@ -599,6 +619,26 @@ export function PublicOrdersView() {
           </Stack>
         )}
       </Box>
+
+      <PublicPhoneVerifyDialog
+        open={phoneVerifyOpen}
+        slug={slug}
+        phone={pendingLookup?.phone || watchedPhone || ''}
+        customerName={pendingLookup?.firstName || watchedFirstName || ''}
+        title="Verifique seu celular"
+        subtitle={`Por segurança, enviamos um código SMS de 6 dígitos para ${pendingLookup?.phone || watchedPhone}. Assim apenas você acessa seus pedidos.`}
+        onClose={() => {
+          setPhoneVerifyOpen(false);
+          setPendingLookup(null);
+        }}
+        onVerified={() => {
+          setPhoneVerifyOpen(false);
+          if (pendingLookup) {
+            handleSearch(pendingLookup.phone, pendingLookup.firstName);
+            setPendingLookup(null);
+          }
+        }}
+      />
     </Box>
   );
 }

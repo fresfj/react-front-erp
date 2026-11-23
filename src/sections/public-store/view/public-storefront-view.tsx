@@ -41,6 +41,7 @@ import { formatCep } from 'src/utils/br-docs';
 import { fCurrency } from 'src/utils/format-number';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { getEffectiveProductPrice } from 'src/utils/product-pricing';
+import { getHighlightParts, normalizeSearchText } from 'src/utils/smart-product-search';
 
 import { useTranslate } from 'src/locales';
 import { varAlpha } from 'src/theme/styles';
@@ -65,7 +66,12 @@ import { usePublicCart } from '../public-cart-context';
 import { StorefrontSkeleton } from '../public-store-skeletons';
 import { PublicTableOrderDialog } from '../public-table-order-dialog';
 import { PublicTableTrackerDrawer } from '../public-table-tracker-drawer';
+import { PublicCustomerAccountDrawer } from '../public-customer-account-drawer';
 import { PublicStoreSeoHead, buildStoreSharePayload } from '../public-store-seo-head';
+import {
+  getVerifiedPublicCustomer,
+  type VerifiedPublicCustomer,
+} from '../public-customer-phone-auth';
 import {
   CLOSED_REASON_KEY,
   getStoreOpenStatus,
@@ -85,9 +91,18 @@ export function PublicStorefrontView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
-  // Perfil da Loja Drawer & Popover de Compartilhamento
+  // Perfil da Loja Drawer, Conta do Usuário Autenticado, Compartilhamento e Dropdown de Categorias
   const [profileOpen, setProfileOpen] = useState(false);
+  const [accountDrawerOpen, setAccountDrawerOpen] = useState(false);
+  const [verifiedCustomer, setVerifiedCustomer] = useState<VerifiedPublicCustomer | null>(() =>
+    getVerifiedPublicCustomer(slug)
+  );
   const sharePopover = usePopover();
+  const categoryMenuPopover = usePopover();
+
+  useEffect(() => {
+    setVerifiedCustomer(getVerifiedPublicCustomer(slug));
+  }, [slug]);
 
   // Modo Mesa (QR Code exclusivo — sem checkout, envia direto para Em Preparo no Kanban)
   const isTableMode = Boolean(tableCode);
@@ -169,7 +184,6 @@ export function PublicStorefrontView() {
 
   // Refs para Scrollspy e IntersectionObserver
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const chipRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const isClickingRef = useRef(false);
 
   // Carrega dados da loja pública
@@ -190,15 +204,23 @@ export function PublicStorefrontView() {
     loadStorefront();
   }, [loadStorefront]);
 
-  // Lista de categorias distintas disponíveis
+  // Lista de categorias distintas disponíveis (com "Mais Pedidos" primeiro quando houver destaques)
+  const hasFeaturedProducts = useMemo(
+    () => Boolean(store?.products?.some((p) => p.featured)),
+    [store?.products]
+  );
+
   const allCategories = useMemo(() => {
     if (!store?.products) return [];
     const set = new Set<string>();
+    if (hasFeaturedProducts) {
+      set.add('Mais Pedidos');
+    }
     store.products.forEach((p) => {
       set.add(p.category || 'Outros');
     });
     return Array.from(set);
-  }, [store?.products]);
+  }, [hasFeaturedProducts, store?.products]);
 
   // Scrollspy com IntersectionObserver nativo
   useEffect(() => {
@@ -213,11 +235,6 @@ export function PublicStorefrontView() {
           const topCat = intersecting[0].target.getAttribute('data-category');
           if (topCat) {
             setActiveCategory(topCat);
-            chipRefs.current[topCat]?.scrollIntoView({
-              behavior: 'smooth',
-              inline: 'center',
-              block: 'nearest',
-            });
           }
         }
       },
@@ -249,32 +266,48 @@ export function PublicStorefrontView() {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
-    chipRefs.current[cat]?.scrollIntoView({
-      behavior: 'smooth',
-      inline: 'center',
-      block: 'nearest',
-    });
     setTimeout(() => {
       isClickingRef.current = false;
     }, 800);
   };
 
-  // Filtragem de produtos por busca
+  // Filtragem inteligente de produtos por busca (sem acentos, multi-termo, estilo Algolia/iFood)
   const filteredProducts = useMemo(() => {
     if (!store?.products) return [];
-    if (!searchQuery.trim()) return store.products;
-    const q = searchQuery.toLowerCase();
-    return store.products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description && p.description.toLowerCase().includes(q)) ||
-        (p.category && p.category.toLowerCase().includes(q))
-    );
+    const normQuery = normalizeSearchText(searchQuery);
+    if (!normQuery) return store.products;
+
+    const tokens = normQuery.split(/\s+/).filter(Boolean);
+    return store.products
+      .map((p) => {
+        const haystack = normalizeSearchText(
+          `${p.name} ${p.description || ''} ${p.category || ''}`
+        );
+        const nameNorm = normalizeSearchText(p.name);
+        const allMatch = tokens.every((tk) => haystack.includes(tk));
+        if (!allMatch) return null;
+
+        let score = 10;
+        if (nameNorm.startsWith(normQuery)) score += 100;
+        else if (nameNorm.includes(normQuery)) score += 60;
+        else if (tokens.every((tk) => nameNorm.includes(tk))) score += 40;
+        if (p.featured) score += 5;
+        return { product: p, score };
+      })
+      .filter((item): item is { product: PublicStorefrontProduct; score: number } => item !== null)
+      .sort((a, b) => b.score - a.score)
+      .map((item) => item.product);
   }, [store?.products, searchQuery]);
 
-  // Agrupamento por categorias para exibição
+  // Agrupamento por categorias para exibição (incluindo seção "Mais Pedidos" quando não está buscando)
   const groupedCategories = useMemo(() => {
     const map = new Map<string, PublicStorefrontProduct[]>();
+    if (!searchQuery.trim() && hasFeaturedProducts) {
+      const featuredList = filteredProducts.filter((p) => p.featured);
+      if (featuredList.length > 0) {
+        map.set('Mais Pedidos', featuredList);
+      }
+    }
     filteredProducts.forEach((p) => {
       const cat = p.category || 'Outros';
       const list = map.get(cat) || [];
@@ -282,9 +315,33 @@ export function PublicStorefrontView() {
       map.set(cat, list);
     });
     return Array.from(map.entries());
-  }, [filteredProducts]);
+  }, [filteredProducts, hasFeaturedProducts, searchQuery]);
 
   const storeStatus = useMemo(() => getStoreOpenStatus(store), [store]);
+
+  const storefrontDeliveryFeeLabel = useMemo(() => {
+    if (!store) return 'Grátis';
+    const area = store.deliveryArea;
+    if (area?.mode === 'radius' && Array.isArray(area.radiusTiers)) {
+      const fees = area.radiusTiers
+        .filter((tier) => tier.active !== false && Number.isFinite(tier.fee))
+        .map((tier) => Number(tier.fee));
+      if (fees.length > 0) {
+        const minFee = Math.min(...fees);
+        return minFee > 0 ? `A partir de ${fCurrency(minFee)}` : 'Grátis';
+      }
+    }
+    if (area?.mode === 'neighborhood' && Array.isArray(area.neighborhoods)) {
+      const fees = area.neighborhoods
+        .filter((n) => n.active !== false && Number.isFinite(n.fee))
+        .map((n) => Number(n.fee));
+      if (fees.length > 0) {
+        const minFee = Math.min(...fees);
+        return minFee > 0 ? `A partir de ${fCurrency(minFee)}` : 'Grátis';
+      }
+    }
+    return store.deliveryFee > 0 ? fCurrency(store.deliveryFee) : 'Grátis';
+  }, [store]);
 
   // Adicionar produto selecionado ao carrinho
   const handleOpenProduct = (product: PublicStorefrontProduct) => {
@@ -484,6 +541,49 @@ export function PublicStorefrontView() {
           }}
         >
           <Box sx={{ position: 'relative' }}>
+            {/* Botão Menu do Usuário Autenticado (canto superior esquerdo do banner) */}
+            {verifiedCustomer && (
+              <ButtonBase
+                onClick={() => setAccountDrawerOpen(true)}
+                sx={{
+                  position: 'absolute',
+                  top: 12,
+                  left: 12,
+                  zIndex: 12,
+                  pr: 1.5,
+                  pl: 0.5,
+                  py: 0.5,
+                  borderRadius: 99,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  color: '#fff',
+                  bgcolor: 'rgba(18, 25, 38, 0.64)',
+                  backdropFilter: 'blur(8px)',
+                  '&:hover': { bgcolor: 'rgba(18, 25, 38, 0.82)' },
+                }}
+              >
+                <Avatar
+                  sx={{
+                    width: 28,
+                    height: 28,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    bgcolor: 'primary.main',
+                    color: '#fff',
+                  }}
+                >
+                  {(verifiedCustomer.firstName || verifiedCustomer.fullName || 'C')
+                    .charAt(0)
+                    .toUpperCase()}
+                </Avatar>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: '#fff' }}>
+                  {verifiedCustomer.firstName || 'Minha Conta'}
+                </Typography>
+                <Iconify icon="solar:verified-check-bold" width={15} sx={{ color: 'success.light' }} />
+              </ButtonBase>
+            )}
+
             {/* Ações flutuantes sobre o banner: Instalar App, WhatsApp, Instagram e Compartilhar */}
             <Stack
               direction="row"
@@ -692,7 +792,7 @@ export function PublicStorefrontView() {
                 >
                   <Stack direction="row" spacing={1.25} alignItems="center">
                     <Iconify
-                      icon="solar:plate-bold-duotone"
+                      icon="ic:round-table-restaurant"
                       width={26}
                       sx={{ color: 'primary.main', flexShrink: 0 }}
                     />
@@ -824,7 +924,7 @@ export function PublicStorefrontView() {
 
               {isTableMode ? (
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                  <Iconify icon="solar:plate-bold" width={16} sx={{ color: 'primary.main' }} />
+                  <Iconify icon="ic:round-table-restaurant" width={16} sx={{ color: 'primary.main' }} />
                   <span>Consumo na mesa · Sem taxa de entrega</span>
                 </Stack>
               ) : (
@@ -832,10 +932,7 @@ export function PublicStorefrontView() {
                   <Stack direction="row" spacing={0.5} alignItems="center">
                     <Iconify icon="solar:scooter-bold" width={16} sx={{ color: 'primary.main' }} />
                     <span>
-                      Entrega:{' '}
-                      <strong>
-                        {store.deliveryFee > 0 ? fCurrency(store.deliveryFee) : 'Grátis'}
-                      </strong>
+                      Entrega: <strong>{storefrontDeliveryFeeLabel}</strong>
                     </span>
                   </Stack>
 
@@ -858,85 +955,147 @@ export function PublicStorefrontView() {
           </Box>
         </Card>
 
-        {/* 2. Barra de Busca (tamanho normal) e Menu de Abas (Scrollspy) Sticky sem scrollbar */}
+        {/* 2. Fast Menu Sticky estilo iFood (Dropdown de Categorias + Busca Inteligente + Abas) */}
         <Box
           sx={{
             position: 'sticky',
             top: 0,
             zIndex: 1100,
-            bgcolor: 'background.default',
-            pt: 1,
-            pb: 1.5,
+            bgcolor: (theme) => alpha(theme.palette.background.default, 0.94),
+            backdropFilter: 'blur(10px)',
+            pt: 1.25,
+            pb: 1.25,
+            mb: 1.5,
+            borderBottom: (theme) => `1px solid ${varAlpha(theme.vars.palette.grey['500Channel'], 0.14)}`,
           }}
         >
-          {/* Campo de Busca Rápida (tamanho normal, sem small) */}
-          <TextField
-            fullWidth
-            placeholder="Buscar produtos no cardápio..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Iconify icon="eva:search-fill" sx={{ color: 'text.disabled' }} />
-                </InputAdornment>
-              ),
-              endAdornment: searchQuery ? (
-                <InputAdornment position="end">
-                  <IconButton size="small" onClick={() => setSearchQuery('')}>
-                    <Iconify icon="eva:close-fill" width={16} />
-                  </IconButton>
-                </InputAdornment>
-              ) : null,
-            }}
-            sx={{
-              bgcolor: 'background.paper',
-              borderRadius: 1.5,
-              '& .MuiOutlinedInput-root': { borderRadius: 1.5 },
-            }}
-          />
-
-          {/* Abas Scrollspy com rolagem horizontal invisível (sem scrollbar) */}
+          {/* Linha principal fixa 50% / 50%: Dropdown de Categorias à esquerda + Busca no cardápio à direita */}
           <Box
-            sx={{
-              mt: 1.5,
-              overflowX: 'auto',
-              scrollbarWidth: 'none',
-              '&::-webkit-scrollbar': { display: 'none' },
-            }}
+            display="grid"
+            gridTemplateColumns="repeat(2, minmax(0, 1fr))"
+            gap={1.25}
+            alignItems="center"
           >
-            <Stack direction="row" spacing={1} sx={{ pb: 0.5, flexWrap: 'nowrap' }}>
-              <Chip
-                label="Todos"
-                color={activeCategory === 'all' ? 'primary' : 'default'}
-                variant={activeCategory === 'all' ? 'filled' : 'soft'}
-                onClick={() => handleCategoryClick('all')}
-                clickable
-                sx={{ fontWeight: activeCategory === 'all' ? 700 : 500, flexShrink: 0 }}
-              />
+            <Button
+              fullWidth
+              variant="outlined"
+              color="inherit"
+              onClick={categoryMenuPopover.onOpen}
+              endIcon={
+                <Iconify
+                  icon={
+                    categoryMenuPopover.open
+                      ? 'eva:arrow-ios-upward-fill'
+                      : 'eva:arrow-ios-downward-fill'
+                  }
+                  width={18}
+                  sx={{ color: 'primary.main', flexShrink: 0 }}
+                />
+              }
+              sx={{
+                height: 44,
+                px: { xs: 1.5, sm: 2 },
+                justifyContent: 'space-between',
+                minWidth: 0,
+                bgcolor: 'background.paper',
+                borderRadius: 1.5,
+                fontWeight: 700,
+                color: 'text.primary',
+                borderColor: (theme) => varAlpha(theme.vars.palette.grey['500Channel'], 0.24),
+              }}
+            >
+              <Box
+                component="span"
+                sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {activeCategory === 'all' ? allCategories[0] || 'Cardápio' : activeCategory}
+              </Box>
+            </Button>
+
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="Buscar no cardápio..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Iconify icon="eva:search-fill" sx={{ color: 'primary.main' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: searchQuery ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearchQuery('')}>
+                      <Iconify icon="eva:close-fill" width={16} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              }}
+              sx={{
+                minWidth: 0,
+                bgcolor: 'background.paper',
+                borderRadius: 1.5,
+                '& .MuiOutlinedInput-root': { height: 44, borderRadius: 1.5 },
+              }}
+            />
+          </Box>
+
+          {/* Dropdown Menu de Categorias (marmita-dropdown-menu estilo iFood) */}
+          <CustomPopover
+            open={categoryMenuPopover.open}
+            anchorEl={categoryMenuPopover.anchorEl}
+            onClose={categoryMenuPopover.onClose}
+            slotProps={{ arrow: { placement: 'top-left' } }}
+          >
+            <MenuList sx={{ minWidth: 230, maxHeight: 340, overflowY: 'auto' }}>
+              <MenuItem
+                selected={activeCategory === 'all'}
+                onClick={() => {
+                  categoryMenuPopover.onClose();
+                  setSearchQuery('');
+                  handleCategoryClick('all');
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+                  Ver todo o cardápio
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {store.products.length}
+                </Typography>
+              </MenuItem>
+              <Divider sx={{ borderStyle: 'dashed', my: 0.5 }} />
               {allCategories.map((cat) => {
+                const count =
+                  cat === 'Mais Pedidos'
+                    ? store.products.filter((p) => p.featured).length
+                    : store.products.filter((p) => (p.category || 'Outros') === cat).length;
                 const isActive = activeCategory === cat;
                 return (
-                  <Chip
+                  <MenuItem
                     key={cat}
-                    ref={(el) => {
-                      chipRefs.current[cat] = el as HTMLDivElement | null;
+                    selected={isActive}
+                    onClick={() => {
+                      categoryMenuPopover.onClose();
+                      setSearchQuery('');
+                      handleCategoryClick(cat);
                     }}
-                    label={cat}
-                    color={isActive ? 'primary' : 'default'}
-                    variant={isActive ? 'filled' : 'soft'}
-                    onClick={() => handleCategoryClick(cat)}
-                    clickable
                     sx={{
                       fontWeight: isActive ? 700 : 500,
-                      flexShrink: 0,
-                      transition: 'all 0.2s',
+                      color: isActive ? 'primary.main' : 'text.primary',
                     }}
-                  />
+                  >
+                    <Typography variant="body2" sx={{ flexGrow: 1, fontWeight: 'inherit' }}>
+                      {cat}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {count}
+                    </Typography>
+                  </MenuItem>
                 );
               })}
-            </Stack>
-          </Box>
+            </MenuList>
+          </CustomPopover>
         </Box>
 
         {/* 3. Lista do Cardápio por Seções com Scrollspy */}
@@ -1156,7 +1315,25 @@ export function PublicStorefrontView() {
                                 overflow: 'hidden',
                               }}
                             >
-                              {product.name}
+                              {getHighlightParts(product.name, searchQuery).map((part, pIdx) => (
+                                <Box
+                                  key={pIdx}
+                                  component="span"
+                                  sx={
+                                    part.highlight
+                                      ? {
+                                          color: 'primary.main',
+                                          bgcolor: (theme) =>
+                                            varAlpha(theme.vars.palette.primary.mainChannel, 0.14),
+                                          borderRadius: 0.5,
+                                          px: 0.25,
+                                        }
+                                      : undefined
+                                  }
+                                >
+                                  {part.text}
+                                </Box>
+                              ))}
                             </Typography>
 
                             {product.description && (
@@ -1865,6 +2042,16 @@ export function PublicStorefrontView() {
           )}
         </MenuList>
       </CustomPopover>
+
+      <PublicCustomerAccountDrawer
+        open={accountDrawerOpen}
+        slug={slug}
+        storeName={store.storeName}
+        customer={verifiedCustomer}
+        onClose={() => setAccountDrawerOpen(false)}
+        onOpenMyOrders={() => navigate(paths.publicStore.orders(slug))}
+        onSignedOut={() => setVerifiedCustomer(null)}
+      />
     </Box>
   );
 }
