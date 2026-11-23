@@ -23,6 +23,7 @@ const onlineOrders = require('./online-orders');
 const whatsappService = require('./whatsapp/whatsapp-service');
 const userSwitch = require('./auth/user-switch');
 const nfceService = require('./fiscal/nfce-service');
+const siscomexNcm = require('./fiscal/siscomex-ncm');
 
 const auth = getAuth();
 const db = getFirestore();
@@ -1811,19 +1812,23 @@ exports.enqueueSaleNfce = onCall(async (request) => {
   }
 });
 
-exports.issueSaleNfce = onCall(async (request) => {
-  const enterpriseId = String(request.data?.enterpriseId || '').trim();
-  const saleId = String(request.data?.saleId || '').trim();
-  if (!enterpriseId || !saleId) {
-    throw new HttpsError('invalid-argument', 'enterpriseId and saleId are required');
+// cpu gcf_gen1: menor cota Cloud Run (projeto já estourou CPU em us-central1)
+exports.issueSaleNfce = onCall(
+  { memory: '256MiB', cpu: 'gcf_gen1', concurrency: 80, maxInstances: 2 },
+  async (request) => {
+    const enterpriseId = String(request.data?.enterpriseId || '').trim();
+    const saleId = String(request.data?.saleId || '').trim();
+    if (!enterpriseId || !saleId) {
+      throw new HttpsError('invalid-argument', 'enterpriseId and saleId are required');
+    }
+    assertSameEnterpriseMember(request, enterpriseId);
+    try {
+      return await nfceService.issueSaleNfceForEnterprise(db, { enterpriseId, saleId });
+    } catch (error) {
+      throw mapNfceHttpsError(error);
+    }
   }
-  assertSameEnterpriseMember(request, enterpriseId);
-  try {
-    return await nfceService.issueSaleNfceForEnterprise(db, { enterpriseId, saleId });
-  } catch (error) {
-    throw mapNfceHttpsError(error);
-  }
-});
+);
 
 exports.cancelSaleNfce = onCall(async (request) => {
   const enterpriseId = String(request.data?.enterpriseId || '').trim();
@@ -1872,6 +1877,20 @@ exports.processPendingNfceBatch = onSchedule('every 15 minutes', async () => {
     } catch (error) {
       console.error('processPendingNfceBatch', docSnap.id, error?.message || error);
     }
+  }
+});
+
+exports.searchSiscomexNcm = onCall({ memory: '512MiB', timeoutSeconds: 30 }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  const query = String(request.data?.query || '').trim();
+  const limit = Number(request.data?.limit || 25);
+  try {
+    return await siscomexNcm.searchSiscomexNcm({ query, limit });
+  } catch (error) {
+    console.error('searchSiscomexNcm', error?.message || error);
+    throw new HttpsError('unavailable', 'Failed to query Siscomex NCM table');
   }
 });
 
