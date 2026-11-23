@@ -1,7 +1,7 @@
 # Decision — NFC-e: Focus (default) vs SEFAZ direto
 
 **Date:** 2026-11-23  
-**Status:** Design dialogue approved — awaiting written-spec user review  
+**Status:** Approved — user elected writing-plans for scenario A (SaaS multi-tenant `sefaz-direct`)  
 **Related:** `docs/superpowers/specs/2026-11-22-nfce-tax-reform-umbrella-design.md`, `docs/superpowers/plans/2026-11-22-nfce-emission.md`  
 **Code in this phase:** none (decision only; plan only if user elects implementation)
 
