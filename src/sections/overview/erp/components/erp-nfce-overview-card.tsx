@@ -1,4 +1,5 @@
 import type { Sale } from 'src/api/firestore/sales';
+import type { ColorType } from 'src/theme/core/palette';
 
 import { useMemo } from 'react';
 
@@ -9,6 +10,7 @@ import Table from '@mui/material/Table';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import TableRow from '@mui/material/TableRow';
+import { useTheme } from '@mui/material/styles';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
@@ -20,6 +22,8 @@ import { RouterLink } from 'src/routes/components';
 
 import { fDateTime } from 'src/utils/format-time';
 import { fNumber, fPercent, fCurrency } from 'src/utils/format-number';
+
+import { varAlpha } from 'src/theme/styles';
 
 import { Label } from 'src/components/label';
 import { Iconify } from 'src/components/iconify';
@@ -35,6 +39,14 @@ type Props = {
   maxRows?: number;
 };
 
+type NfceMetricCard = {
+  label: string;
+  total: number;
+  sub: string;
+  color: ColorType;
+  icon: string;
+};
+
 function formatShortKey(key?: string): string {
   if (!key) return '—';
   if (key.length <= 16) return key;
@@ -42,6 +54,8 @@ function formatShortKey(key?: string): string {
 }
 
 export function ErpNfceOverviewCard({ sales, fiscal, maxRows = 5 }: Props) {
+  const theme = useTheme();
+
   const { errorCount, simulatedCount, recentNfceSales } = useMemo(() => {
     let errors = 0;
     let simulated = 0;
@@ -73,30 +87,34 @@ export function ErpNfceOverviewCard({ sales, fiscal, maxRows = 5 }: Props) {
     };
   }, [maxRows, sales]);
 
-  const metrics = [
+  const metrics: NfceMetricCard[] = [
     {
       label: 'Autorizadas',
-      value: fNumber(fiscal.authorizedCount),
+      total: fiscal.authorizedCount,
       sub: `${fCurrency(fiscal.authorizedTotal)}${simulatedCount > 0 ? ` • ${simulatedCount} sim.` : ''}`,
-      color: 'success.main',
+      color: 'success',
+      icon: 'solar:verified-check-bold-duotone',
     },
     {
       label: 'Pendentes / Sem NFC-e',
-      value: fNumber(fiscal.pendingCount),
+      total: fiscal.pendingCount,
       sub: fCurrency(fiscal.pendingTotal),
-      color: 'warning.main',
+      color: 'warning',
+      icon: 'solar:clock-circle-bold-duotone',
     },
     {
       label: 'Com Erro',
-      value: fNumber(errorCount),
+      total: errorCount,
       sub: errorCount > 0 ? 'Requer atenção' : 'Nenhuma falha',
-      color: errorCount > 0 ? 'error.main' : 'text.secondary',
+      color: 'error',
+      icon: 'solar:danger-triangle-bold-duotone',
     },
     {
       label: 'Canceladas',
-      value: fNumber(fiscal.cancelledCount),
+      total: fiscal.cancelledCount,
       sub: `Conformidade: ${fPercent(fiscal.compliancePercent)}`,
-      color: 'text.secondary',
+      color: 'secondary',
+      icon: 'solar:close-circle-bold-duotone',
     },
   ];
 
@@ -129,30 +147,67 @@ export function ErpNfceOverviewCard({ sales, fiscal, maxRows = 5 }: Props) {
         }
       />
 
+      {/* Padrão CourseWidgetSummary (Minimals v6) */}
       <Box
         display="grid"
-        gridTemplateColumns={{ xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }}
-        sx={{ px: 3, py: 2.5, gap: 2 }}
+        gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }}
+        sx={{ px: 3, py: 2.5, gap: 2.5 }}
       >
         {metrics.map((item) => (
-          <Box
+          <Card
             key={item.label}
             sx={{
-              p: 2,
-              borderRadius: 1.5,
-              bgcolor: 'background.neutral',
+              py: 3,
+              pl: 3,
+              pr: 2.5,
+              position: 'relative',
+              overflow: 'hidden',
+              boxShadow: 'none',
+              border: `solid 1px ${varAlpha(theme.vars.palette.grey['500Channel'], 0.16)}`,
             }}
           >
-            <Typography variant="caption" color="text.secondary" noWrap display="block">
-              {item.label}
-            </Typography>
-            <Typography variant="h4" sx={{ color: item.color, my: 0.25 }}>
-              {item.value}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap display="block">
-              {item.sub}
-            </Typography>
-          </Box>
+            <Box sx={{ flexGrow: 1, pr: 4 }}>
+              <Box sx={{ typography: 'h3', mb: 0.5 }}>{fNumber(item.total)}</Box>
+              <Typography noWrap variant="subtitle2" component="div" sx={{ color: 'text.secondary' }}>
+                {item.label}
+              </Typography>
+              <Typography
+                noWrap
+                variant="caption"
+                component="div"
+                sx={{ color: 'text.disabled', mt: 0.5 }}
+              >
+                {item.sub}
+              </Typography>
+            </Box>
+
+            <Iconify
+              icon={item.icon}
+              width={36}
+              sx={{
+                top: 24,
+                right: 20,
+                position: 'absolute',
+                color: `${item.color}.main`,
+              }}
+            />
+
+            <Box
+              sx={{
+                top: -44,
+                width: 160,
+                zIndex: 0,
+                height: 160,
+                right: -104,
+                opacity: 0.14,
+                borderRadius: 3,
+                position: 'absolute',
+                pointerEvents: 'none',
+                transform: 'rotate(40deg)',
+                background: `linear-gradient(to right, ${theme.vars.palette[item.color].main} 0%, ${varAlpha(theme.vars.palette[item.color].mainChannel, 0)} 100%)`,
+              }}
+            />
+          </Card>
         ))}
       </Box>
 

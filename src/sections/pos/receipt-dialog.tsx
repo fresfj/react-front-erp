@@ -223,15 +223,18 @@ export function ReceiptDialog({
                 left: 0 !important;
                 top: 0 !important;
                 width: ${is58 ? '58mm' : is80 ? '80mm' : '148mm'} !important;
+                max-width: ${is58 ? '58mm' : is80 ? '80mm' : '148mm'} !important;
+                box-sizing: border-box !important;
                 margin: 0 !important;
-                padding: ${isA5 ? '8mm' : '2mm'} !important;
+                padding: ${isA5 ? '6mm' : '1.5mm'} !important;
+                line-height: 1.2 !important;
                 background: #FFFFFF !important;
                 color: #000000 !important;
                 box-shadow: none !important;
               }
               @page {
                 size: ${is58 ? '58mm auto' : is80 ? '80mm auto' : '148mm 210mm'};
-                margin: ${isA5 ? '5mm' : '0mm'};
+                margin: ${isA5 ? '4mm' : '0mm'};
               }
             }
           `}
@@ -444,26 +447,26 @@ export function ReceiptDialog({
               maxWidth: previewWidth,
               bgcolor: '#FFFFFF',
               color: '#000000',
-              p: isA5 ? 4 : is58 ? 2 : 2.5,
+              p: isA5 ? 3 : is58 ? 1.5 : 2,
               borderRadius: 0.5,
               boxShadow: '0 8px 32px rgba(0, 0, 0, 0.45)',
               fontFamily: '"Courier New", Courier, monospace',
-              fontSize: isA5 ? 13 : is58 ? 11 : 12,
-              lineHeight: 1.35,
+              fontSize: isA5 ? 12.5 : is58 ? 10.5 : 11.5,
+              lineHeight: 1.22,
               fontWeight: bold ? 700 : 500,
               wordBreak: 'break-word',
             }}
           >
             {/* Logo */}
             {showLogo && (
-              <Box sx={{ textAlign: 'center', mb: 1.5 }}>
+              <Box sx={{ textAlign: 'center', mb: 0.75 }}>
                 <Box
                   component="img"
                   src="/logo/logo-single.png"
                   alt="Logo"
                   sx={{
-                    width: isA5 ? 54 : is58 ? 36 : 42,
-                    height: isA5 ? 54 : is58 ? 36 : 42,
+                    width: isA5 ? 48 : is58 ? 32 : 38,
+                    height: isA5 ? 48 : is58 ? 32 : 38,
                     mx: 'auto',
                     display: 'block',
                   }}
@@ -472,38 +475,37 @@ export function ReceiptDialog({
             )}
 
             {/* Enterprise Header */}
-            <Box sx={{ textAlign: 'center', mb: 1 }}>
+            <Box sx={{ textAlign: 'center', mb: 0.5 }}>
               <Typography
                 variant="subtitle1"
                 sx={{
                   fontFamily: 'inherit',
                   fontWeight: 'bold',
-                  fontSize: isA5 ? 16 : is58 ? 13 : 14,
+                  fontSize: isA5 ? 15 : is58 ? 12.5 : 13.5,
+                  lineHeight: 1.2,
                   textTransform: 'uppercase',
                 }}
               >
                 {enterprise?.tradeName || enterprise?.name || 'ERP MINIMALS'}
               </Typography>
               {enterprise?.name && enterprise?.tradeName && (
-                <Box sx={{ fontSize: is58 ? 9 : 10 }}>{enterprise.name}</Box>
+                <Box sx={{ fontSize: is58 ? 8.5 : 9.5 }}>{enterprise.name}</Box>
               )}
               {enterpriseCnpj && (
-                <Box sx={{ fontSize: is58 ? 9 : 10 }}>
+                <Box sx={{ fontSize: is58 ? 8.5 : 9.5 }}>
                   CNPJ: {enterpriseCnpj}
                   {enterprise?.stateRegistration ? ` • IE: ${enterprise.stateRegistration}` : ''}
                 </Box>
               )}
               {enterpriseAddress && (
-                <Box sx={{ fontSize: is58 ? 8.5 : 9.5 }}>{enterpriseAddress}</Box>
+                <Box sx={{ fontSize: is58 ? 8 : 9 }}>{enterpriseAddress}</Box>
               )}
               {enterprise?.phone && (
-                <Box sx={{ fontSize: is58 ? 8.5 : 9.5 }}>Tel: {enterprise.phone}</Box>
+                <Box sx={{ fontSize: is58 ? 8 : 9 }}>Tel: {enterprise.phone}</Box>
               )}
             </Box>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Receipt / NFC-e Title */}
             <Box sx={{ textAlign: 'center' }}>
@@ -512,7 +514,8 @@ export function ReceiptDialog({
                 sx={{
                   fontFamily: 'inherit',
                   fontWeight: 'bold',
-                  fontSize: isA5 ? 14 : is58 ? 12 : 13,
+                  fontSize: isA5 ? 13.5 : is58 ? 11 : 12.5,
+                  lineHeight: 1.2,
                   textTransform: 'uppercase',
                 }}
               >
@@ -520,43 +523,37 @@ export function ReceiptDialog({
                   ? 'DANFE NFC-e - DOCUMENTO AUXILIAR'
                   : 'CUPOM NÃO FISCAL'}
               </Typography>
-              <Box sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
+              <Box sx={{ fontSize: is58 ? 9 : 10 }}>
                 {sale.nfceStatus === 'authorized'
                   ? `NFC-e Nº ${sale.nfceNumber || sale.code} • Série ${enterprise?.nfceSeries || '1'}`
                   : `Venda: ${sale.code}`}
               </Box>
             </Box>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Meta: Data, Hora, Status */}
-            <Stack direction="row" justifyContent="space-between" sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
+            <Stack direction="row" justifyContent="space-between" sx={{ fontSize: is58 ? 9 : 10 }}>
               <span>Data: {fDateTime(sale.createdAt)}</span>
               <span>{sale.status === 'completed' ? 'CONCLUÍDO' : 'CANCELADO'}</span>
             </Stack>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Cliente */}
-            <Box sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
+            <Box sx={{ fontSize: is58 ? 9 : 10 }}>
               <div>CLIENTE: {sale.customerName || 'CONSUMIDOR FINAL'}</div>
               {customerDoc && <div>CPF/CNPJ: {customerDoc}</div>}
               {sale.customerAddress && <div>Endereço: {sale.customerAddress}</div>}
             </Box>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Itens */}
-            <Box sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
-              <Box sx={{ fontWeight: 'bold', mb: 0.5 }}>ITENS</Box>
+            <Box sx={{ fontSize: is58 ? 9 : 10 }}>
+              <Box sx={{ fontWeight: 'bold', mb: 0.25 }}>ITENS</Box>
               {sale.items.map((item, idx) => (
-                <Box key={idx} sx={{ mb: 1 }}>
+                <Box key={idx} sx={{ mb: 0.5 }}>
                   <Stack direction="row" justifyContent="space-between">
                     <span>
                       {idx + 1}. {item.productName}
@@ -578,12 +575,10 @@ export function ReceiptDialog({
               ))}
             </Box>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Totais */}
-            <Stack spacing={0.5} sx={{ fontSize: is58 ? 10 : 11 }}>
+            <Stack spacing={0.25} sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
               <Stack direction="row" justifyContent="space-between">
                 <span>QTD ITENS:</span>
                 <span>{sale.items.reduce((acc, cur) => acc + cur.qty, 0)}</span>
@@ -615,11 +610,11 @@ export function ReceiptDialog({
                 justifyContent="space-between"
                 sx={{
                   fontWeight: 'bold',
-                  fontSize: isA5 ? 16 : is58 ? 13 : 14,
-                  py: 0.5,
-                  borderTop: '2px solid #000',
-                  borderBottom: '2px solid #000',
-                  my: 0.5,
+                  fontSize: isA5 ? 15 : is58 ? 12.5 : 13.5,
+                  py: 0.35,
+                  borderTop: '1.5px solid #000',
+                  borderBottom: '1.5px solid #000',
+                  my: 0.35,
                 }}
               >
                 <span>TOTAL:</span>
@@ -627,13 +622,11 @@ export function ReceiptDialog({
               </Stack>
             </Stack>
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Pagamentos */}
-            <Box sx={{ fontSize: is58 ? 9.5 : 10.5 }}>
-              <Box sx={{ fontWeight: 'bold', mb: 0.5 }}>PAGAMENTO</Box>
+            <Box sx={{ fontSize: is58 ? 9 : 10 }}>
+              <Box sx={{ fontWeight: 'bold', mb: 0.25 }}>PAGAMENTO</Box>
               {sale.payments.map((p, idx) => {
                 const methodLabel =
                   p.method === 'cash'
@@ -667,14 +660,14 @@ export function ReceiptDialog({
                   <span>{fCurrency(sale.changeAmount)}</span>
                 </Stack>
               )}
-              <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.5 }}>
+              <Stack direction="row" justifyContent="space-between" sx={{ mt: 0.25 }}>
                 <span>ENTREGA:</span>
                 <span>
                   {sale.deliveryType === 'delivery' ? 'ENTREGA / DELIVERY' : 'RETIRADO NO LOCAL'}
                 </span>
               </Stack>
               {sale.deliveryType === 'delivery' && sale.deliveryAddress && (
-                <Box sx={{ fontSize: is58 ? 8.5 : 9.5, mt: 0.25 }}>
+                <Box sx={{ fontSize: is58 ? 8 : 9, mt: 0.2 }}>
                   End. Entrega: {sale.deliveryAddress}
                 </Box>
               )}
@@ -687,12 +680,10 @@ export function ReceiptDialog({
                 sale.nfceSimulated || enterprise?.nfceEnvironment !== 'production';
               return (
                 <>
-                  <Box sx={{ textAlign: 'center', my: 0.5 }}>
-                    --------------------------------------------------
-                  </Box>
-                  <Box sx={{ fontSize: is58 ? 8.5 : 9.5, textAlign: 'center' }}>
+                  <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
+                  <Box sx={{ fontSize: is58 ? 8 : 9, textAlign: 'center' }}>
                     {qrDisplay && (
-                      <Box sx={{ fontSize: is58 ? 7.5 : 8.5, mb: 0.5 }}>
+                      <Box sx={{ fontSize: is58 ? 7.5 : 8.5, mb: 0.35 }}>
                         Consulte pela Chave de Acesso em:
                         <br />
                         <Box component="span" sx={{ wordBreak: 'break-all' }}>
@@ -701,26 +692,25 @@ export function ReceiptDialog({
                       </Box>
                     )}
                     <Box sx={{ fontWeight: 'bold' }}>CHAVE DE ACESSO</Box>
-                    <Box sx={{ wordBreak: 'break-all', my: 0.5, letterSpacing: 0.5 }}>
+                    <Box sx={{ wordBreak: 'break-all', my: 0.25, letterSpacing: 0.3 }}>
                       {sale.nfceKey.replace(/(\d{4})/g, '$1 ').trim()}
                     </Box>
                     {sale.nfceNumber && (
-                      <Box sx={{ mb: 0.25 }}>
+                      <Box sx={{ mb: 0.15 }}>
                         NFC-e nº {sale.nfceNumber} • Série {enterprise?.nfceSeries || '1'}
                       </Box>
                     )}
                     {sale.nfceProtocol && (
                       <Box>
-                        Protocolo de Autorização: {sale.nfceProtocol}
-                        <br />
-                        Emissão: {fDateTime(sale.nfceIssuedAt || sale.createdAt)}
+                        Protocolo: {sale.nfceProtocol} • Emissão:{' '}
+                        {fDateTime(sale.nfceIssuedAt || sale.createdAt)}
                       </Box>
                     )}
                     {qrDisplay && (
                       <Box
                         sx={{
-                          mt: 1,
-                          mb: 0.5,
+                          mt: 0.6,
+                          mb: 0.25,
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
@@ -728,17 +718,17 @@ export function ReceiptDialog({
                       >
                         <QRCodeSVG
                           value={qrDisplay.qrValue}
-                          size={is58 ? 116 : 140}
+                          size={is58 ? 96 : 112}
                           level="M"
-                          includeMargin
+                          includeMargin={false}
                         />
-                        <Box sx={{ fontSize: is58 ? 7.5 : 8.5, mt: 0.25 }}>
+                        <Box sx={{ fontSize: is58 ? 7 : 8, mt: 0.25 }}>
                           Consulta via leitor de QR Code
                         </Box>
                       </Box>
                     )}
                     {isHomologOrSim && (
-                      <Box sx={{ fontSize: is58 ? 7.5 : 8, fontWeight: 'bold', mt: 0.5 }}>
+                      <Box sx={{ fontSize: is58 ? 7 : 8, fontWeight: 'bold', mt: 0.25 }}>
                         EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL
                       </Box>
                     )}
@@ -747,22 +737,20 @@ export function ReceiptDialog({
               );
             })()}
 
-            <Box sx={{ textAlign: 'center', my: 0.5 }}>
-              --------------------------------------------------
-            </Box>
+            <Box sx={{ borderBottom: '1px dashed #000', my: 0.5, width: '100%' }} />
 
             {/* Mensagem Rodapé */}
-            <Box sx={{ textAlign: 'center', mt: 1, fontSize: is58 ? 9 : 10 }}>
+            <Box sx={{ textAlign: 'center', mt: 0.5, fontSize: is58 ? 8.5 : 9.5 }}>
               <Box sx={{ fontWeight: 'bold' }}>
                 {enterprise?.receiptFooterMessage || 'OBRIGADO PELA PREFERÊNCIA!'}
               </Box>
               <Box>VOLTE SEMPRE</Box>
               {sale.nfceStatus !== 'authorized' && (
-                <Box sx={{ fontSize: is58 ? 8 : 8.5, color: '#444', mt: 0.5 }}>
+                <Box sx={{ fontSize: is58 ? 7.5 : 8, color: '#444', mt: 0.25 }}>
                   Este não é um documento fiscal
                 </Box>
               )}
-              <Box sx={{ fontSize: is58 ? 7.5 : 8.5, color: '#666', mt: 0.5 }}>
+              <Box sx={{ fontSize: is58 ? 7 : 8, color: '#666', mt: 0.25 }}>
                 Emitido em {fDateTime(new Date().toISOString())}
               </Box>
             </Box>
