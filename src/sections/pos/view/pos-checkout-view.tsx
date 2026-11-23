@@ -41,6 +41,7 @@ import { createSale } from 'src/api/firestore/sales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { listProducts } from 'src/api/firestore/products';
 import { getEnterprise } from 'src/api/firestore/platform';
+import { enqueueNfceAfterSale } from 'src/api/firestore/nfce';
 import { seedDemoErpCatalog } from 'src/api/firestore/seed-demo';
 import { listCashSessions } from 'src/api/firestore/cash-sessions';
 import { listAvailableBatchesFIFO } from 'src/api/firestore/batches';
@@ -466,6 +467,8 @@ export function PosCheckoutView() {
         notes: notes.trim() || undefined,
       });
 
+      await enqueueNfceAfterSale(enterpriseId, saleId, enterprise?.nfceEnabled);
+
       toast.success(t('pos.createSuccess'));
       router.push(paths.dashboard.pos.saleDetails(saleId));
     } catch (error) {
@@ -481,6 +484,7 @@ export function PosCheckoutView() {
     deliveryAddress,
     deliveryType,
     effectiveDeliveryFee,
+    enterprise?.nfceEnabled,
     enterpriseId,
     enrichedPayments,
     notes,

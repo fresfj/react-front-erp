@@ -14,6 +14,8 @@ import {
 
 import { FIRESTORE } from 'src/lib/firebase';
 
+import { getEnterprise } from './platform';
+import { enqueueNfceAfterSale } from './nfce';
 import { omitUndefined } from './omit-undefined';
 import { enterpriseDoc, enterpriseCollection } from './paths';
 
@@ -621,6 +623,14 @@ export async function closeTableSession(
   }
 
   await wb.commit();
+
+  try {
+    const ent = await getEnterprise(enterpriseId);
+    await enqueueNfceAfterSale(enterpriseId, saleRef.id, ent?.nfceEnabled);
+  } catch {
+    // Sale already persisted; NFC-e can retry later
+  }
+
   return { saleId: saleRef.id };
 }
 

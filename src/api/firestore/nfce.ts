@@ -57,3 +57,21 @@ export function retryPendingNfceCf(input: { enterpriseId: string; saleId?: strin
     input
   );
 }
+
+/** Best-effort: issue now; on failure leave pending for scheduler/retry. */
+export async function enqueueNfceAfterSale(
+  enterpriseId: string,
+  saleId: string,
+  nfceEnabled: boolean | undefined
+): Promise<void> {
+  if (!nfceEnabled) return;
+  try {
+    await issueSaleNfceCf({ enterpriseId, saleId });
+  } catch {
+    try {
+      await enqueueSaleNfceCf({ enterpriseId, saleId });
+    } catch {
+      // Offline / CF unreachable — scheduler or manual retry later
+    }
+  }
+}

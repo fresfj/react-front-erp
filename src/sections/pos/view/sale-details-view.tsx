@@ -36,6 +36,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
+import { cancelSaleNfceCf } from 'src/api/firestore/nfce';
 import { getEnterprise } from 'src/api/firestore/platform';
 import { sendSaleReceiptWhatsappCf } from 'src/api/firestore/whatsapp';
 import {
@@ -118,15 +119,32 @@ export function SaleDetailsView({ saleId }: Props) {
     setIssuingNfce(true);
     try {
       await issueSaleNfce(enterpriseId, sale);
-      toast.success('NFC-e autorizada com sucesso na SEFAZ!');
+      toast.success(t('fiscal.issueSuccess'));
       await loadSale();
     } catch (error) {
       console.error(error);
-      toast.error(getFirebaseErrorMessage(error, 'Erro ao emitir NFC-e'));
+      toast.error(getFirebaseErrorMessage(error, t('fiscal.issueError')));
+      await loadSale();
     } finally {
       setIssuingNfce(false);
     }
-  }, [enterpriseId, sale, loadSale]);
+  }, [enterpriseId, sale, loadSale, t]);
+
+  const handleCancelNfce = useCallback(async () => {
+    if (!enterpriseId || !sale) return;
+    if (!window.confirm(t('fiscal.cancel'))) return;
+    setIssuingNfce(true);
+    try {
+      await cancelSaleNfceCf({ enterpriseId, saleId: sale.id });
+      toast.success(t('fiscal.cancel'));
+      await loadSale();
+    } catch (error) {
+      console.error(error);
+      toast.error(getFirebaseErrorMessage(error, t('fiscal.issueError')));
+    } finally {
+      setIssuingNfce(false);
+    }
+  }, [enterpriseId, sale, loadSale, t]);
 
   const handlePrintCupom = useCallback(() => {
     setOpenInPdf(false);
@@ -347,11 +365,25 @@ export function SaleDetailsView({ saleId }: Props) {
                   </Label>
                   <Label
                     variant="soft"
-                    color={sale.nfceStatus === 'authorized' ? 'info' : 'warning'}
+                    color={
+                      sale.nfceStatus === 'authorized'
+                        ? 'info'
+                        : sale.nfceStatus === 'error'
+                          ? 'error'
+                          : sale.nfceStatus === 'cancelled'
+                            ? 'default'
+                            : 'warning'
+                    }
                   >
                     {sale.nfceStatus === 'authorized'
                       ? `NFC-e #${sale.nfceNumber}`
-                      : 'Cupom Não-Fiscal / Pendente NFC-e'}
+                      : sale.nfceStatus === 'error'
+                        ? t('fiscal.issueError')
+                        : sale.nfceStatus === 'pending'
+                          ? t('fiscal.pending')
+                          : sale.nfceStatus === 'cancelled'
+                            ? t('fiscal.cancel')
+                            : 'Cupom Não-Fiscal'}
                   </Label>
                 </Stack>
 
@@ -380,18 +412,32 @@ export function SaleDetailsView({ saleId }: Props) {
                   : t('pos.status.cancelled')}
               </Button>
 
-              {sale.nfceStatus !== 'authorized' && sale.status === 'completed' && (
-                <Tooltip title="Emitir NFC-e na SEFAZ [Atalho: N]">
-                  <LoadingButton
-                    color="info"
-                    variant="soft"
-                    loading={issuingNfce}
-                    startIcon={<Iconify icon="solar:document-add-bold" />}
-                    onClick={handleIssueNfce}
-                  >
-                    Emitir NFC-e
-                  </LoadingButton>
-                </Tooltip>
+              {sale.nfceStatus !== 'authorized' &&
+                sale.nfceStatus !== 'cancelled' &&
+                sale.status === 'completed' && (
+                  <Tooltip title="Emitir NFC-e na SEFAZ [Atalho: N]">
+                    <LoadingButton
+                      color="info"
+                      variant="soft"
+                      loading={issuingNfce}
+                      startIcon={<Iconify icon="solar:document-add-bold" />}
+                      onClick={handleIssueNfce}
+                    >
+                      {sale.nfceStatus === 'error' || sale.nfceStatus === 'pending'
+                        ? t('fiscal.retry')
+                        : t('fiscal.title')}
+                    </LoadingButton>
+                  </Tooltip>
+                )}
+              {sale.nfceStatus === 'authorized' && sale.status === 'completed' && (
+                <LoadingButton
+                  color="error"
+                  variant="soft"
+                  loading={issuingNfce}
+                  onClick={handleCancelNfce}
+                >
+                  {t('fiscal.cancel')}
+                </LoadingButton>
               )}
 
               <Tooltip title="Impressão Térmica Direta 80mm / 58mm [Atalho: F9 ou Ctrl+P | P: visualizar]">
@@ -535,6 +581,17 @@ export function SaleDetailsView({ saleId }: Props) {
                   {renderTotal}
                 </Card>
 
+                {(sale.nfceStatus === 'error' || sale.nfceLastError) && (
+                  <Card sx={{ p: 3 }}>
+                    <Typography variant="subtitle2" color="error" sx={{ mb: 1 }}>
+                      {t('fiscal.issueError')}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {sale.nfceLastError}
+                    </Typography>
+                  </Card>
+                )}
+
                 {/* NFC-e / Fiscal Traceability Card */}
                 {sale.nfceStatus === 'authorized' && (
                   <Card sx={{ p: 3 }}>
@@ -546,7 +603,8 @@ export function SaleDetailsView({ saleId }: Props) {
                     </Stack>
                     <Stack spacing={1} sx={{ typography: 'body2', color: 'text.secondary' }}>
                       <div>
-                        <strong>Número NFC-e:</strong> {sale.nfceNumber} (Série 1)
+                        <strong>Número NFC-e:</strong> {sale.nfceNumber} (Série{' '}
+                        {enterprise?.nfceSeries || '1'})
                       </div>
                       <div>
                         <strong>Chave de Acesso (44 dígitos):</strong>{' '}
@@ -558,6 +616,19 @@ export function SaleDetailsView({ saleId }: Props) {
                         <strong>Protocolo de Autorização:</strong> {sale.nfceProtocol} em{' '}
                         {fDateTime(sale.nfceIssuedAt)}
                       </div>
+                      {sale.nfceDanfeUrl && (
+                        <Button
+                          component="a"
+                          href={sale.nfceDanfeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          variant="outlined"
+                          size="small"
+                          sx={{ alignSelf: 'flex-start', mt: 1 }}
+                        >
+                          Abrir DANFE
+                        </Button>
+                      )}
                     </Stack>
                   </Card>
                 )}

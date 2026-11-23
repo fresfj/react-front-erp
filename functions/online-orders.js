@@ -1002,6 +1002,17 @@ exports.acceptOnlineOrder = onCall(async (request) => {
   const entSnap = await db().doc(`enterprises/${enterpriseId}`).get();
   if (entSnap.exists) {
     const enterprise = { id: entSnap.id, ...entSnap.data() };
+    if (enterprise.nfceEnabled === true) {
+      try {
+        const nfceService = require('./fiscal/nfce-service');
+        await nfceService.issueSaleNfceForEnterprise(db(), {
+          enterpriseId,
+          saleId: saleRef.id,
+        });
+      } catch (nfceErr) {
+        console.error('acceptOnlineOrder NFC-e', nfceErr?.message || nfceErr);
+      }
+    }
     const store = enterprise.onlineStore || {};
     const storeSlug = store.slug || '';
     const storeName = String(enterprise.tradeName || enterprise.name || '');
