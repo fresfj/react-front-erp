@@ -346,7 +346,7 @@
     "certUploaded": "Certificado almacenado",
     "certThumbprint": "Huella digital",
     "switchProviderConfirm": "¿Cambiar proveedor fiscal? Confirme CSC y credenciales.",
-    "ufPilotHint": "SEFAZ directo exige que la UF del cadastro de la empresa esté habilitada (piloto: PA).",
+    "ufPilotHint": "SEFAZ directo exige que la UF del cadastro de la empresa esté habilitada (piloto: PA, PR).",
     "productCard": "Fiscal",
     "ncm": "NCM",
     "origin": "Origen de la mercancía",

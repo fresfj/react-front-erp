@@ -119,7 +119,7 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 - Spec: `docs/superpowers/specs/2026-11-23-nfce-sefaz-direct-vs-focus-decision.md`
 - Plan: `docs/superpowers/plans/2026-11-23-nfce-sefaz-direct-saas.md` (T1–T8 done inline)
 - Provider opt-in: `fiscalIssuerProvider: 'sefaz-direct'` (Focus permanece default)
-- UF map: `functions/fiscal/uf-endpoints.js` — **piloto PA (SVRS)**; adicionar UF só com URL oficial
+- UF map: `functions/fiscal/uf-endpoints.js` — **piloto PA (SVRS) + PR (SEFAZ-PR)**; adicionar UF só com URL oficial
 - Pipeline: `nfce-xml` → `a1-signer` (node-forge + xml-crypto) → `sefaz-client` → `createSefazDirectFiscalIssuer`
 - Secrets: `enterprises/{id}/secrets/fiscal` — `a1PfxBase64`, `a1Password`, CSC; client deny
 - Callable: `uploadEnterpriseFiscalCert` (admin/gestor/platformAdmin); public meta `a1Thumbprint` / `a1ExpiresAt` no doc enterprise

@@ -1,10 +1,12 @@
 /**
  * NFC-e authorization WebService URLs by UF (modelo 65).
  *
- * Source (consulted 2026-11-23):
- * https://dfe-portal.svrs.rs.gov.br/NFCE/Servicos
+ * Sources (consulted 2026-11-23):
+ * - SVRS (PA): https://dfe-portal.svrs.rs.gov.br/NFCE/Servicos
+ * - PR próprio: https://sped.fazenda.pr.gov.br/NFCe/Pagina/Web-Services-NFC-e
+ *   (também listado no portal SVRS sob “SEFAZ Paraná”)
  *
- * PA (Pará) uses SEFAZ Virtual RS (SVRS) for NFC-e authorization.
+ * PA uses SEFAZ Virtual RS (SVRS). PR uses SEFAZ-PR own NFC-e endpoints.
  * Add more UFs only after confirming the autorizador on the official portal.
  * Re-verify URLs before production go-live.
  */
@@ -15,10 +17,18 @@ const SVRS_NFCE_AUTORIZACAO = {
   notes: 'SVRS NFC-e NFeAutorizacao 4.00 — dfe-portal.svrs.rs.gov.br/NFCE/Servicos (2026-11-23)',
 };
 
+/** SEFAZ-PR — URL sem ?wsdl (só para obtenção do WSDL no browser). */
+const PR_NFCE_AUTORIZACAO = {
+  homologation: 'https://homologacao.nfce.sefa.pr.gov.br/nfce/NFeAutorizacao4',
+  production: 'https://nfce.sefa.pr.gov.br/nfce/NFeAutorizacao4',
+  notes: 'SEFAZ-PR NFC-e NFeAutorizacao 4.00 — sped.fazenda.pr.gov.br/NFCe/Pagina/Web-Services-NFC-e (2026-11-23)',
+};
+
 /** @type {Record<string, { homologation: string, production: string, notes?: string }>} */
 const NFCE_UF_ENDPOINTS = {
-  // Pilot SaaS UF
+  // Pilot SaaS UFs
   PA: { ...SVRS_NFCE_AUTORIZACAO },
+  PR: { ...PR_NFCE_AUTORIZACAO },
 };
 
 function resolveNfceEndpoint(uf, environment) {

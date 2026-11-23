@@ -346,7 +346,7 @@
     "certUploaded": "Certificate stored",
     "certThumbprint": "Thumbprint",
     "switchProviderConfirm": "Switch tax provider? Confirm CSC and credentials.",
-    "ufPilotHint": "SEFAZ direct requires the company state (UF) to be enabled in the map (pilot: PA).",
+    "ufPilotHint": "SEFAZ direct requires the company state (UF) to be enabled in the map (pilot: PA, PR).",
     "productCard": "Tax",
     "ncm": "NCM",
     "origin": "Goods origin",
