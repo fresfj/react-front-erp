@@ -1,4 +1,5 @@
 const { canEmitNfce, nextNfceStatus } = require('./nfce-domain');
+const { assertA1NotExpired, redactFiscalLog } = require('./cert-audit');
 const { createFiscalIssuer, createMockFiscalIssuer } = require('./fiscal-issuer');
 
 function nowIso() {
@@ -274,8 +275,13 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
 
   const factory = issuerFactory || (() => resolveIssuer(enterprise, secrets));
   const issuer = factory();
+  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'focus';
 
   try {
+    if (provider === 'sefaz-direct') {
+      assertA1NotExpired(secrets || { a1ExpiresAt: enterprise.a1ExpiresAt });
+    }
+
     const result = await issuer.issue({
       enterpriseId,
       saleId,
@@ -311,11 +317,12 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
       nfceQrCodeUrl: result.nfceQrCodeUrl,
     };
   } catch (error) {
-    const message = error?.message || String(error);
+    const message = redactFiscalLog(error?.message || String(error));
+    const codePrefix = error?.code === 'cert_expired' ? 'missing_fiscal_config: ' : '';
     await ref.set(
       {
         nfceStatus: 'error',
-        nfceLastError: message.slice(0, 500),
+        nfceLastError: `${codePrefix}${String(message)}`.slice(0, 500),
         updatedAt: nowIso(),
       },
       { merge: true }
@@ -362,6 +369,16 @@ async function cancelSaleNfceForEnterprise(db, { enterpriseId, saleId, justifica
 }
 
 async function processPendingNfceBatch(db, { enterpriseId, limit = 10 }) {
+  const entSnap = await enterpriseRef(db, enterpriseId).get();
+  const enterprise = entSnap.exists ? entSnap.data() || {} : {};
+  const { isCertExpired } = require('./cert-audit');
+  if (
+    enterprise.fiscalIssuerProvider === 'sefaz-direct' &&
+    isCertExpired(enterprise.a1ExpiresAt)
+  ) {
+    return [{ skipped: true, reason: 'cert_expired', enterpriseId }];
+  }
+
   const col = db.collection(`enterprises/${enterpriseId}/sales`);
   const snap = await col.where('nfceStatus', 'in', ['pending', 'error']).limit(limit).get();
   const results = [];
@@ -378,7 +395,12 @@ async function processPendingNfceBatch(db, { enterpriseId, limit = 10 }) {
       });
       results.push({ saleId: docSnap.id, ok: true, ...out });
     } catch (error) {
-      results.push({ saleId: docSnap.id, ok: false, error: error.message });
+      results.push({
+        saleId: docSnap.id,
+        ok: false,
+        error: redactFiscalLog(error.message),
+        code: error.code,
+      });
     }
   }
   return results;
