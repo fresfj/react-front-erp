@@ -115,6 +115,7 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 
 ## NFC-e SEFAZ-direct SaaS (2026-11-23) — código pronto
 
+- **Guia de uso (ops):** [`docs/reference/erp-nfce-usage.md`](../reference/erp-nfce-usage.md) — setup, homolog, mock; **não** versionar A1/CSC
 - Branch/worktree: `feat/nfce-sefaz-direct` (`.worktrees/feat-nfce-sefaz-direct`)
 - Spec: `docs/superpowers/specs/2026-11-23-nfce-sefaz-direct-vs-focus-decision.md`
 - Plan: `docs/superpowers/plans/2026-11-23-nfce-sefaz-direct-saas.md` (T1–T8 done inline)
