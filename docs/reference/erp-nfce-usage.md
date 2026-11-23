@@ -80,21 +80,57 @@ Se o provedor for Focus: informe **API token** + CSC (conforme conta Focus). Nã
 
 ### Opção A — Mock nas Cloud Functions (recomendado para smoke interno)
 
-No projeto Firebase (emulador ou config de **dev**):
+O mock é **só no backend** (`functions/`). Colocar `NFCE_ISSUER` no `.env` da raiz Vite **não** tem efeito.
+
+#### Passo a passo
+
+1. Crie `functions/.env` (já há `functions/.env.example`):
 
 ```bash
-# Nunca use em produção Amplify / Firebase prod
-firebase functions:config:set nfce.issuer=mock
-# ou variável de ambiente NFCE_ISSUER=mock no runtime das Functions
+cp functions/.env.example functions/.env
+# conteúdo: NFCE_ISSUER=mock
 ```
 
-Com `NFCE_ISSUER=mock`:
+2. Redeploy **somente** as Functions NFC-e (quando houver cota CPU no projeto):
 
-- A emissão **não** chama SEFAZ.
-- Retorna chave/protocolo fictícios e marca a venda como `authorized`.
-- Serve para validar enqueue no PDV, tela de status e retry.
+```bash
+cd /Users/franciscofreitasjr/Project/Development/reactjs/minimals
+firebase deploy --only \
+  functions:issueSaleNfce,functions:enqueueSaleNfce,functions:cancelSaleNfce,functions:retryPendingNfce,functions:processPendingNfceBatch,functions:saveEnterpriseFiscalSecrets,functions:uploadEnterpriseFiscalCert
+```
 
-Desligar mock: remova a variável / não defina `NFCE_ISSUER` (volta Focus ou SEFAZ-direct conforme tenant).
+   Ou emulador local (sem depender da cota Cloud Run):
+
+```bash
+cd functions && npm install
+cd .. && firebase emulators:start --only functions,firestore
+# Aponte o app para o emulador (connectFunctionsEmulator) se já estiver configurado
+```
+
+3. No ERP (mesmo com mock):
+   - Conta → Fiscal → ligue **Emitir NFC-e automaticamente**
+   - Preencha regime + série + ambiente (homologação)
+   - Provedor pode ficar Focus ou SEFAZ direto (o mock **ignora** o provedor)
+   - **Não** precisa de A1/CSC/token com `NFCE_ISSUER=mock`
+   - Em **pelo menos um produto** da venda: NCM, origem, CST/CSOSN (o gate de domínio ainda exige)
+
+4. Abra caixa → faça 1 venda no PDV → confira na venda: `nfceStatus = authorized` e chave/protocolo fictícios.
+
+5. **Desligar mock** (obrigatório antes de homolog SEFAZ de verdade):
+
+```bash
+# Apague ou comente a linha em functions/.env
+# NFCE_ISSUER=mock
+firebase deploy --only functions:issueSaleNfce,...
+```
+
+Comportamento com mock:
+
+- Não chama SEFAZ nem Focus.
+- Retorna chave/protocolo fictícios e grava `authorized`.
+- Cancel também é fictício (ok para teste de UI).
+
+⚠️ Se o deploy de `issueSaleNfce` falhou por **quota CPU** (Cloud Run), o mock no `.env` só passa a valer depois que essa function subir com sucesso.
 
 ### Opção B — Homolog SEFAZ de verdade
 
