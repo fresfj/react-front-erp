@@ -2050,6 +2050,7 @@ export function PublicStorefrontView() {
         customer={verifiedCustomer}
         onClose={() => setAccountDrawerOpen(false)}
         onOpenMyOrders={() => navigate(paths.publicStore.orders(slug))}
+        onCustomerUpdated={(next) => setVerifiedCustomer(next)}
         onSignedOut={() => setVerifiedCustomer(null)}
       />
     </Box>

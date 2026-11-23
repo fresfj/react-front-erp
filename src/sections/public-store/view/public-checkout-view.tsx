@@ -52,9 +52,21 @@ import { usePublicCart } from '../public-cart-context';
 import { CheckoutSkeleton } from '../public-store-skeletons';
 import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { validateCheckoutForm } from '../public-store-validation';
-import { isPhoneVerifiedForSlug } from '../public-customer-phone-auth';
 import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
+import {
+  loadPublicCustomerProfile,
+  upsertPublicCustomerAddress,
+  getDefaultPublicCustomerAddress,
+} from '../public-customer-profile';
+import {
+  signOutPublicCustomer,
+  isPhoneVerifiedForSlug,
+  getVerifiedPublicCustomer,
+  saveVerifiedPublicCustomer,
+} from '../public-customer-phone-auth';
 
+import type { SavedCustomerAddress } from '../public-customer-profile';
+import type { VerifiedPublicCustomer } from '../public-customer-phone-auth';
 import type { CheckoutFieldName, CheckoutFormErrors } from '../public-store-validation';
 
 // ----------------------------------------------------------------------
@@ -79,6 +91,12 @@ export function PublicCheckoutView() {
   const [loading, setLoading] = useState(!stateStore);
   const [submitting, setSubmitting] = useState(false);
   const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
+  const [submitAfterVerify, setSubmitAfterVerify] = useState(false);
+  const [editingVerifiedName, setEditingVerifiedName] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<SavedCustomerAddress[]>([]);
+  const [verifiedCustomer, setVerifiedCustomer] = useState<VerifiedPublicCustomer | null>(() =>
+    getVerifiedPublicCustomer(slug)
+  );
 
   // Formulário de Checkout
   const [customerName, setCustomerName] = useState('');
@@ -91,7 +109,6 @@ export function PublicCheckoutView() {
     }
   });
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
-  const [customerIdentified, setCustomerIdentified] = useState(false);
   const lastLookedUpDigitsRef = useRef('');
 
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>(
@@ -134,10 +151,7 @@ export function PublicCheckoutView() {
           if (res.customer.neighborhood) setNeighborhood(res.customer.neighborhood);
           if (res.customer.city) setCity(res.customer.city);
           if (res.customer.state) setState(res.customer.state);
-          setCustomerIdentified(true);
-          toast.success('Cliente identificado! Seus dados foram preenchidos.');
-        } else {
-          setCustomerIdentified(false);
+          toast.success('Dados do seu cadastro carregados automaticamente!');
         }
       } catch {
         // silent fail on lookup
@@ -148,9 +162,38 @@ export function PublicCheckoutView() {
     [slug]
   );
 
+  const applySavedAddressToForm = useCallback((addr: SavedCustomerAddress) => {
+    setCep(addr.cep ? formatCep(addr.cep) : '');
+    setStreet(addr.street || '');
+    setNumber(addr.number || '');
+    setComplement(addr.complement || '');
+    setNeighborhood(addr.neighborhood || '');
+    setCity(addr.city || '');
+    setState(addr.state || '');
+    lastGeocodedQueryRef.current = '';
+  }, []);
+
+  // Só carrega automaticamente dados salvos quando o cliente JÁ está autenticado pelo Firebase Phone Auth
   useEffect(() => {
-    if (isCompletePhoneBr(customerPhone)) {
-      handleLookupCustomer(customerPhone);
+    const verified = getVerifiedPublicCustomer(slug);
+    setVerifiedCustomer(verified);
+    if (verified) {
+      setCustomerPhone(verified.phoneFormatted);
+      const localProfile = loadPublicCustomerProfile(slug, verified.phoneDigits);
+      if (localProfile) {
+        if (localProfile.fullName) setCustomerName(localProfile.fullName);
+        setSavedAddresses(localProfile.addresses);
+        const defAddr = getDefaultPublicCustomerAddress(slug, verified.phoneDigits);
+        if (defAddr) {
+          applySavedAddressToForm(defAddr);
+        }
+      }
+      if (!localProfile?.fullName && (verified.fullName || verified.firstName)) {
+        setCustomerName((prev) => prev || verified.fullName || verified.firstName || '');
+      }
+      if (!localProfile?.addresses.length) {
+        handleLookupCustomer(verified.phoneDigits);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
@@ -158,10 +201,34 @@ export function PublicCheckoutView() {
   const handlePhoneChange = (raw: string) => {
     const formatted = formatPhoneBr(raw);
     setCustomerPhone(formatted);
-    setCustomerIdentified(false);
-    if (digitsOnly(formatted).length === 11) {
-      handleLookupCustomer(formatted);
+  };
+
+  const handleStartPhoneAuth = () => {
+    if (!isCompletePhoneBr(customerPhone)) {
+      setFormErrors((prev) => ({
+        ...prev,
+        customerPhone: 'Informe um número de celular válido com DDD.',
+      }));
+      toast.error('Informe um número de celular válido com DDD.');
+      return;
     }
+    setSubmitAfterVerify(false);
+    setPhoneVerifyOpen(true);
+  };
+
+  const handleSwitchVerifiedAccount = async () => {
+    await signOutPublicCustomer(slug);
+    setVerifiedCustomer(null);
+    lastLookedUpDigitsRef.current = '';
+    setCustomerPhone('');
+    setCustomerName('');
+    setCep('');
+    setStreet('');
+    setNumber('');
+    setComplement('');
+    setNeighborhood('');
+    setCity('');
+    setState('');
   };
 
   const { loading: cepLoading, handleBlur: handleCepBlur } = useCepLookup({
@@ -366,6 +433,7 @@ export function PublicCheckoutView() {
 
     // Identificação e registro seguro via Firebase Phone Auth (OTP 6 dígitos)
     if (!isPhoneVerifiedForSlug(slug, customerPhone)) {
+      setSubmitAfterVerify(true);
       setPhoneVerifyOpen(true);
       return;
     }
@@ -442,6 +510,31 @@ export function PublicCheckoutView() {
               fullName: customerName.trim(),
             })
           );
+        }
+        // Atualiza perfil do cliente autenticado (nome e novo endereço como padrão para a próxima compra)
+        const activeVerified = getVerifiedPublicCustomer(slug);
+        if (activeVerified) {
+          saveVerifiedPublicCustomer(slug, {
+            ...activeVerified,
+            firstName: firstName || activeVerified.firstName,
+            fullName: customerName.trim() || activeVerified.fullName,
+          });
+        }
+        if (!isTableMode && deliveryType === 'delivery' && street.trim() && number.trim()) {
+          upsertPublicCustomerAddress(slug, customerPhone.trim(), {
+            fullName: customerName.trim(),
+            address: {
+              label: 'Casa',
+              cep: digitsOnly(cep),
+              street: street.trim(),
+              number: number.trim(),
+              complement: complement.trim() || undefined,
+              neighborhood: neighborhood.trim(),
+              city: city.trim(),
+              state: state.trim().toUpperCase(),
+            },
+            setAsDefault: true,
+          });
         }
       } catch {
         // ignore storage error
@@ -749,87 +842,161 @@ export function PublicCheckoutView() {
                   </Stack>
                 </Card>
 
-                {/* 2. Dados do Cliente */}
+                {/* 2. Dados do Cliente (Autenticado por SMS ou Validação de Celular) */}
                 <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                    Seus Dados de Contato
-                  </Typography>
-
-                  <Stack spacing={2}>
-                    <TextField
-                      fullWidth
-                      inputRef={(el) => {
-                        fieldRefs.current.customerPhone = el;
-                      }}
-                      type="tel"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      label="WhatsApp para contato"
-                      placeholder="(91) 98888-7777"
-                      value={customerPhone}
-                      onChange={(e) => {
-                        handlePhoneChange(e.target.value);
-                        clearFieldError('customerPhone');
-                      }}
-                      onBlur={() => {
-                        handleLookupCustomer(customerPhone);
-                        validateSingleField('customerPhone');
-                      }}
-                      required={!isTableMode}
-                      error={Boolean(formErrors.customerPhone)}
-                      helperText={
-                        formErrors.customerPhone ||
-                        'Informe seu WhatsApp — se já comprou conosco, preencheremos seus dados automaticamente'
-                      }
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <Iconify
-                              icon="solar:phone-calling-bold"
-                              sx={{ color: 'text.disabled' }}
-                            />
-                          </InputAdornment>
-                        ),
-                        endAdornment: lookingUpCustomer ? (
-                          <InputAdornment position="end">
-                            <CircularProgress size={20} />
-                          </InputAdornment>
-                        ) : customerIdentified ? (
-                          <InputAdornment position="end">
-                            <Iconify
-                              icon="solar:check-circle-bold"
-                              sx={{ color: 'success.main' }}
-                            />
-                          </InputAdornment>
-                        ) : null,
-                      }}
-                    />
-
-                    {customerIdentified && (
-                      <Alert severity="success" sx={{ typography: 'caption' }}>
-                        Cliente identificado pelo telefone! Nome e endereço preenchidos
-                        automaticamente.
-                      </Alert>
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    spacing={1}
+                    sx={{ mb: 2 }}
+                  >
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                      Seus Dados de Contato
+                    </Typography>
+                    {verifiedCustomer && (
+                      <Stack direction="row" spacing={0.5} alignItems="center">
+                        <Button
+                          size="small"
+                          color="primary"
+                          onClick={() => setEditingVerifiedName((prev) => !prev)}
+                          startIcon={<Iconify icon="solar:pen-bold" width={15} />}
+                        >
+                          {editingVerifiedName ? 'Concluir' : 'Editar nome'}
+                        </Button>
+                        <Button
+                          size="small"
+                          color="inherit"
+                          onClick={handleSwitchVerifiedAccount}
+                          startIcon={<Iconify icon="solar:logout-2-bold" width={16} />}
+                        >
+                          Trocar
+                        </Button>
+                      </Stack>
                     )}
-
-                    <TextField
-                      fullWidth
-                      inputRef={(el) => {
-                        fieldRefs.current.customerName = el;
-                      }}
-                      label={isTableMode ? 'Seu nome (identificação na mesa)' : 'Seu nome completo'}
-                      placeholder="Ex: João da Silva"
-                      value={customerName}
-                      onChange={(e) => {
-                        setCustomerName(e.target.value);
-                        clearFieldError('customerName');
-                      }}
-                      onBlur={() => validateSingleField('customerName')}
-                      error={Boolean(formErrors.customerName)}
-                      helperText={formErrors.customerName}
-                      required
-                    />
                   </Stack>
+
+                  {verifiedCustomer ? (
+                    <Stack spacing={2}>
+                      <Box
+                        sx={{
+                          p: 2,
+                          borderRadius: 1.5,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: 1.5,
+                          bgcolor: (theme) =>
+                            varAlpha(theme.vars.palette.success.mainChannel, 0.08),
+                          border: (theme) =>
+                            `1px solid ${varAlpha(theme.vars.palette.success.mainChannel, 0.28)}`,
+                        }}
+                      >
+                        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+                          <Iconify
+                            icon="solar:verified-check-bold"
+                            width={26}
+                            sx={{ color: 'success.main', flexShrink: 0 }}
+                          />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
+                              {customerName.trim() || verifiedCustomer.fullName || 'Cliente verificado'}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" display="block">
+                              {verifiedCustomer.phoneFormatted} • Celular autenticado
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        {lookingUpCustomer && <CircularProgress size={18} />}
+                      </Box>
+
+                      {(!customerName.trim() || editingVerifiedName) && (
+                        <TextField
+                          fullWidth
+                          inputRef={(el) => {
+                            fieldRefs.current.customerName = el;
+                          }}
+                          label={isTableMode ? 'Seu nome (identificação na mesa)' : 'Seu nome completo'}
+                          placeholder="Ex: João da Silva"
+                          value={customerName}
+                          onChange={(e) => {
+                            setCustomerName(e.target.value);
+                            clearFieldError('customerName');
+                          }}
+                          onBlur={() => validateSingleField('customerName')}
+                          error={Boolean(formErrors.customerName)}
+                          helperText={formErrors.customerName}
+                          required
+                        />
+                      )}
+                    </Stack>
+                  ) : (
+                    <Stack spacing={2}>
+                      <TextField
+                        fullWidth
+                        inputRef={(el) => {
+                          fieldRefs.current.customerPhone = el;
+                        }}
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        label="Celular / WhatsApp"
+                        placeholder="(41) 99999-8888"
+                        value={customerPhone}
+                        onChange={(e) => {
+                          handlePhoneChange(e.target.value);
+                          clearFieldError('customerPhone');
+                        }}
+                        onBlur={() => validateSingleField('customerPhone')}
+                        required={!isTableMode}
+                        error={Boolean(formErrors.customerPhone)}
+                        helperText={
+                          formErrors.customerPhone ||
+                          'Informe seu celular para validar o acesso por SMS e preencher seus dados com segurança'
+                        }
+                        InputProps={{
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <Iconify
+                                icon="solar:smartphone-2-bold"
+                                sx={{ color: 'text.disabled' }}
+                              />
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+
+                      <Button
+                        fullWidth
+                        variant="soft"
+                        color="primary"
+                        size="large"
+                        disabled={!isCompletePhoneBr(customerPhone)}
+                        onClick={handleStartPhoneAuth}
+                        startIcon={<Iconify icon="solar:shield-check-bold" />}
+                      >
+                        Validar celular por SMS e liberar meus dados
+                      </Button>
+
+                      <TextField
+                        fullWidth
+                        inputRef={(el) => {
+                          fieldRefs.current.customerName = el;
+                        }}
+                        label={isTableMode ? 'Seu nome (identificação na mesa)' : 'Seu nome completo'}
+                        placeholder="Ex: João da Silva"
+                        value={customerName}
+                        onChange={(e) => {
+                          setCustomerName(e.target.value);
+                          clearFieldError('customerName');
+                        }}
+                        onBlur={() => validateSingleField('customerName')}
+                        error={Boolean(formErrors.customerName)}
+                        helperText={formErrors.customerName}
+                        required
+                      />
+                    </Stack>
+                  )}
                 </Card>
 
                 {/* 3. Endereço de Entrega (quando Entrega selecionada) */}
@@ -838,6 +1005,33 @@ export function PublicCheckoutView() {
                     <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
                       Endereço de Entrega
                     </Typography>
+
+                    {savedAddresses.length > 0 && (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                        {savedAddresses.map((addr) => {
+                          const isSelected =
+                            street.trim().toLowerCase() === addr.street.trim().toLowerCase() &&
+                            number.trim().toLowerCase() === addr.number.trim().toLowerCase();
+                          return (
+                            <Button
+                              key={addr.id}
+                              size="small"
+                              variant={isSelected ? 'contained' : 'outlined'}
+                              color={isSelected ? 'primary' : 'inherit'}
+                              onClick={() => applySavedAddressToForm(addr)}
+                              startIcon={
+                                <Iconify
+                                  icon={addr.isDefault ? 'solar:star-bold' : 'solar:map-point-bold'}
+                                  width={15}
+                                />
+                              }
+                            >
+                              {addr.label}: {addr.street}, {addr.number}
+                            </Button>
+                          );
+                        })}
+                      </Stack>
+                    )}
 
                     <Stack spacing={2}>
                       <TextField
@@ -1393,12 +1587,25 @@ export function PublicCheckoutView() {
         slug={slug}
         phone={customerPhone}
         customerName={customerName}
-        title="Confirme seu celular para finalizar"
-        subtitle={`Enviamos um código SMS de 6 dígitos para ${customerPhone}. Após digitar os números, seu pedido será confirmado automaticamente.`}
-        onClose={() => setPhoneVerifyOpen(false)}
-        onVerified={() => {
+        title={submitAfterVerify ? 'Confirme seu celular para finalizar' : 'Autentique seu celular'}
+        subtitle={
+          submitAfterVerify
+            ? `Enviamos um código SMS de 6 dígitos para ${customerPhone}. Após digitar os números, seu pedido será confirmado automaticamente.`
+            : `Enviamos um código SMS de 6 dígitos para ${customerPhone}. Após validar, liberaremos seus dados cadastrados.`
+        }
+        onClose={() => {
           setPhoneVerifyOpen(false);
-          submitOrderAfterVerification();
+          setSubmitAfterVerify(false);
+        }}
+        onVerified={async (verified) => {
+          setPhoneVerifyOpen(false);
+          setVerifiedCustomer(verified);
+          setCustomerPhone(verified.phoneFormatted);
+          await handleLookupCustomer(verified.phoneDigits);
+          if (submitAfterVerify) {
+            setSubmitAfterVerify(false);
+            submitOrderAfterVerification();
+          }
         }}
       />
     </Box>
