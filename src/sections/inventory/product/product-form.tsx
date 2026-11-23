@@ -16,6 +16,7 @@ import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
+import Alert from '@mui/material/Alert';
 import Switch from '@mui/material/Switch';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -116,6 +117,17 @@ export const ProductSchema = zod.object({
   variant: zod.string().optional().or(zod.literal('')),
   tags: zod.array(zod.string()).optional(),
   taxPercent: optionalNumber,
+  ncm: zod.string().optional().or(zod.literal('')),
+  origin: zod.coerce.number().int().min(0).max(8).optional(),
+  cfopSaleDefault: zod.string().optional().or(zod.literal('')),
+  cstOrCsosn: zod.string().optional().or(zod.literal('')),
+  commercialUnit: zod.string().optional().or(zod.literal('')),
+  cest: zod.string().optional().or(zod.literal('')),
+  taxBenefitCode: zod.string().optional().or(zod.literal('')),
+  cbsRate: optionalNumber,
+  ibsRate: optionalNumber,
+  cClassTrib: zod.string().optional().or(zod.literal('')),
+  taxClassificationNotes: zod.string().optional().or(zod.literal('')),
   imageUrl: zod.any().optional(),
   showOnline: zod.boolean(),
   active: zod.boolean(),
@@ -139,6 +151,7 @@ export function ProductForm({ currentProduct }: Props) {
   const openCatalogExtras = useBoolean(true);
   const openProperties = useBoolean(true);
   const openPricing = useBoolean(true);
+  const openFiscal = useBoolean(true);
   const supplierPicker = useBoolean();
   const quickSupplierModal = useBoolean();
 
@@ -179,6 +192,17 @@ export function ProductForm({ currentProduct }: Props) {
       variant: currentProduct?.variant || '',
       tags: currentProduct?.tags || [],
       taxPercent: currentProduct?.taxPercent ?? 0,
+      ncm: currentProduct?.ncm || '',
+      origin: currentProduct?.origin ?? 0,
+      cfopSaleDefault: currentProduct?.cfopSaleDefault || '5102',
+      cstOrCsosn: currentProduct?.cstOrCsosn || '',
+      commercialUnit: currentProduct?.commercialUnit || currentProduct?.unit || '',
+      cest: currentProduct?.cest || '',
+      taxBenefitCode: currentProduct?.taxBenefitCode || '',
+      cbsRate: currentProduct?.cbsRate,
+      ibsRate: currentProduct?.ibsRate,
+      cClassTrib: currentProduct?.cClassTrib || '',
+      taxClassificationNotes: currentProduct?.taxClassificationNotes || '',
       imageUrl: currentProduct?.imageUrl || null,
       showOnline: currentProduct?.showOnline === true,
       active: currentProduct?.active ?? true,
@@ -324,6 +348,20 @@ export function ProductForm({ currentProduct }: Props) {
         variant: data.variant?.trim() || undefined,
         tags: data.tags?.length ? data.tags : undefined,
         taxPercent: includeTaxes ? 0 : data.taxPercent,
+        ncm: data.ncm?.trim() || undefined,
+        origin:
+          data.origin != null && data.origin >= 0 && data.origin <= 8
+            ? (data.origin as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8)
+            : undefined,
+        cfopSaleDefault: data.cfopSaleDefault?.trim() || undefined,
+        cstOrCsosn: data.cstOrCsosn?.trim() || undefined,
+        commercialUnit: data.commercialUnit?.trim() || data.unit.trim(),
+        cest: data.cest?.trim() || undefined,
+        taxBenefitCode: data.taxBenefitCode?.trim() || undefined,
+        cbsRate: data.cbsRate,
+        ibsRate: data.ibsRate,
+        cClassTrib: data.cClassTrib?.trim() || undefined,
+        taxClassificationNotes: data.taxClassificationNotes?.trim() || undefined,
         imageUrl: resolvedImageUrl,
         showOnline: data.showOnline,
         active: data.active,
@@ -868,6 +906,56 @@ export function ProductForm({ currentProduct }: Props) {
     </Card>
   );
 
+  const fiscalIncomplete = !methods.watch('ncm') || !methods.watch('cstOrCsosn');
+
+  const renderFiscal = (
+    <Card>
+      <CardHeader
+        title={t('fiscal.productCard')}
+        subheader="NCM, origem, CST/CSOSN e campos da Reforma Tributária"
+        action={renderCollapseAction(openFiscal.value, openFiscal.onToggle)}
+        sx={{ mb: 3 }}
+      />
+      <Collapse in={openFiscal.value}>
+        <Divider />
+        <Stack spacing={3} sx={{ p: 3 }}>
+          {fiscalIncomplete && (
+            <Alert severity="info">{t('fiscal.missingProductFiscal')}</Alert>
+          )}
+          <Box
+            columnGap={2}
+            rowGap={3}
+            display="grid"
+            gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)' }}
+          >
+            <Field.Text name="ncm" label={t('fiscal.ncm')} />
+            <Field.Select name="origin" label={t('fiscal.origin')}>
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((code) => (
+                <MenuItem key={code} value={code}>
+                  {code}
+                </MenuItem>
+              ))}
+            </Field.Select>
+            <Field.Text name="cfopSaleDefault" label={t('fiscal.cfopSaleDefault')} />
+            <Field.Text name="cstOrCsosn" label={t('fiscal.cstOrCsosn')} />
+            <Field.Text name="commercialUnit" label={t('fiscal.commercialUnit')} />
+            <Field.Text name="cest" label={t('fiscal.cest')} />
+            <Field.Text name="taxBenefitCode" label={t('fiscal.taxBenefitCode')} />
+            <Field.Text name="cClassTrib" label={t('fiscal.cClassTrib')} />
+            <Field.Text name="cbsRate" label={t('fiscal.cbsRate')} type="number" />
+            <Field.Text name="ibsRate" label={t('fiscal.ibsRate')} type="number" />
+          </Box>
+          <Field.Text
+            name="taxClassificationNotes"
+            label={t('fiscal.taxClassificationNotes')}
+            multiline
+            rows={2}
+          />
+        </Stack>
+      </Collapse>
+    </Card>
+  );
+
   const renderActions = (
     <Stack
       spacing={3}
@@ -908,6 +996,7 @@ export function ProductForm({ currentProduct }: Props) {
           {renderCatalogExtras}
           {renderProperties}
           {renderPricing}
+          {renderFiscal}
           {renderActions}
         </Stack>
       </Form>

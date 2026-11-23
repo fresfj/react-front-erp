@@ -51,6 +51,17 @@ export type Product = {
   variant?: string;
   tags?: string[];
   taxPercent?: number;
+  ncm?: string;
+  origin?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+  cfopSaleDefault?: string;
+  cstOrCsosn?: string;
+  commercialUnit?: string;
+  cest?: string;
+  taxBenefitCode?: string;
+  cbsRate?: number;
+  ibsRate?: number;
+  cClassTrib?: string;
+  taxClassificationNotes?: string;
   imageUrl?: string;
   showOnline?: boolean;
   active: boolean;
@@ -115,6 +126,23 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
     variant: optStr(data.variant),
     tags: Array.isArray(data.tags) ? data.tags.map((t) => String(t)) : undefined,
     taxPercent: typeof data.taxPercent === 'number' ? data.taxPercent : undefined,
+    ncm: optStr(data.ncm),
+    origin:
+      typeof data.origin === 'number' &&
+      Number.isInteger(data.origin) &&
+      data.origin >= 0 &&
+      data.origin <= 8
+        ? (data.origin as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8)
+        : undefined,
+    cfopSaleDefault: optStr(data.cfopSaleDefault),
+    cstOrCsosn: optStr(data.cstOrCsosn),
+    commercialUnit: optStr(data.commercialUnit),
+    cest: optStr(data.cest),
+    taxBenefitCode: optStr(data.taxBenefitCode),
+    cbsRate: typeof data.cbsRate === 'number' ? data.cbsRate : undefined,
+    ibsRate: typeof data.ibsRate === 'number' ? data.ibsRate : undefined,
+    cClassTrib: optStr(data.cClassTrib),
+    taxClassificationNotes: optStr(data.taxClassificationNotes),
     imageUrl: optStr(data.imageUrl),
     showOnline: data.showOnline === true,
     active: data.active !== false,
