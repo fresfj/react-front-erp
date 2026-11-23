@@ -97,10 +97,29 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 - **Deploy pendente:** `firebase deploy --only functions,firestore:rules` + configurar webhook Asaas → URL HTTP `asaasWebhook` com token
 - **Deferred:** Entitlements-B (limites Free), Storefront-C (catálogo público)
 
+## NFC-e slice (2026-11-22) — status
+
+- Branch/worktree: `feat/nfce-emission` (`.worktrees/feat-nfce-emission`)
+- Spec: `docs/superpowers/specs/2026-11-22-nfce-tax-reform-umbrella-design.md`
+- Plan: `docs/superpowers/plans/2026-11-22-nfce-emission.md` (T1–T9 done inline; subagent quota exhausted)
+- Skill reforma: `.agents/skills/tax-reform-pricing/` (já em main docs commit)
+- Code: domain gates, Focus `FiscalIssuer` + mock, CF `issueSaleNfce` / cancel / retry / secrets, rules deny `secrets/**`, account fiscal UI, product fiscal fields, enqueue POS/online/table, i18n pt/en/es
+- Verify: vitest 15/15 (fiscal+analytics), eslint max-warnings=0 on touch set, `tsc --noEmit`, `yarn check:amplify --skip-build` OK
+
+### Ops / smoke homolog (ainda pendente humano)
+
+1. Conta Focus sandbox + token + CSC no portal Focus
+2. `/dashboard/account/fiscal` → homologação + token + enable
+3. Produto com NCM / origem / CSOSN
+4. Venda PDV → `authorized` ou `error` legível; offline → `pending` → retry
+5. Deploy: `firestore.rules` + Cloud Functions (`issueSaleNfce`, `saveEnterpriseFiscalSecrets`, `processPendingNfceBatch`, …)
+6. Produção só após credenciamento SEFAZ + flip ambiente com confirmação
+
 ## Pendente (próximo)
 
-1. **Online orders (branch `feat/public-online-orders`):** deploy CF + `firestore.rules`; seed Pro/Ultra `entitlements: ['online_orders']`; config slug/agenda; marcar `showOnline`; abrir caixa → smoke `/p/:slug` → fila → Accept
-2. Smoke Billing-A sandbox (Free → upgrade → webhook → grace/cancel)
+1. **NFC-e homolog smoke** (checklist acima) + merge `feat/nfce-emission`
+2. **Online orders (branch `feat/public-online-orders`):** deploy CF + `firestore.rules`; seed Pro/Ultra `entitlements: ['online_orders']`; config slug/agenda; marcar `showOnline`; abrir caixa → smoke `/p/:slug` → fila → Accept
+3. Smoke Billing-A sandbox (Free → upgrade → webhook → grace/cancel)
 3. Smoke E: criar AR 3× com cliente + caixa aberto → debt e RECEIPT; sem caixa → toast
 4. Smoke F: operador sem `products` → permission-denied; com `pos` → sales OK / payables denied; admin → tudo OK
 5. Smoke G: extrato com sessão (abertura + sangria/suprimento) + filtro de período
