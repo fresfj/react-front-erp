@@ -110,6 +110,39 @@ function sanitizeDeliveryArea(raw) {
   return out;
 }
 
+function sanitizeLoyaltyConfig(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      enabled: false,
+      stampsGoal: 10,
+      reaisPerPoint: 10,
+      minOrderValue: 0,
+      rewardType: 'discount_fixed',
+      rewardValue: 0,
+    };
+  }
+  const allowedTypes = ['discount_fixed', 'discount_percent', 'free_product'];
+  const rewardType = allowedTypes.includes(raw.rewardType) ? raw.rewardType : 'discount_fixed';
+  const stampsGoal = Math.min(20, Math.max(2, Math.round(Number(raw.stampsGoal) || 10)));
+  const reaisPerPoint = Math.max(1, Number(raw.reaisPerPoint) || 10);
+  const minOrderValue = Math.max(0, roundMoney(Number(raw.minOrderValue) || 0));
+  const rewardValue = Math.max(0, roundMoney(Number(raw.rewardValue) || 0));
+  const rewardDescription =
+    raw.rewardDescription != null ? String(raw.rewardDescription).trim().slice(0, 240) : '';
+  const out = {
+    enabled: raw.enabled === true,
+    stampsGoal,
+    reaisPerPoint,
+    minOrderValue,
+    rewardType,
+    rewardValue,
+  };
+  if (rewardDescription) {
+    out.rewardDescription = rewardDescription;
+  }
+  return out;
+}
+
 function resolveDeliveryQuoteServer(area, fallbackFee, addrFields) {
   const safeFallback = Math.max(0, roundMoney(Number(fallbackFee || 0)));
   if (!area || area.mode === 'fixed') {
@@ -426,6 +459,7 @@ exports.getPublicStorefront = onCall(async (request) => {
     estimatedMinutes: Number(store.estimatedMinutes || 40),
     deliveryFee: Number(store.defaultDeliveryFee ?? ctx.enterprise.defaultDeliveryFee ?? 0),
     deliveryArea: sanitizeDeliveryArea(store.deliveryArea),
+    loyalty: sanitizeLoyaltyConfig(store.loyalty),
     acceptDelivery: store.acceptDelivery !== false,
     acceptPickup: store.acceptPickup !== false,
     acceptTableOrders: store.acceptTableOrders !== false,
@@ -833,6 +867,7 @@ exports.upsertOnlineStoreConfig = onCall(LOW_CPU_CALLABLE_OPTS, async (request) 
         : 50,
     logoFit: onlineStore.logoFit === 'contain' ? 'contain' : 'cover',
     deliveryArea: sanitizeDeliveryArea(onlineStore.deliveryArea),
+    loyalty: sanitizeLoyaltyConfig(onlineStore.loyalty),
   };
   [
     'pixKey',

@@ -541,8 +541,8 @@ export function PublicStorefrontView() {
           }}
         >
           <Box sx={{ position: 'relative' }}>
-            {/* Botão Menu do Usuário Autenticado (canto superior esquerdo do banner) */}
-            {verifiedCustomer && (
+            {/* Botão Menu do Usuário Autenticado (exclusivo para pedidos online — oculto no modo Mesa) */}
+            {!isTableMode && verifiedCustomer && (
               <ButtonBase
                 onClick={() => setAccountDrawerOpen(true)}
                 sx={{
@@ -2043,16 +2043,19 @@ export function PublicStorefrontView() {
         </MenuList>
       </CustomPopover>
 
-      <PublicCustomerAccountDrawer
-        open={accountDrawerOpen}
-        slug={slug}
-        storeName={store.storeName}
-        customer={verifiedCustomer}
-        onClose={() => setAccountDrawerOpen(false)}
-        onOpenMyOrders={() => navigate(paths.publicStore.orders(slug))}
-        onCustomerUpdated={(next) => setVerifiedCustomer(next)}
-        onSignedOut={() => setVerifiedCustomer(null)}
-      />
+      {!isTableMode && (
+        <PublicCustomerAccountDrawer
+          open={accountDrawerOpen}
+          slug={slug}
+          storeName={store.storeName}
+          loyalty={store.loyalty}
+          customer={verifiedCustomer}
+          onClose={() => setAccountDrawerOpen(false)}
+          onOpenMyOrders={() => navigate(paths.publicStore.orders(slug))}
+          onCustomerUpdated={(next) => setVerifiedCustomer(next)}
+          onSignedOut={() => setVerifiedCustomer(null)}
+        />
+      )}
     </Box>
   );
 }

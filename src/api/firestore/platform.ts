@@ -39,6 +39,18 @@ export type OnlineStoreDayHours = {
 
 export type OnlinePayOnDeliveryMethod = 'cash' | 'pix' | 'debit_card' | 'credit_card';
 
+export type LoyaltyRewardType = 'discount_fixed' | 'discount_percent' | 'free_product';
+
+export type OnlineStoreLoyaltyConfig = {
+  enabled: boolean;
+  stampsGoal: number;
+  reaisPerPoint: number;
+  minOrderValue?: number;
+  rewardType: LoyaltyRewardType;
+  rewardValue?: number;
+  rewardDescription?: string;
+};
+
 export type OnlineStoreConfig = {
   enabled: boolean;
   slug: string;
@@ -64,6 +76,7 @@ export type OnlineStoreConfig = {
   logoFit?: 'cover' | 'contain';
   minOrderAmount?: number;
   deliveryArea?: DeliveryAreaConfig;
+  loyalty?: OnlineStoreLoyaltyConfig;
 };
 
 /** Tema / layout da empresa (Settings Minimals por tenant). */
@@ -240,6 +253,26 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
     logoFit: data.logoFit === 'contain' ? 'contain' : 'cover',
     minOrderAmount: Number(data.minOrderAmount || 0),
     deliveryArea: mapDeliveryArea(data.deliveryArea),
+    loyalty: mapLoyaltyConfig(data.loyalty),
+  };
+}
+
+function mapLoyaltyConfig(raw: unknown): OnlineStoreLoyaltyConfig | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const rewardTypeRaw = String(r.rewardType ?? 'discount_fixed');
+  const rewardType: LoyaltyRewardType =
+    rewardTypeRaw === 'discount_percent' || rewardTypeRaw === 'free_product'
+      ? rewardTypeRaw
+      : 'discount_fixed';
+  return {
+    enabled: r.enabled === true,
+    stampsGoal: Math.min(20, Math.max(2, Math.round(Number(r.stampsGoal) || 10))),
+    reaisPerPoint: Math.max(1, Number(r.reaisPerPoint) || 10),
+    minOrderValue: Math.max(0, Number(r.minOrderValue) || 0),
+    rewardType,
+    rewardValue: Math.max(0, Number(r.rewardValue) || 0),
+    rewardDescription: optStr(r.rewardDescription),
   };
 }
 

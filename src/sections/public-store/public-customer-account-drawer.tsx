@@ -1,4 +1,4 @@
-import type { PublicOrderTracking } from 'src/api/firestore/online-orders';
+import type { PublicOrderTracking, OnlineStoreLoyaltyConfig } from 'src/api/firestore/online-orders';
 
 import { useState, useEffect, useCallback } from 'react';
 
@@ -26,6 +26,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 import { useCepLookup } from 'src/hooks/use-cep-lookup';
 
+import { fCurrency } from 'src/utils/format-number';
 import { formatCep, digitsOnly } from 'src/utils/br-docs';
 
 import { varAlpha } from 'src/theme/styles';
@@ -51,18 +52,33 @@ import type { SavedCustomerAddress, PublicCustomerProfile } from './public-custo
 
 // ----------------------------------------------------------------------
 
-const LOYALTY_STAMPS_GOAL = 10;
-
 type Props = {
   open: boolean;
   slug: string;
   storeName: string;
+  loyalty?: OnlineStoreLoyaltyConfig;
   customer: VerifiedPublicCustomer | null;
   onClose: () => void;
   onOpenMyOrders: () => void;
   onCustomerUpdated?: (customer: VerifiedPublicCustomer) => void;
   onSignedOut: () => void;
 };
+
+function formatLoyaltyRewardSummary(loyalty: OnlineStoreLoyaltyConfig): string {
+  if (loyalty.rewardDescription?.trim()) {
+    return loyalty.rewardDescription.trim();
+  }
+  if (loyalty.rewardType === 'free_product') {
+    return '1 produto ou brinde grátis';
+  }
+  if (loyalty.rewardType === 'discount_percent' && Number(loyalty.rewardValue || 0) > 0) {
+    return `${Number(loyalty.rewardValue)}% de desconto no próximo pedido`;
+  }
+  if (loyalty.rewardType === 'discount_fixed' && Number(loyalty.rewardValue || 0) > 0) {
+    return `${fCurrency(Number(loyalty.rewardValue))} de desconto no próximo pedido`;
+  }
+  return 'desconto ou produto grátis';
+}
 
 function readLegacyAddress(slug: string): string {
   try {
@@ -76,6 +92,7 @@ export function PublicCustomerAccountDrawer({
   open,
   slug,
   storeName,
+  loyalty,
   customer,
   onClose,
   onOpenMyOrders,
@@ -144,15 +161,25 @@ export function PublicCustomerAccountDrawer({
     return <Drawer open={false} anchor="right" onClose={onClose} />;
   }
 
+  const loyaltyEnabled = loyalty?.enabled === true;
+  const stampsGoal = Math.min(20, Math.max(2, Math.round(Number(loyalty?.stampsGoal) || 10)));
+  const reaisPerPoint = Math.max(1, Number(loyalty?.reaisPerPoint) || 10);
+  const minOrderForLoyalty = Math.max(0, Number(loyalty?.minOrderValue) || 0);
+
   const validOrders = orders.filter(
     (o) => o.fulfillmentStatus !== 'rejected' && o.fulfillmentStatus !== 'cancelled'
   );
-  const totalSpent = validOrders.reduce((acc, o) => acc + Number(o.total || 0), 0);
-  const stampsInCycle = validOrders.length % LOYALTY_STAMPS_GOAL;
-  const completedCycles = Math.floor(validOrders.length / LOYALTY_STAMPS_GOAL);
-  const loyaltyPoints = Math.floor(totalSpent / 10);
-  const progressPercent = Math.min(100, Math.round((stampsInCycle / LOYALTY_STAMPS_GOAL) * 100));
-  const remainingForReward = LOYALTY_STAMPS_GOAL - stampsInCycle;
+  const eligibleOrders =
+    minOrderForLoyalty > 0
+      ? validOrders.filter((o) => Number(o.total || 0) >= minOrderForLoyalty)
+      : validOrders;
+  const totalEligibleSpent = eligibleOrders.reduce((acc, o) => acc + Number(o.total || 0), 0);
+  const stampsInCycle = eligibleOrders.length % stampsGoal;
+  const completedCycles = Math.floor(eligibleOrders.length / stampsGoal);
+  const loyaltyPoints = Math.floor(totalEligibleSpent / reaisPerPoint);
+  const progressPercent = Math.min(100, Math.round((stampsInCycle / stampsGoal) * 100));
+  const remainingForReward = stampsGoal - stampsInCycle;
+  const rewardSummary = loyalty ? formatLoyaltyRewardSummary(loyalty) : 'desconto ou produto grátis';
 
   const defaultAddr =
     profile?.addresses.find((a) => a.isDefault) || profile?.addresses[0] || null;
@@ -316,109 +343,117 @@ export function PublicCustomerAccountDrawer({
               </Box>
             </Stack>
 
-            {/* 2. Programa de Fidelidade */}
-            <Card
-              sx={{
-                p: 2.25,
-                borderRadius: 2,
-                background: (theme) =>
-                  `linear-gradient(135deg, ${varAlpha(theme.vars.palette.primary.mainChannel, 0.14)} 0%, ${varAlpha(theme.vars.palette.warning.mainChannel, 0.1)} 100%)`,
-                border: (theme) =>
-                  `1px solid ${varAlpha(theme.vars.palette.primary.mainChannel, 0.24)}`,
-                boxShadow: 'none',
-              }}
-            >
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Iconify icon="solar:cup-star-bold-duotone" width={24} sx={{ color: 'warning.main' }} />
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                      Programa de Fidelidade
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {storeName}
-                    </Typography>
-                  </Box>
-                </Stack>
-                <Label variant="filled" color="warning">
-                  {loyaltyPoints} pts
-                </Label>
-              </Stack>
-
-              {loading ? (
-                <Stack spacing={1}>
-                  <Skeleton animation="wave" variant="rounded" height={42} />
-                  <Skeleton animation="wave" variant="text" width="75%" />
-                </Stack>
-              ) : (
-                <>
-                  {/* Grade de 10 selos do Cartão Fidelidade */}
-                  <Box
-                    display="grid"
-                    gridTemplateColumns="repeat(5, 1fr)"
-                    gap={1}
-                    sx={{ my: 1.5 }}
-                  >
-                    {[...Array(LOYALTY_STAMPS_GOAL)].map((_, idx) => {
-                      const earned = idx < stampsInCycle;
-                      return (
-                        <Box
-                          key={idx}
-                          sx={{
-                            height: 36,
-                            borderRadius: 1,
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: earned ? 'primary.main' : 'background.paper',
-                            color: earned ? 'common.white' : 'text.disabled',
-                            border: (theme) =>
-                              `1px dashed ${
-                                earned
-                                  ? theme.vars.palette.primary.main
-                                  : varAlpha(theme.vars.palette.grey['500Channel'], 0.32)
-                              }`,
-                          }}
-                        >
-                          <Iconify
-                            icon={earned ? 'solar:star-bold' : 'solar:star-linear'}
-                            width={18}
-                          />
-                        </Box>
-                      );
-                    })}
-                  </Box>
-
-                  <LinearProgress
-                    variant="determinate"
-                    value={progressPercent}
-                    color="primary"
-                    sx={{ height: 7, borderRadius: 1, mb: 1 }}
-                  />
-
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {completedCycles > 0
-                      ? `Parabéns! Você já completou ${completedCycles} cartão(ões) fidelidade. `
-                      : ''}
-                    Faltam <strong>{remainingForReward} pedido(s)</strong> para desbloquear sua
-                    próxima recompensa (desconto ou produto grátis).
-                  </Typography>
-
-                  <Stack
-                    direction="row"
-                    justifyContent="space-between"
-                    sx={{ mt: 1.5, pt: 1.25, borderTop: (t) => `1px dashed ${t.vars.palette.divider}` }}
-                  >
-                    <Typography variant="caption" color="text.secondary">
-                      Pedidos contabilizados: <strong>{validOrders.length}</strong>
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Selos no cartão: <strong>{stampsInCycle}/{LOYALTY_STAMPS_GOAL}</strong>
-                    </Typography>
+            {/* 2. Programa de Fidelidade (exibido somente quando ativado pela loja) */}
+            {loyaltyEnabled && (
+              <Card
+                sx={{
+                  p: 2.25,
+                  borderRadius: 2,
+                  background: (theme) =>
+                    `linear-gradient(135deg, ${varAlpha(theme.vars.palette.primary.mainChannel, 0.14)} 0%, ${varAlpha(theme.vars.palette.warning.mainChannel, 0.1)} 100%)`,
+                  border: (theme) =>
+                    `1px solid ${varAlpha(theme.vars.palette.primary.mainChannel, 0.24)}`,
+                  boxShadow: 'none',
+                }}
+              >
+                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Iconify icon="solar:cup-star-bold-duotone" width={24} sx={{ color: 'warning.main' }} />
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                        Programa de Fidelidade
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {storeName}
+                      </Typography>
+                    </Box>
                   </Stack>
-                </>
-              )}
-            </Card>
+                  <Label variant="filled" color="warning">
+                    {loyaltyPoints} pts
+                  </Label>
+                </Stack>
+
+                {loading ? (
+                  <Stack spacing={1}>
+                    <Skeleton animation="wave" variant="rounded" height={42} />
+                    <Skeleton animation="wave" variant="text" width="75%" />
+                  </Stack>
+                ) : (
+                  <>
+                    {/* Grade de selos do Cartão Fidelidade */}
+                    <Box
+                      display="grid"
+                      gridTemplateColumns={`repeat(${Math.min(5, stampsGoal)}, 1fr)`}
+                      gap={1}
+                      sx={{ my: 1.5 }}
+                    >
+                      {[...Array(stampsGoal)].map((_, idx) => {
+                        const earned = idx < stampsInCycle;
+                        return (
+                          <Box
+                            key={idx}
+                            sx={{
+                              height: 36,
+                              borderRadius: 1,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: earned ? 'primary.main' : 'background.paper',
+                              color: earned ? 'common.white' : 'text.disabled',
+                              border: (theme) =>
+                                `1px dashed ${
+                                  earned
+                                    ? theme.vars.palette.primary.main
+                                    : varAlpha(theme.vars.palette.grey['500Channel'], 0.32)
+                                }`,
+                            }}
+                          >
+                            <Iconify
+                              icon={earned ? 'solar:star-bold' : 'solar:star-linear'}
+                              width={18}
+                            />
+                          </Box>
+                        );
+                      })}
+                    </Box>
+
+                    <LinearProgress
+                      variant="determinate"
+                      value={progressPercent}
+                      color="primary"
+                      sx={{ height: 7, borderRadius: 1, mb: 1 }}
+                    />
+
+                    <Typography variant="caption" color="text.secondary" display="block">
+                      {completedCycles > 0
+                        ? `Parabéns! Você já completou ${completedCycles} cartão(ões) fidelidade. `
+                        : ''}
+                      Faltam <strong>{remainingForReward} pedido(s)</strong> para desbloquear sua
+                      próxima recompensa: <strong>{rewardSummary}</strong>.
+                    </Typography>
+
+                    {minOrderForLoyalty > 0 && (
+                      <Typography variant="caption" color="text.disabled" display="block" sx={{ mt: 0.5 }}>
+                        Válido para pedidos a partir de {fCurrency(minOrderForLoyalty)}.
+                      </Typography>
+                    )}
+
+                    <Stack
+                      direction="row"
+                      justifyContent="space-between"
+                      sx={{ mt: 1.5, pt: 1.25, borderTop: (t) => `1px dashed ${t.vars.palette.divider}` }}
+                    >
+                      <Typography variant="caption" color="text.secondary">
+                        Pedidos contabilizados: <strong>{eligibleOrders.length}</strong>
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Selos no cartão: <strong>{stampsInCycle}/{stampsGoal}</strong>
+                      </Typography>
+                    </Stack>
+                  </>
+                )}
+              </Card>
+            )}
 
             {/* 3. Informações Pessoais & Endereço Padrão */}
             <Card

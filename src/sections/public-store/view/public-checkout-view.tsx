@@ -431,8 +431,8 @@ export function PublicCheckoutView() {
       }
     }
 
-    // Identificação e registro seguro via Firebase Phone Auth (OTP 6 dígitos)
-    if (!isPhoneVerifiedForSlug(slug, customerPhone)) {
+    // Identificação e registro seguro via Firebase Phone Auth (apenas para pedidos online — nunca no modo Mesa)
+    if (!isTableMode && !isPhoneVerifiedForSlug(slug, customerPhone)) {
       setSubmitAfterVerify(true);
       setPhoneVerifyOpen(true);
       return;
@@ -854,7 +854,7 @@ export function PublicCheckoutView() {
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
                       Seus Dados de Contato
                     </Typography>
-                    {verifiedCustomer && (
+                    {!isTableMode && verifiedCustomer && (
                       <Stack direction="row" spacing={0.5} alignItems="center">
                         <Button
                           size="small"
@@ -876,7 +876,7 @@ export function PublicCheckoutView() {
                     )}
                   </Stack>
 
-                  {verifiedCustomer ? (
+                  {!isTableMode && verifiedCustomer ? (
                     <Stack spacing={2}>
                       <Box
                         sx={{
@@ -966,17 +966,19 @@ export function PublicCheckoutView() {
                         }}
                       />
 
-                      <Button
-                        fullWidth
-                        variant="soft"
-                        color="primary"
-                        size="large"
-                        disabled={!isCompletePhoneBr(customerPhone)}
-                        onClick={handleStartPhoneAuth}
-                        startIcon={<Iconify icon="solar:shield-check-bold" />}
-                      >
-                        Validar celular por SMS e liberar meus dados
-                      </Button>
+                      {!isTableMode && (
+                        <Button
+                          fullWidth
+                          variant="soft"
+                          color="primary"
+                          size="large"
+                          disabled={!isCompletePhoneBr(customerPhone)}
+                          onClick={handleStartPhoneAuth}
+                          startIcon={<Iconify icon="solar:shield-check-bold" />}
+                        >
+                          Validar celular por SMS e liberar meus dados
+                        </Button>
+                      )}
 
                       <TextField
                         fullWidth

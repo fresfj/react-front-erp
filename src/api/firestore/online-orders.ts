@@ -17,12 +17,19 @@ import { enterpriseCollection } from './paths';
 
 import type {
   OnlineStoreConfig,
+  LoyaltyRewardType,
+  OnlineStoreLoyaltyConfig,
   OnlinePayOnDeliveryMethod,
 } from './platform';
 
 // ----------------------------------------------------------------------
 
-export type { OnlineStoreConfig, OnlinePayOnDeliveryMethod };
+export type {
+  OnlineStoreConfig,
+  LoyaltyRewardType,
+  OnlineStoreLoyaltyConfig,
+  OnlinePayOnDeliveryMethod,
+};
 
 export type OnlineOrderStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled';
 
@@ -124,6 +131,7 @@ export type PublicStorefront = {
   estimatedMinutes: number;
   deliveryFee: number;
   deliveryArea?: DeliveryAreaConfig;
+  loyalty?: OnlineStoreLoyaltyConfig;
   acceptDelivery: boolean;
   acceptPickup: boolean;
   acceptTableOrders?: boolean;

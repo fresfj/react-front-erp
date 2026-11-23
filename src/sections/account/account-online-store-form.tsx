@@ -14,6 +14,7 @@ import Button from '@mui/material/Button';
 import Slider from '@mui/material/Slider';
 import Divider from '@mui/material/Divider';
 import Collapse from '@mui/material/Collapse';
+import MenuItem from '@mui/material/MenuItem';
 import CardHeader from '@mui/material/CardHeader';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
@@ -77,6 +78,15 @@ const OnlineStoreSchema = zod.object({
       closed: zod.boolean(),
     })
   ),
+  loyaltyEnabled: zod.boolean().default(false),
+  loyaltyStampsGoal: zod.coerce.number().min(2).max(20).default(10),
+  loyaltyReaisPerPoint: zod.coerce.number().min(1).default(10),
+  loyaltyMinOrderValue: zod.coerce.number().min(0).default(0),
+  loyaltyRewardType: zod
+    .enum(['discount_fixed', 'discount_percent', 'free_product'])
+    .default('discount_fixed'),
+  loyaltyRewardValue: zod.coerce.number().min(0).default(0),
+  loyaltyRewardDescription: zod.string().max(240).optional().or(zod.literal('')),
 });
 
 type OnlineStoreSchemaType = zod.infer<typeof OnlineStoreSchema>;
@@ -124,6 +134,13 @@ function mapEnterpriseToForm(enterprise: Enterprise | null): OnlineStoreSchemaTy
           closed: h.closed === true,
         }))
       : defaultHours(),
+    loyaltyEnabled: store?.loyalty?.enabled === true,
+    loyaltyStampsGoal: store?.loyalty?.stampsGoal ?? 10,
+    loyaltyReaisPerPoint: store?.loyalty?.reaisPerPoint ?? 10,
+    loyaltyMinOrderValue: store?.loyalty?.minOrderValue ?? 0,
+    loyaltyRewardType: store?.loyalty?.rewardType ?? 'discount_fixed',
+    loyaltyRewardValue: store?.loyalty?.rewardValue ?? 0,
+    loyaltyRewardDescription: store?.loyalty?.rewardDescription || '',
   };
 }
 
@@ -141,6 +158,7 @@ export function AccountOnlineStoreForm() {
   );
   const openBranding = useBoolean(true);
   const openSettings = useBoolean(true);
+  const openLoyalty = useBoolean(true);
 
   const canEdit =
     Boolean(user?.platformAdmin) || user?.role === 'admin' || user?.role === 'gestor';
@@ -194,6 +212,8 @@ export function AccountOnlineStoreForm() {
   const bannerFit = watch('bannerFit');
   const bannerPositionY = watch('bannerPositionY');
   const logoFit = watch('logoFit');
+  const loyaltyEnabled = watch('loyaltyEnabled');
+  const loyaltyRewardType = watch('loyaltyRewardType');
 
   const [bannerPreview, setBannerPreview] = useState<string | undefined>(undefined);
   const [logoPreview, setLogoPreview] = useState<string | undefined>(undefined);
@@ -278,6 +298,15 @@ export function AccountOnlineStoreForm() {
         instagramUrl: data.instagramUrl?.trim() || undefined,
         googleReviewUrl: data.googleReviewUrl?.trim() || undefined,
         deliveryArea,
+        loyalty: {
+          enabled: data.loyaltyEnabled,
+          stampsGoal: data.loyaltyStampsGoal,
+          reaisPerPoint: data.loyaltyReaisPerPoint,
+          minOrderValue: data.loyaltyMinOrderValue ?? 0,
+          rewardType: data.loyaltyRewardType,
+          rewardValue: data.loyaltyRewardType === 'free_product' ? 0 : data.loyaltyRewardValue ?? 0,
+          rewardDescription: data.loyaltyRewardDescription?.trim() || undefined,
+        },
       };
       await upsertOnlineStoreConfigCf(enterpriseId, config);
       toast.success(t('onlineStore.saveSuccess'));
@@ -399,7 +428,7 @@ export function AccountOnlineStoreForm() {
                         if (val) setValue('bannerFit', val, { shouldDirty: true });
                       }}
                     >
-                      <ToggleButton value="contain">Imagem Inteira (Sem cortar)</ToggleButton>
+                      <ToggleButton value="contain">Inteira (Sem cortar)</ToggleButton>
                       <ToggleButton value="cover">Preencher (Ajustar foco)</ToggleButton>
                     </ToggleButtonGroup>
                   </Box>
@@ -768,6 +797,112 @@ export function AccountOnlineStoreForm() {
           enterprise={enterprise}
           disabled={!canEdit}
         />
+
+        {/* Programa de Fidelidade */}
+        <Card>
+          <CardHeader
+            title="Programa de Fidelidade"
+            subheader="Ative o cartão fidelidade no catálogo online e defina as regras de selos, pontos e recompensas"
+            action={
+              <IconButton onClick={openLoyalty.onToggle}>
+                <Iconify
+                  icon={
+                    openLoyalty.value
+                      ? 'eva:arrow-ios-upward-fill'
+                      : 'eva:arrow-ios-downward-fill'
+                  }
+                />
+              </IconButton>
+            }
+            sx={{ mb: 2 }}
+          />
+          <Collapse in={openLoyalty.value}>
+            <Divider />
+            <Stack spacing={2.5} sx={{ p: 3 }}>
+              <Box>
+                <Field.Switch
+                  name="loyaltyEnabled"
+                  label="Ativar Programa de Fidelidade no Catálogo Online"
+                  disabled={!canEdit}
+                />
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
+                  Quando ativado, clientes autenticados visualizam o cartão fidelidade, selos e
+                  pontos no menu &quot;Minha Conta&quot;. Quando desativado, o card fica oculto.
+                </Typography>
+              </Box>
+
+              {loyaltyEnabled && (
+                <>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <Field.Text
+                      name="loyaltyStampsGoal"
+                      type="number"
+                      label="Meta de pedidos (selos)"
+                      helperText="Entre 2 e 20 pedidos para completar o cartão"
+                      inputProps={{ min: 2, max: 20, step: 1 }}
+                      disabled={!canEdit}
+                    />
+                    <Field.Text
+                      name="loyaltyReaisPerPoint"
+                      type="number"
+                      label="Valor por ponto (R$)"
+                      helperText="Ex.: 10 = ganha 1 ponto a cada R$ 10 gastos"
+                      inputProps={{ min: 1, step: 1 }}
+                      disabled={!canEdit}
+                    />
+                    <Field.Text
+                      name="loyaltyMinOrderValue"
+                      type="number"
+                      label="Pedido mínimo p/ pontuar (R$)"
+                      helperText="0 = qualquer pedido válido conta selo"
+                      inputProps={{ min: 0, step: 0.5 }}
+                      disabled={!canEdit}
+                    />
+                  </Stack>
+
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                    <Field.Select
+                      name="loyaltyRewardType"
+                      label="Tipo de recompensa ao completar"
+                      disabled={!canEdit}
+                    >
+                      <MenuItem value="discount_fixed">Desconto em valor fixo (R$)</MenuItem>
+                      <MenuItem value="discount_percent">Desconto em percentual (%)</MenuItem>
+                      <MenuItem value="free_product">Produto ou brinde grátis</MenuItem>
+                    </Field.Select>
+
+                    {loyaltyRewardType !== 'free_product' && (
+                      <Field.Text
+                        name="loyaltyRewardValue"
+                        type="number"
+                        label={
+                          loyaltyRewardType === 'discount_percent'
+                            ? 'Percentual de desconto (%)'
+                            : 'Valor do desconto (R$)'
+                        }
+                        inputProps={{
+                          min: 0,
+                          max: loyaltyRewardType === 'discount_percent' ? 100 : undefined,
+                          step: loyaltyRewardType === 'discount_percent' ? 1 : 0.5,
+                        }}
+                        disabled={!canEdit}
+                      />
+                    )}
+                  </Stack>
+
+                  <Field.Text
+                    name="loyaltyRewardDescription"
+                    label="Regras e descrição do prêmio (exibido ao cliente)"
+                    placeholder="Ex.: Complete 10 pedidos e ganhe R$ 15 de desconto ou 1 Açaí 300ml grátis no próximo pedido!"
+                    multiline
+                    rows={2}
+                    disabled={!canEdit}
+                  />
+                </>
+              )}
+            </Stack>
+          </Collapse>
+        </Card>
 
         {canEdit && (
           <Stack direction="row" justifyContent="flex-end">
