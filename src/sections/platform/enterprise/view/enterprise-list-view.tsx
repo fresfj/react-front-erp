@@ -369,7 +369,7 @@ export function EnterpriseListView() {
               />
 
               <ErpTableAnalytic
-                title="Planos Pagos (Pro / Ultra)"
+                title="Planos Pagos"
                 primaryValue={`${metrics.proCount + metrics.ultraCount} empresas`}
                 secondaryValue={`${metrics.proCount} Pro • ${metrics.ultraCount} Ultra`}
                 percent={

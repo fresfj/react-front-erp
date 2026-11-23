@@ -852,7 +852,7 @@ export function PublicCheckoutView() {
                     sx={{ mb: 2 }}
                   >
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                      Seus Dados de Contato
+                      Seus Dados
                     </Typography>
                     {!isTableMode && verifiedCustomer && (
                       <Stack direction="row" spacing={0.5} alignItems="center">
@@ -862,7 +862,7 @@ export function PublicCheckoutView() {
                           onClick={() => setEditingVerifiedName((prev) => !prev)}
                           startIcon={<Iconify icon="solar:pen-bold" width={15} />}
                         >
-                          {editingVerifiedName ? 'Concluir' : 'Editar nome'}
+                          {editingVerifiedName ? 'Concluir' : 'Editar'}
                         </Button>
                         <Button
                           size="small"
