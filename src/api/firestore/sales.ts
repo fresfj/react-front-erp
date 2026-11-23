@@ -15,6 +15,7 @@ import {
   buildInstallmentDueDates,
 } from 'src/sections/cash/installments';
 
+import { issueSaleNfceCf } from './nfce';
 import { enterpriseCollection } from './paths';
 import { omitUndefined } from './omit-undefined';
 
@@ -82,11 +83,15 @@ export type Sale = {
   tableNumber?: string;
   tableSessionId?: string;
   cashSessionId?: string;
-  nfceStatus?: 'pending' | 'authorized' | 'cancelled';
+  nfceStatus?: 'none' | 'pending' | 'authorized' | 'cancelled' | 'error';
   nfceNumber?: string;
   nfceKey?: string;
   nfceProtocol?: string;
   nfceIssuedAt?: string;
+  nfceDanfeUrl?: string;
+  nfceQrCodeUrl?: string;
+  nfceLastError?: string;
+  nfceAttempts?: number;
   lastEmailSentTo?: string;
   lastEmailSentAt?: string;
   status: SaleStatus;
@@ -177,13 +182,21 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     tableSessionId: optStr(data.tableSessionId),
     cashSessionId: optStr(data.cashSessionId),
     nfceStatus:
-      data.nfceStatus === 'authorized' || data.nfceStatus === 'cancelled'
+      data.nfceStatus === 'authorized' ||
+      data.nfceStatus === 'cancelled' ||
+      data.nfceStatus === 'pending' ||
+      data.nfceStatus === 'error' ||
+      data.nfceStatus === 'none'
         ? data.nfceStatus
-        : 'pending',
+        : 'none',
     nfceNumber: optStr(data.nfceNumber),
     nfceKey: optStr(data.nfceKey),
     nfceProtocol: optStr(data.nfceProtocol),
     nfceIssuedAt: optStr(data.nfceIssuedAt),
+    nfceDanfeUrl: optStr(data.nfceDanfeUrl),
+    nfceQrCodeUrl: optStr(data.nfceQrCodeUrl),
+    nfceLastError: optStr(data.nfceLastError),
+    nfceAttempts: typeof data.nfceAttempts === 'number' ? data.nfceAttempts : undefined,
     lastEmailSentTo: optStr(data.lastEmailSentTo),
     lastEmailSentAt: optStr(data.lastEmailSentAt),
     status,
@@ -476,38 +489,11 @@ export async function cancelSale(enterpriseId: string, sale: Sale): Promise<void
   await wb.commit();
 }
 
-function randomDigits(len: number): string {
-  let out = '';
-  for (let i = 0; i < len; i += 1) {
-    out += String(Math.floor(Math.random() * 10));
-  }
-  return out;
-}
-
 /**
- * Fase 5 — Emissão de NFC-e (DANFE NFC-e / Cupom Fiscal Eletrônico)
+ * Fase 5 — Emissão de NFC-e via Cloud Function (Focus / FiscalIssuer).
  */
-export async function issueSaleNfce(enterpriseId: string, sale: Sale): Promise<{
-  nfceNumber: string;
-  nfceKey: string;
-  nfceProtocol: string;
-  nfceIssuedAt: string;
-}> {
-  const timestamp = nowIso();
-  const nfceNumber = String(Math.floor(100000 + Math.random() * 900000));
-  const nfceKey = `152611${randomDigits(38)}`; // 44 dígitos padrão SEFAZ
-  const nfceProtocol = `11526${randomDigits(10)}`;
-
-  await updateDoc(saleRef(enterpriseId, sale.id), {
-    nfceStatus: 'authorized',
-    nfceNumber,
-    nfceKey,
-    nfceProtocol,
-    nfceIssuedAt: timestamp,
-    updatedAt: timestamp,
-  });
-
-  return { nfceNumber, nfceKey, nfceProtocol, nfceIssuedAt: timestamp };
+export async function issueSaleNfce(enterpriseId: string, sale: Sale) {
+  return issueSaleNfceCf({ enterpriseId, saleId: sale.id });
 }
 
 export async function recordSaleEmailSent(

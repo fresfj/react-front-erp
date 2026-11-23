@@ -22,6 +22,7 @@ initializeApp();
 const onlineOrders = require('./online-orders');
 const whatsappService = require('./whatsapp/whatsapp-service');
 const userSwitch = require('./auth/user-switch');
+const nfceService = require('./fiscal/nfce-service');
 
 const auth = getAuth();
 const db = getFirestore();
@@ -132,6 +133,37 @@ function assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId) {
       'Enterprise admin or platformAdmin permission required'
     );
   }
+}
+
+function assertSameEnterpriseMember(request, enterpriseId) {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Authentication required');
+  }
+  if (request.auth.token.platformAdmin === true) {
+    return;
+  }
+  if (request.auth.token.enterpriseId !== enterpriseId) {
+    throw new HttpsError('permission-denied', 'Enterprise membership required');
+  }
+  if (!TENANT_ROLES.has(request.auth.token.role)) {
+    throw new HttpsError('permission-denied', 'Valid tenant role required');
+  }
+}
+
+function mapNfceHttpsError(error) {
+  const code = error?.code;
+  if (code === 'not-found') return new HttpsError('not-found', error.message);
+  if (code === 'invalid-argument') return new HttpsError('invalid-argument', error.message);
+  if (code === 'failed-precondition') return new HttpsError('failed-precondition', error.message);
+  if (
+    code === 'missing_fiscal_config' ||
+    code === 'missing_fiscal_product_data' ||
+    code === 'provider_reject' ||
+    code === 'provider_not_implemented'
+  ) {
+    return new HttpsError('failed-precondition', error.message);
+  }
+  return new HttpsError('internal', error?.message || 'NFC-e operation failed');
 }
 
 function nowIso() {
@@ -1714,6 +1746,104 @@ localActionHandlers.switchActiveEnterprise = async (request) => {
     role: targetRole,
   };
 };
+
+exports.saveEnterpriseFiscalSecrets = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  if (!enterpriseId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId is required');
+  }
+  assertEnterpriseAdminOrPlatformAdmin(request, enterpriseId);
+  try {
+    return await nfceService.saveEnterpriseFiscalSecrets(db, {
+      enterpriseId,
+      provider: request.data?.provider || 'focus',
+      apiToken: request.data?.apiToken,
+      cscId: request.data?.cscId,
+      cscToken: request.data?.cscToken,
+      uid: request.auth.uid,
+    });
+  } catch (error) {
+    throw mapNfceHttpsError(error);
+  }
+});
+
+exports.enqueueSaleNfce = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  const saleId = String(request.data?.saleId || '').trim();
+  if (!enterpriseId || !saleId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId and saleId are required');
+  }
+  assertSameEnterpriseMember(request, enterpriseId);
+  try {
+    return await nfceService.enqueueSaleNfce(db, { enterpriseId, saleId });
+  } catch (error) {
+    throw mapNfceHttpsError(error);
+  }
+});
+
+exports.issueSaleNfce = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  const saleId = String(request.data?.saleId || '').trim();
+  if (!enterpriseId || !saleId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId and saleId are required');
+  }
+  assertSameEnterpriseMember(request, enterpriseId);
+  try {
+    return await nfceService.issueSaleNfceForEnterprise(db, { enterpriseId, saleId });
+  } catch (error) {
+    throw mapNfceHttpsError(error);
+  }
+});
+
+exports.cancelSaleNfce = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  const saleId = String(request.data?.saleId || '').trim();
+  if (!enterpriseId || !saleId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId and saleId are required');
+  }
+  assertSameEnterpriseMember(request, enterpriseId);
+  try {
+    return await nfceService.cancelSaleNfceForEnterprise(db, {
+      enterpriseId,
+      saleId,
+      justification: request.data?.justification,
+    });
+  } catch (error) {
+    throw mapNfceHttpsError(error);
+  }
+});
+
+exports.retryPendingNfce = onCall(async (request) => {
+  const enterpriseId = String(request.data?.enterpriseId || '').trim();
+  const saleId = String(request.data?.saleId || '').trim();
+  if (!enterpriseId) {
+    throw new HttpsError('invalid-argument', 'enterpriseId is required');
+  }
+  assertSameEnterpriseMember(request, enterpriseId);
+  try {
+    if (saleId) {
+      return await nfceService.issueSaleNfceForEnterprise(db, { enterpriseId, saleId });
+    }
+    const batch = await nfceService.processPendingNfceBatch(db, { enterpriseId, limit: 5 });
+    return { results: batch };
+  } catch (error) {
+    throw mapNfceHttpsError(error);
+  }
+});
+
+exports.processPendingNfceBatch = onSchedule('every 15 minutes', async () => {
+  const snap = await db.collection('enterprises').where('nfceEnabled', '==', true).limit(50).get();
+  for (const docSnap of snap.docs) {
+    try {
+      await nfceService.processPendingNfceBatch(db, {
+        enterpriseId: docSnap.id,
+        limit: 10,
+      });
+    } catch (error) {
+      console.error('processPendingNfceBatch', docSnap.id, error?.message || error);
+    }
+  }
+});
 
 exports.getPublicStorefront = onlineOrders.getPublicStorefront;
 exports.placeOnlineOrder = onlineOrders.placeOnlineOrder;
