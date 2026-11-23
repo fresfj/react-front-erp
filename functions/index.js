@@ -1812,9 +1812,9 @@ exports.enqueueSaleNfce = onCall(async (request) => {
   }
 });
 
-// cpu gcf_gen1: menor cota Cloud Run (projeto já estourou CPU em us-central1)
+// cpu gcf_gen1: menor cota Cloud Run (projeto já estourou CPU em us-central1; <1 CPU exige concurrency: 1)
 exports.issueSaleNfce = onCall(
-  { memory: '256MiB', cpu: 'gcf_gen1', concurrency: 80, maxInstances: 2 },
+  { memory: '256MiB', cpu: 'gcf_gen1', concurrency: 1, maxInstances: 2 },
   async (request) => {
     const enterpriseId = String(request.data?.enterpriseId || '').trim();
     const saleId = String(request.data?.saleId || '').trim();
