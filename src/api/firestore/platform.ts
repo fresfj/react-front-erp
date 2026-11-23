@@ -101,10 +101,13 @@ export type Enterprise = {
   taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
   nfceEnabled?: boolean;
   hasFiscalSecrets?: boolean;
-  fiscalIssuerProvider?: 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
+  fiscalIssuerProvider?: 'focus' | 'sefaz-direct' | 'plugnotas' | 'nuvemfiscal' | null;
   nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';
+  /** Public A1 metadata only — never the PFX/password */
+  a1Thumbprint?: string;
+  a1ExpiresAt?: string;
   receiptFooterMessage?: string;
   receiptDefaultModel?: ReceiptModelType;
   receiptShowLogo?: boolean;
@@ -269,6 +272,7 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     hasFiscalSecrets: data.hasFiscalSecrets === true,
     fiscalIssuerProvider:
       data.fiscalIssuerProvider === 'focus' ||
+      data.fiscalIssuerProvider === 'sefaz-direct' ||
       data.fiscalIssuerProvider === 'plugnotas' ||
       data.fiscalIssuerProvider === 'nuvemfiscal'
         ? data.fiscalIssuerProvider
@@ -277,6 +281,8 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     nfceSeries: optStr(data.nfceSeries) ?? '1',
     nfceEnvironment:
       data.nfceEnvironment === 'production' ? 'production' : 'homologation',
+    a1Thumbprint: optStr(data.a1Thumbprint),
+    a1ExpiresAt: optStr(data.a1ExpiresAt),
     receiptFooterMessage:
       optStr(data.receiptFooterMessage) ?? 'OBRIGADO PELA PREFERÊNCIA! VOLTE SEMPRE',
     receiptDefaultModel:
@@ -362,7 +368,7 @@ export type EnterpriseAddressInput = {
   stateRegistration?: string;
   taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
   nfceEnabled?: boolean;
-  fiscalIssuerProvider?: 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
+  fiscalIssuerProvider?: 'focus' | 'sefaz-direct' | 'plugnotas' | 'nuvemfiscal' | null;
   nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';

@@ -9,6 +9,7 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import MenuItem from '@mui/material/MenuItem';
 import Collapse from '@mui/material/Collapse';
@@ -24,8 +25,8 @@ import { useBoolean } from 'src/hooks/use-boolean';
 import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 
 import { useTranslate } from 'src/locales';
-import { saveEnterpriseFiscalSecrets } from 'src/api/firestore/nfce';
 import { getEnterprise, updateEnterpriseSettings } from 'src/api/firestore/platform';
+import { uploadEnterpriseFiscalCert, saveEnterpriseFiscalSecrets } from 'src/api/firestore/nfce';
 
 import { toast } from 'src/components/snackbar';
 import { Iconify } from 'src/components/iconify';
@@ -43,10 +44,11 @@ const numberOrZero = zod.preprocess(
 export const AccountFiscalSchema = zod.object({
   taxRegime: zod.enum(['simples', 'presumido', 'real', 'mei']),
   nfceEnabled: zod.boolean(),
-  fiscalIssuerProvider: zod.enum(['focus', 'plugnotas', 'nuvemfiscal']),
+  fiscalIssuerProvider: zod.enum(['focus', 'sefaz-direct', 'plugnotas', 'nuvemfiscal']),
   nfceCscId: zod.string().optional().or(zod.literal('')),
   apiToken: zod.string().optional().or(zod.literal('')),
   cscToken: zod.string().optional().or(zod.literal('')),
+  certPassword: zod.string().optional().or(zod.literal('')),
   nfceSeries: zod.string().min(1),
   nfceEnvironment: zod.enum(['homologation', 'production']),
   receiptDefaultModel: zod.enum(['58mm', '80mm', 'a5']),
@@ -66,6 +68,19 @@ export const AccountFiscalSchema = zod.object({
 
 export type AccountFiscalSchemaType = zod.infer<typeof AccountFiscalSchema>;
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || '');
+      const comma = result.indexOf(',');
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
 // ----------------------------------------------------------------------
 
 export function AccountFiscalForm() {
@@ -78,6 +93,10 @@ export function AccountFiscalForm() {
   const [savedEnvironment, setSavedEnvironment] = useState<'homologation' | 'production'>(
     'homologation'
   );
+  const [savedProvider, setSavedProvider] = useState<'focus' | 'sefaz-direct' | string>('focus');
+  const [a1Thumbprint, setA1Thumbprint] = useState('');
+  const [a1ExpiresAt, setA1ExpiresAt] = useState('');
+  const [pfxFile, setPfxFile] = useState<File | null>(null);
   const openFiscal = useBoolean(true);
   const openFees = useBoolean(true);
 
@@ -92,6 +111,7 @@ export function AccountFiscalForm() {
       nfceCscId: '',
       apiToken: '',
       cscToken: '',
+      certPassword: '',
       nfceSeries: '1',
       nfceEnvironment: 'homologation',
       receiptDefaultModel: '58mm',
@@ -119,10 +139,14 @@ export function AccountFiscalForm() {
 
   const {
     reset,
+    watch,
     setValue,
     handleSubmit,
     formState: { isSubmitting },
   } = methods;
+
+  const provider = watch('fiscalIssuerProvider');
+  const isSefazDirect = provider === 'sefaz-direct';
 
   useEffect(() => {
     if (!enterpriseId) {
@@ -135,6 +159,9 @@ export function AccountFiscalForm() {
         if (!alive || !data) return;
         setHasFiscalSecrets(Boolean(data.hasFiscalSecrets));
         setSavedEnvironment(data.nfceEnvironment || 'homologation');
+        setSavedProvider(data.fiscalIssuerProvider || 'focus');
+        setA1Thumbprint(data.a1Thumbprint || '');
+        setA1ExpiresAt(data.a1ExpiresAt || '');
         reset({
           taxRegime: data.taxRegime || 'simples',
           nfceEnabled: Boolean(data.nfceEnabled),
@@ -142,6 +169,7 @@ export function AccountFiscalForm() {
           nfceCscId: data.nfceCscId || '',
           apiToken: '',
           cscToken: '',
+          certPassword: '',
           nfceSeries: data.nfceSeries || '1',
           nfceEnvironment: data.nfceEnvironment || 'homologation',
           receiptDefaultModel: data.receiptDefaultModel || '58mm',
@@ -183,13 +211,48 @@ export function AccountFiscalForm() {
       return;
     }
 
+    if (
+      data.fiscalIssuerProvider !== savedProvider &&
+      !window.confirm(t('fiscal.switchProviderConfirm'))
+    ) {
+      return;
+    }
+
     if (data.nfceEnabled && (!data.nfceSeries || !data.taxRegime)) {
       toast.error(t('fiscal.missingSecrets'));
       return;
     }
 
     try {
-      if (data.apiToken?.trim() || data.cscToken?.trim() || data.nfceCscId?.trim()) {
+      if (data.fiscalIssuerProvider === 'sefaz-direct') {
+        if (pfxFile) {
+          if (!data.certPassword?.trim()) {
+            toast.error(t('fiscal.certPassword'));
+            return;
+          }
+          const pfxBase64 = await fileToBase64(pfxFile);
+          const uploaded = await uploadEnterpriseFiscalCert({
+            enterpriseId,
+            pfxBase64,
+            password: data.certPassword.trim(),
+            cscId: data.nfceCscId?.trim() || undefined,
+            cscToken: data.cscToken?.trim() || undefined,
+            provider: 'sefaz-direct',
+          });
+          setHasFiscalSecrets(true);
+          setA1Thumbprint(uploaded.a1Thumbprint || '');
+          setA1ExpiresAt(uploaded.a1ExpiresAt || '');
+          setPfxFile(null);
+          toast.success(t('fiscal.certUploaded'));
+        } else if (data.cscToken?.trim() || data.nfceCscId?.trim()) {
+          await saveEnterpriseFiscalSecrets({
+            enterpriseId,
+            provider: 'sefaz-direct',
+            cscId: data.nfceCscId?.trim() || undefined,
+            cscToken: data.cscToken?.trim() || undefined,
+          });
+        }
+      } else if (data.apiToken?.trim() || data.cscToken?.trim() || data.nfceCscId?.trim()) {
         await saveEnterpriseFiscalSecrets({
           enterpriseId,
           provider: 'focus',
@@ -222,8 +285,10 @@ export function AccountFiscalForm() {
         minInstallmentAmount: Number(data.minInstallmentAmount ?? 15),
       });
       setSavedEnvironment(data.nfceEnvironment);
+      setSavedProvider(data.fiscalIssuerProvider);
       setValue('apiToken', '');
       setValue('cscToken', '');
+      setValue('certPassword', '');
       toast.success(t('account.fiscalSaveSuccess'));
     } catch (error) {
       console.error(error);
@@ -263,6 +328,9 @@ export function AccountFiscalForm() {
               {!hasFiscalSecrets && (
                 <Alert severity="warning">{t('fiscal.missingSecrets')}</Alert>
               )}
+              {isSefazDirect && (
+                <Alert severity="info">{t('fiscal.ufPilotHint')}</Alert>
+              )}
               <Box
                 columnGap={2}
                 rowGap={3}
@@ -281,6 +349,7 @@ export function AccountFiscalForm() {
                   disabled={!canEdit}
                 >
                   <MenuItem value="focus">Focus NFe</MenuItem>
+                  <MenuItem value="sefaz-direct">{t('fiscal.sefazDirect')}</MenuItem>
                   <MenuItem value="plugnotas" disabled>
                     PlugNotas
                   </MenuItem>
@@ -312,13 +381,19 @@ export function AccountFiscalForm() {
                   <MenuItem value="a5">A5</MenuItem>
                 </Field.Select>
                 <Field.Text name="nfceCscId" label={t('fiscal.cscId')} disabled={!canEdit} />
-                <Field.Text
-                  name="apiToken"
-                  label={t('fiscal.apiToken')}
-                  type="password"
-                  disabled={!canEdit}
-                  helperText={hasFiscalSecrets ? 'Token já configurado — deixe em branco para manter' : undefined}
-                />
+                {!isSefazDirect && (
+                  <Field.Text
+                    name="apiToken"
+                    label={t('fiscal.apiToken')}
+                    type="password"
+                    disabled={!canEdit}
+                    helperText={
+                      hasFiscalSecrets
+                        ? 'Token já configurado — deixe em branco para manter'
+                        : undefined
+                    }
+                  />
+                )}
                 <Field.Text
                   name="cscToken"
                   label={t('fiscal.cscToken')}
@@ -326,6 +401,44 @@ export function AccountFiscalForm() {
                   disabled={!canEdit}
                 />
               </Box>
+
+              {isSefazDirect && (
+                <Stack spacing={2}>
+                  {(a1Thumbprint || a1ExpiresAt) && (
+                    <Alert severity="success">
+                      {t('fiscal.certUploaded')}
+                      {a1ExpiresAt ? ` — ${t('fiscal.certExpires')}: ${a1ExpiresAt}` : ''}
+                      {a1Thumbprint
+                        ? ` — ${t('fiscal.certThumbprint')}: ${a1Thumbprint.slice(0, 16)}…`
+                        : ''}
+                    </Alert>
+                  )}
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
+                    <Button variant="outlined" component="label" disabled={!canEdit}>
+                      {t('fiscal.uploadCert')}
+                      <input
+                        hidden
+                        type="file"
+                        accept=".pfx,.p12,application/x-pkcs12"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] || null;
+                          setPfxFile(file);
+                        }}
+                      />
+                    </Button>
+                    <Typography variant="body2" color="text.secondary">
+                      {pfxFile ? pfxFile.name : '—'}
+                    </Typography>
+                  </Stack>
+                  <Field.Text
+                    name="certPassword"
+                    label={t('fiscal.certPassword')}
+                    type="password"
+                    disabled={!canEdit}
+                  />
+                </Stack>
+              )}
+
               <Field.Text
                 name="receiptFooterMessage"
                 label={t('account.fields.receiptFooterMessage')}
