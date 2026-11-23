@@ -1,4 +1,8 @@
 const { focusRequest } = require('./focus-client');
+const { loadPfx, signNfceXml } = require('./a1-signer');
+const { buildNfceXml } = require('./nfce-xml');
+const { autorizarNfce } = require('./sefaz-client');
+const { resolveNfceEndpoint } = require('./uf-endpoints');
 
 function nowIso() {
   return new Date().toISOString();
@@ -188,9 +192,62 @@ function createFocusFiscalIssuer() {
   };
 }
 
+function createSefazDirectFiscalIssuer() {
+  return {
+    async issue(input) {
+      const { sale, enterprise, products, secrets, environment, saleId } = input;
+      if (!secrets?.a1PfxBase64 || !secrets?.a1Password) {
+        const err = new Error('A1 certificate is required for SEFAZ-direct');
+        err.code = 'missing_fiscal_config';
+        throw err;
+      }
+      if (!secrets?.cscId || !secrets?.cscToken) {
+        const err = new Error('CSC id/token are required for SEFAZ-direct');
+        err.code = 'missing_fiscal_config';
+        throw err;
+      }
+      const uf = enterprise.state || enterprise.uf;
+      const { url } = resolveNfceEndpoint(uf, environment);
+      const { xml } = buildNfceXml({
+        sale: { ...sale, id: saleId || sale.id },
+        enterprise,
+        products,
+        environment: environment || 'homologation',
+        csc: { cscId: secrets.cscId, cscToken: secrets.cscToken },
+      });
+      const { privateKeyPem, certificatePem } = loadPfx({
+        pfxBase64: secrets.a1PfxBase64,
+        password: secrets.a1Password,
+      });
+      const signedXml = signNfceXml({ xml, privateKeyPem, certificatePem });
+      const result = await autorizarNfce({ endpointUrl: url, signedXml });
+      if (result.status !== 'authorized') {
+        const err = new Error(result.xMotivo || 'SEFAZ rejected');
+        err.code = 'provider_reject';
+        err.sefaz = result;
+        throw err;
+      }
+      return {
+        status: 'authorized',
+        nfceNumber: String(result.nfceNumber || ''),
+        nfceKey: String(result.nfceKey || ''),
+        nfceProtocol: String(result.nfceProtocol || ''),
+        nfceIssuedAt: nowIso(),
+        ref: String(saleId || sale.id),
+      };
+    },
+    async cancel() {
+      const err = new Error('SEFAZ-direct cancel not implemented in v1 — use Focus or SEFAZ portal');
+      err.code = 'provider_not_implemented';
+      throw err;
+    },
+  };
+}
+
 function createFiscalIssuer(provider) {
   if (provider === 'mock') return createMockFiscalIssuer();
   if (provider === 'focus') return createFocusFiscalIssuer();
+  if (provider === 'sefaz-direct') return createSefazDirectFiscalIssuer();
   const err = new Error(`provider_not_implemented: ${provider}`);
   err.code = 'provider_not_implemented';
   throw err;
@@ -200,5 +257,6 @@ module.exports = {
   createFiscalIssuer,
   createMockFiscalIssuer,
   createFocusFiscalIssuer,
+  createSefazDirectFiscalIssuer,
   buildFocusNfcePayload,
 };

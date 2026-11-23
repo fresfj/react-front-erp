@@ -21,12 +21,23 @@ async function loadFiscalSecrets(db, enterpriseId) {
   const snap = await secretsRef(db, enterpriseId).get();
   if (!snap.exists) return null;
   const data = snap.data() || {};
-  if (!data.apiToken) return null;
+  const provider = data.provider || 'focus';
+  const hasFocus = Boolean(data.apiToken);
+  const hasSefaz = Boolean(data.a1PfxBase64 && data.a1Password);
+  if (provider === 'sefaz-direct') {
+    if (!hasSefaz) return null;
+  } else if (!hasFocus && !hasSefaz) {
+    return null;
+  }
   return {
-    provider: data.provider || 'focus',
-    apiToken: String(data.apiToken),
+    provider,
+    apiToken: data.apiToken ? String(data.apiToken) : '',
     cscId: data.cscId ? String(data.cscId) : '',
     cscToken: data.cscToken ? String(data.cscToken) : '',
+    a1PfxBase64: data.a1PfxBase64 ? String(data.a1PfxBase64) : undefined,
+    a1Password: data.a1Password ? String(data.a1Password) : undefined,
+    a1ExpiresAt: data.a1ExpiresAt ? String(data.a1ExpiresAt) : undefined,
+    a1Thumbprint: data.a1Thumbprint ? String(data.a1Thumbprint) : undefined,
   };
 }
 
@@ -36,6 +47,15 @@ function resolveIssuer(enterprise, secrets) {
   }
   const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'focus';
   return createFiscalIssuer(provider);
+}
+
+function hasIssuerCredentialsFor(enterprise, secrets) {
+  if (process.env.NFCE_ISSUER === 'mock') return true;
+  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'focus';
+  if (provider === 'sefaz-direct') {
+    return Boolean(secrets?.a1PfxBase64 && secrets?.a1Password && secrets?.cscId && secrets?.cscToken);
+  }
+  return Boolean(secrets?.apiToken);
 }
 
 async function loadProductsForSale(db, enterpriseId, sale) {
@@ -141,7 +161,7 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
   }
   const enterprise = { id: enterpriseId, ...entSnap.data() };
   const secrets = await loadFiscalSecrets(db, enterpriseId);
-  const hasCreds = Boolean(secrets?.apiToken) || process.env.NFCE_ISSUER === 'mock';
+  const hasCreds = hasIssuerCredentialsFor(enterprise, secrets);
 
   const ref = saleRef(db, enterpriseId, saleId);
   const saleSnap = await ref.get();
@@ -298,4 +318,5 @@ module.exports = {
   cancelSaleNfceForEnterprise,
   processPendingNfceBatch,
   loadFiscalSecrets,
+  hasIssuerCredentialsFor,
 };
