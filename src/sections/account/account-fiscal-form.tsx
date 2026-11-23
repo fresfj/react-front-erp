@@ -44,7 +44,13 @@ const numberOrZero = zod.preprocess(
 export const AccountFiscalSchema = zod.object({
   taxRegime: zod.enum(['simples', 'presumido', 'real', 'mei']),
   nfceEnabled: zod.boolean(),
-  fiscalIssuerProvider: zod.enum(['focus', 'sefaz-direct', 'plugnotas', 'nuvemfiscal']),
+  fiscalIssuerProvider: zod.enum([
+    'sefaz-simulator',
+    'sefaz-direct',
+    'focus',
+    'plugnotas',
+    'nuvemfiscal',
+  ]),
   nfceCscId: zod.string().optional().or(zod.literal('')),
   apiToken: zod.string().optional().or(zod.literal('')),
   cscToken: zod.string().optional().or(zod.literal('')),
@@ -93,7 +99,7 @@ export function AccountFiscalForm() {
   const [savedEnvironment, setSavedEnvironment] = useState<'homologation' | 'production'>(
     'homologation'
   );
-  const [savedProvider, setSavedProvider] = useState<'focus' | 'sefaz-direct' | string>('focus');
+  const [savedProvider, setSavedProvider] = useState<string>('sefaz-simulator');
   const [a1Thumbprint, setA1Thumbprint] = useState('');
   const [a1ExpiresAt, setA1ExpiresAt] = useState('');
   const [pfxFile, setPfxFile] = useState<File | null>(null);
@@ -107,7 +113,7 @@ export function AccountFiscalForm() {
     () => ({
       taxRegime: 'simples',
       nfceEnabled: false,
-      fiscalIssuerProvider: 'focus',
+      fiscalIssuerProvider: 'sefaz-simulator',
       nfceCscId: '',
       apiToken: '',
       cscToken: '',
@@ -147,6 +153,7 @@ export function AccountFiscalForm() {
 
   const provider = watch('fiscalIssuerProvider');
   const isSefazDirect = provider === 'sefaz-direct';
+  const isSefazSimulator = provider === 'sefaz-simulator';
 
   useEffect(() => {
     if (!enterpriseId) {
@@ -159,13 +166,13 @@ export function AccountFiscalForm() {
         if (!alive || !data) return;
         setHasFiscalSecrets(Boolean(data.hasFiscalSecrets));
         setSavedEnvironment(data.nfceEnvironment || 'homologation');
-        setSavedProvider(data.fiscalIssuerProvider || 'focus');
+        setSavedProvider(data.fiscalIssuerProvider || 'sefaz-simulator');
         setA1Thumbprint(data.a1Thumbprint || '');
         setA1ExpiresAt(data.a1ExpiresAt || '');
         reset({
           taxRegime: data.taxRegime || 'simples',
           nfceEnabled: Boolean(data.nfceEnabled),
-          fiscalIssuerProvider: data.fiscalIssuerProvider || 'focus',
+          fiscalIssuerProvider: data.fiscalIssuerProvider || 'sefaz-simulator',
           nfceCscId: data.nfceCscId || '',
           apiToken: '',
           cscToken: '',
@@ -224,7 +231,9 @@ export function AccountFiscalForm() {
     }
 
     try {
-      if (data.fiscalIssuerProvider === 'sefaz-direct') {
+      if (data.fiscalIssuerProvider === 'sefaz-simulator') {
+        // Simulador SEFAZ direto não exige certificado A1 nem token de terceiro
+      } else if (data.fiscalIssuerProvider === 'sefaz-direct') {
         if (pfxFile) {
           if (!data.certPassword?.trim()) {
             toast.error(t('fiscal.certPassword'));
@@ -325,11 +334,22 @@ export function AccountFiscalForm() {
           <Collapse in={openFiscal.value}>
             <Divider />
             <Stack spacing={3} sx={{ p: 3 }}>
-              {!hasFiscalSecrets && (
+              {!hasFiscalSecrets && !isSefazSimulator && (
                 <Alert severity="warning">{t('fiscal.missingSecrets')}</Alert>
               )}
+              {isSefazSimulator && (
+                <Alert severity="info">
+                  Modo <strong>SEFAZ Direto — Simulação (sem A1)</strong> ativo: gera XML NFC-e
+                  4.00, chave de 44 dígitos (DV mod-11) e QR Code v2 da UF (PR, PA, SP, SC, RJ) sem
+                  precisar de certificado A1 nem Focus NFe. Quando tiver o certificado A1 (.pfx),
+                  troque para <strong>SEFAZ Direto (Certificado A1)</strong>.
+                </Alert>
+              )}
               {isSefazDirect && (
-                <Alert severity="info">{t('fiscal.ufPilotHint')}</Alert>
+                <Alert severity="info">
+                  SEFAZ Direto 4.00 (mTLS com Certificado A1 .pfx) — UFs habilitadas: PR, PA, SP,
+                  SC, RJ, RS, ES e DF.
+                </Alert>
               )}
               <Box
                 columnGap={2}
@@ -348,8 +368,9 @@ export function AccountFiscalForm() {
                   label={t('fiscal.provider')}
                   disabled={!canEdit}
                 >
-                  <MenuItem value="focus">Focus NFe</MenuItem>
-                  <MenuItem value="sefaz-direct">{t('fiscal.sefazDirect')}</MenuItem>
+                  <MenuItem value="sefaz-simulator">SEFAZ Direto — Simulação (sem A1)</MenuItem>
+                  <MenuItem value="sefaz-direct">SEFAZ Direto (Certificado A1)</MenuItem>
+                  <MenuItem value="focus">Focus NFe (Terceiro)</MenuItem>
                   <MenuItem value="plugnotas" disabled>
                     PlugNotas
                   </MenuItem>
@@ -381,7 +402,7 @@ export function AccountFiscalForm() {
                   <MenuItem value="a5">A5</MenuItem>
                 </Field.Select>
                 <Field.Text name="nfceCscId" label={t('fiscal.cscId')} disabled={!canEdit} />
-                {!isSefazDirect && (
+                {!isSefazDirect && !isSefazSimulator && (
                   <Field.Text
                     name="apiToken"
                     label={t('fiscal.apiToken')}
@@ -394,12 +415,14 @@ export function AccountFiscalForm() {
                     }
                   />
                 )}
-                <Field.Text
-                  name="cscToken"
-                  label={t('fiscal.cscToken')}
-                  type="password"
-                  disabled={!canEdit}
-                />
+                {!isSefazSimulator && (
+                  <Field.Text
+                    name="cscToken"
+                    label={t('fiscal.cscToken')}
+                    type="password"
+                    disabled={!canEdit}
+                  />
+                )}
               </Box>
 
               {isSefazDirect && (

@@ -60,11 +60,13 @@ import {
 
 import { buildAccrualDre } from 'src/sections/cash/accrual-dre';
 import { ErpKpiCard } from 'src/sections/overview/erp/components/erp-kpi-card';
+import { ErpNfceOverviewCard } from 'src/sections/overview/erp/components/erp-nfce-overview-card';
 import { ErpDashboardSkeleton } from 'src/sections/overview/erp/components/erp-dashboard-skeleton';
 import { BankingBalanceStatistics } from 'src/sections/overview/banking/banking-balance-statistics';
 import {
   calcGrowthPercent,
   computeTopProducts,
+  computeFiscalSummary,
   computeInventoryAlerts,
   computeChannelBreakdown,
   computeProductionMetrics,
@@ -175,6 +177,7 @@ export function OverviewAppView() {
   );
 
   const channels = useMemo(() => computeChannelBreakdown(sales, bounds), [bounds, sales]);
+  const fiscal = useMemo(() => computeFiscalSummary(sales, bounds), [bounds, sales]);
   const prevChannels = useMemo(
     () => (prevBounds ? computeChannelBreakdown(sales, prevBounds) : null),
     [prevBounds, sales]
@@ -843,6 +846,11 @@ export function OverviewAppView() {
                 </Button>
               </Stack>
             </Card>
+          </Grid>
+
+          {/* Notas Fiscais Geradas (NFC-e) */}
+          <Grid xs={12}>
+            <ErpNfceOverviewCard sales={filteredSales} fiscal={fiscal} />
           </Grid>
         </Grid>
       )}

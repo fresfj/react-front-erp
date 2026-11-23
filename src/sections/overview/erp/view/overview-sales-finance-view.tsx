@@ -61,6 +61,7 @@ import { BankingBalanceStatistics } from 'src/sections/overview/banking/banking-
 import { useAuthContext } from 'src/auth/hooks';
 
 import { ErpKpiCard } from '../components/erp-kpi-card';
+import { ErpNfceOverviewCard } from '../components/erp-nfce-overview-card';
 import { ErpDashboardSkeleton } from '../components/erp-dashboard-skeleton';
 import {
   calcGrowthPercent,
@@ -967,6 +968,11 @@ export function OverviewSalesFinanceView() {
                 </Scrollbar>
               )}
             </Card>
+          </Grid>
+
+          {/* Faixa 7: Notas Fiscais Geradas (NFC-e) */}
+          <Grid xs={12}>
+            <ErpNfceOverviewCard sales={filteredSales} fiscal={fiscal} maxRows={8} />
           </Grid>
         </Grid>
       )}

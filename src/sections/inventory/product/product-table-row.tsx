@@ -124,6 +124,23 @@ export function ProductTableRow({
                         Vitrine online
                       </Label>
                     )}
+                    {row.ncm && row.cstOrCsosn && row.origin != null ? (
+                      <Label
+                        variant="soft"
+                        color="success"
+                        sx={{ ml: 0.75, height: 18, fontSize: 10, px: 0.5 }}
+                      >
+                        NCM {row.ncm}
+                      </Label>
+                    ) : (
+                      <Label
+                        variant="soft"
+                        color="warning"
+                        sx={{ ml: 0.75, height: 18, fontSize: 10, px: 0.5 }}
+                      >
+                        Fiscal pendente
+                      </Label>
+                    )}
                   </Box>
                 }
                 sx={{ display: 'flex', flexDirection: 'column' }}

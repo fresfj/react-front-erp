@@ -1,6 +1,8 @@
 import type { Sale } from 'src/api/firestore/sales';
 import type { Enterprise } from 'src/api/firestore/platform';
 
+import { QRCodeSVG } from 'qrcode.react';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useState, useEffect, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
@@ -38,6 +40,7 @@ import { useTranslate } from 'src/locales';
 import { DashboardContent } from 'src/layouts/dashboard';
 import { cancelSaleNfceCf } from 'src/api/firestore/nfce';
 import { getEnterprise } from 'src/api/firestore/platform';
+import { enterpriseCollection } from 'src/api/firestore/paths';
 import { sendSaleReceiptWhatsappCf } from 'src/api/firestore/whatsapp';
 import {
   getSale,
@@ -52,6 +55,11 @@ import { Iconify } from 'src/components/iconify';
 import { Scrollbar } from 'src/components/scrollbar';
 import { EmptyContent } from 'src/components/empty-content';
 import { usePopover, CustomPopover } from 'src/components/custom-popover';
+
+import {
+  resolveNfceQrCodeDisplay,
+  simulateSefazNfceForSale,
+} from 'src/sections/fiscal/sefaz-simulator-client';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -79,6 +87,7 @@ export function SaleDetailsView({ saleId }: Props) {
   const [openInPdf, setOpenInPdf] = useState(false);
   const [autoPrint, setAutoPrint] = useState(false);
   const [issuingNfce, setIssuingNfce] = useState(false);
+  const [lastSimulatedXml, setLastSimulatedXml] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
@@ -118,8 +127,21 @@ export function SaleDetailsView({ saleId }: Props) {
     if (!enterpriseId || !sale) return;
     setIssuingNfce(true);
     try {
-      await issueSaleNfce(enterpriseId, sale);
-      toast.success(t('fiscal.issueSuccess'));
+      const shouldSimulate =
+        !enterprise ||
+        enterprise.fiscalIssuerProvider === 'sefaz-simulator' ||
+        !enterprise.hasFiscalSecrets;
+
+      if (shouldSimulate && enterprise) {
+        const sim = await simulateSefazNfceForSale(enterpriseId, sale, enterprise);
+        setLastSimulatedXml(sim.xmlPreview);
+        toast.success(
+          `NFC-e simulada #${sim.nfceNumber} gerada (UF ${enterprise.state || 'PR'} — sem A1)!`
+        );
+      } else {
+        await issueSaleNfce(enterpriseId, sale);
+        toast.success(t('fiscal.issueSuccess'));
+      }
       await loadSale();
     } catch (error) {
       console.error(error);
@@ -128,14 +150,33 @@ export function SaleDetailsView({ saleId }: Props) {
     } finally {
       setIssuingNfce(false);
     }
-  }, [enterpriseId, sale, loadSale, t]);
+  }, [enterpriseId, sale, enterprise, loadSale, t]);
+
+  const handleDownloadSimulatedXml = useCallback(() => {
+    if (!lastSimulatedXml || !sale?.nfceKey) return;
+    const blob = new Blob([lastSimulatedXml], { type: 'application/xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `NFCe-${sale.nfceKey}.xml`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [lastSimulatedXml, sale?.nfceKey]);
 
   const handleCancelNfce = useCallback(async () => {
     if (!enterpriseId || !sale) return;
     if (!window.confirm(t('fiscal.cancel'))) return;
     setIssuingNfce(true);
     try {
-      await cancelSaleNfceCf({ enterpriseId, saleId: sale.id });
+      if (sale.nfceSimulated) {
+        const ref = doc(enterpriseCollection(enterpriseId, 'sales'), sale.id);
+        await updateDoc(ref, {
+          nfceStatus: 'cancelled',
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await cancelSaleNfceCf({ enterpriseId, saleId: sale.id });
+      }
       toast.success(t('fiscal.cancel'));
       await loadSale();
     } catch (error) {
@@ -593,45 +634,123 @@ export function SaleDetailsView({ saleId }: Props) {
                 )}
 
                 {/* NFC-e / Fiscal Traceability Card */}
-                {sale.nfceStatus === 'authorized' && (
-                  <Card sx={{ p: 3 }}>
-                    <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-                      <Iconify icon="solar:verified-check-bold" width={24} sx={{ color: 'success.main' }} />
-                      <Typography variant="h6">
-                        DANFE NFC-e — Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica
-                      </Typography>
-                    </Stack>
-                    <Stack spacing={1} sx={{ typography: 'body2', color: 'text.secondary' }}>
-                      <div>
-                        <strong>Número NFC-e:</strong> {sale.nfceNumber} (Série{' '}
-                        {enterprise?.nfceSeries || '1'})
-                      </div>
-                      <div>
-                        <strong>Chave de Acesso (44 dígitos):</strong>{' '}
-                        <Box component="span" sx={{ fontFamily: 'monospace' }}>
-                          {sale.nfceKey}
-                        </Box>
-                      </div>
-                      <div>
-                        <strong>Protocolo de Autorização:</strong> {sale.nfceProtocol} em{' '}
-                        {fDateTime(sale.nfceIssuedAt)}
-                      </div>
-                      {sale.nfceDanfeUrl && (
-                        <Button
-                          component="a"
-                          href={sale.nfceDanfeUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          variant="outlined"
-                          size="small"
-                          sx={{ alignSelf: 'flex-start', mt: 1 }}
-                        >
-                          Abrir DANFE
-                        </Button>
-                      )}
-                    </Stack>
-                  </Card>
-                )}
+                {sale.nfceStatus === 'authorized' && (() => {
+                  const qrDisplay = resolveNfceQrCodeDisplay(sale, enterprise);
+                  return (
+                    <Card sx={{ p: 3 }}>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        spacing={1.5}
+                        flexWrap="wrap"
+                        sx={{ mb: 2 }}
+                      >
+                        <Iconify
+                          icon="solar:verified-check-bold"
+                          width={24}
+                          sx={{ color: 'success.main' }}
+                        />
+                        <Typography variant="h6">
+                          DANFE NFC-e — Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica
+                        </Typography>
+                        {sale.nfceSimulated && (
+                          <Label variant="soft" color="warning">
+                            Simulação SEFAZ (Sem valor fiscal)
+                          </Label>
+                        )}
+                      </Stack>
+
+                      <Stack
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={3}
+                        alignItems={{ xs: 'flex-start', sm: 'center' }}
+                        justifyContent="space-between"
+                      >
+                        <Stack spacing={1} sx={{ typography: 'body2', color: 'text.secondary', flex: 1 }}>
+                          <div>
+                            <strong>Número NFC-e:</strong> {sale.nfceNumber} (Série{' '}
+                            {enterprise?.nfceSeries || '1'})
+                          </div>
+                          <div>
+                            <strong>Chave de Acesso (44 dígitos):</strong>{' '}
+                            <Box component="span" sx={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                              {sale.nfceKey}
+                            </Box>
+                          </div>
+                          <div>
+                            <strong>Protocolo de Autorização:</strong> {sale.nfceProtocol} em{' '}
+                            {fDateTime(sale.nfceIssuedAt)}
+                          </div>
+                          {qrDisplay && (
+                            <div>
+                              <strong>Consulta pública:</strong>{' '}
+                              <Box component="span" sx={{ wordBreak: 'break-all' }}>
+                                {qrDisplay.consultaUrl}
+                              </Box>
+                            </div>
+                          )}
+                          <Stack direction="row" spacing={1.5} flexWrap="wrap" sx={{ pt: 1 }}>
+                            {qrDisplay && (
+                              <Button
+                                component="a"
+                                href={qrDisplay.qrValue}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                variant="soft"
+                                color="info"
+                                size="small"
+                                startIcon={<Iconify icon="solar:qr-code-bold" />}
+                              >
+                                Consultar QR Code SEFAZ
+                              </Button>
+                            )}
+                            {sale.nfceDanfeUrl && (
+                              <Button
+                                component="a"
+                                href={sale.nfceDanfeUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                variant="outlined"
+                                size="small"
+                              >
+                                Abrir DANFE
+                              </Button>
+                            )}
+                            {lastSimulatedXml && (
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={<Iconify icon="solar:download-bold" />}
+                                onClick={handleDownloadSimulatedXml}
+                              >
+                                Baixar XML NFC-e (4.00)
+                              </Button>
+                            )}
+                          </Stack>
+                        </Stack>
+
+                        {qrDisplay && (
+                          <Stack
+                            alignItems="center"
+                            spacing={0.75}
+                            sx={{
+                              p: 1.5,
+                              borderRadius: 1.5,
+                              bgcolor: 'common.white',
+                              border: (theme) => `1px dashed ${theme.vars.palette.divider}`,
+                              flexShrink: 0,
+                            }}
+                          >
+                            <QRCodeSVG value={qrDisplay.qrValue} size={136} level="M" includeMargin />
+                            <Typography variant="caption" color="text.secondary">
+                              QR Code NFC-e
+                            </Typography>
+                          </Stack>
+                        )}
+                      </Stack>
+                    </Card>
+                  );
+                })()}
               </Stack>
             </Grid>
 

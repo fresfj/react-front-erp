@@ -1,8 +1,11 @@
 const forge = require('node-forge');
 const { SignedXml } = require('xml-crypto');
 
+let cachedTestA1 = null;
+
 /**
  * Load ICP-Brasil A1 (.pfx/.p12) from base64.
+ * Matches leaf certificate to private key via localKeyId when chain certs are present.
  * Never log password or raw PFX.
  */
 function loadPfx({ pfxBase64, password }) {
@@ -15,10 +18,29 @@ function loadPfx({ pfxBase64, password }) {
   const asn1 = forge.asn1.fromDer(der);
   const p12 = forge.pkcs12.pkcs12FromAsn1(asn1, false, String(password));
 
-  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
-  const keyBag = (keyBags[forge.pki.oids.pkcs8ShroudedKeyBag] || [])[0];
-  const certBag = (certBags[forge.pki.oids.certBag] || [])[0];
+  const shroudedBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag })[
+    forge.pki.oids.pkcs8ShroudedKeyBag
+  ] || [];
+  const plainKeyBags = p12.getBags({ bagType: forge.pki.oids.keyBag })[
+    forge.pki.oids.keyBag
+  ] || [];
+  const keyBag = shroudedBags[0] || plainKeyBags[0];
+
+  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag })[
+    forge.pki.oids.certBag
+  ] || [];
+
+  const keyLocalId = keyBag?.attributes?.localKeyId?.[0];
+  let certBag =
+    (keyLocalId
+      ? certBags.find((b) => b?.attributes?.localKeyId?.[0] === keyLocalId)
+      : null) ||
+    certBags.find((b) => {
+      const bc = b?.cert?.getExtension?.('basicConstraints');
+      return !bc || !bc.cA;
+    }) ||
+    certBags[0];
+
   if (!keyBag?.key || !certBag?.cert) {
     const err = new Error('Could not extract key/certificate from PFX');
     err.code = 'missing_fiscal_config';
@@ -39,11 +61,39 @@ function loadPfx({ pfxBase64, password }) {
 }
 
 /**
- * Enveloped XMLDSig over infNFe Id (NFe pattern).
- * Validate against SEFAZ homolog before production — namespaces/transforms may need NT tweaks.
+ * Generates an ephemeral self-signed RSA keypair/certificate for SEFAZ Simulator mode (no real A1).
+ */
+function generateSelfSignedTestA1(commonName = 'SIMULACAO SEFAZ ERP MINIMALS') {
+  if (cachedTestA1) return cachedTestA1;
+
+  const keys = forge.pki.rsa.generateKeyPair(2048);
+  const cert = forge.pki.createCertificate();
+  cert.publicKey = keys.publicKey;
+  cert.serialNumber = '01';
+  cert.validity.notBefore = new Date();
+  cert.validity.notAfter = new Date();
+  cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 1);
+  const attrs = [{ name: 'commonName', value: commonName }];
+  cert.setSubject(attrs);
+  cert.setIssuer(attrs);
+  cert.sign(keys.privateKey, forge.md.sha256.create());
+
+  cachedTestA1 = {
+    privateKeyPem: forge.pki.privateKeyToPem(keys.privateKey),
+    certificatePem: forge.pki.certificateToPem(cert),
+    thumbprint: 'SIMULATED_A1_CERT',
+    a1ExpiresAt: cert.validity.notAfter.toISOString(),
+  };
+  return cachedTestA1;
+}
+
+/**
+ * Enveloped XMLDSig over infNFe Id (NF-e 4.00 pattern).
+ * Inserts <Signature> after </infNFeSupl> when present (XSD order: infNFe -> infNFeSupl -> Signature).
  */
 function signNfceXml({ xml, privateKeyPem, certificatePem }) {
-  const idMatch = String(xml).match(/InfNFe[^>]*\sId="([^"]+)"/i) || String(xml).match(/\sId="(NFe[^"]+)"/);
+  const idMatch =
+    String(xml).match(/infNFe[^>]*\sId="([^"]+)"/i) || String(xml).match(/\sId="(NFe[^"]+)"/);
   if (!idMatch) {
     const err = new Error('infNFe Id attribute not found for signature');
     err.code = 'provider_reject';
@@ -68,10 +118,14 @@ function signNfceXml({ xml, privateKeyPem, certificatePem }) {
     uri: referenceUri,
   });
 
+  const hasSupl = /<infNFeSupl[\s>]/i.test(String(xml));
   sig.computeSignature(xml, {
-    location: { reference: "//*[local-name(.)='infNFe']", action: 'after' },
+    location: {
+      reference: hasSupl ? "//*[local-name(.)='infNFeSupl']" : "//*[local-name(.)='infNFe']",
+      action: 'after',
+    },
   });
   return sig.getSignedXml();
 }
 
-module.exports = { loadPfx, signNfceXml };
+module.exports = { loadPfx, signNfceXml, generateSelfSignedTestA1 };

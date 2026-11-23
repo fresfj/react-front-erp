@@ -1,4 +1,5 @@
 import type { Supplier } from 'src/api/firestore/suppliers';
+import type { TaxRegime } from 'src/sections/fiscal/nfce-domain';
 import type {
   Product,
   ProductType,
@@ -42,6 +43,7 @@ import { getFirebaseErrorMessage } from 'src/utils/firebase-error';
 import { getEffectiveProductPrice } from 'src/utils/product-pricing';
 
 import { useTranslate } from 'src/locales';
+import { getEnterprise } from 'src/api/firestore/platform';
 import { listSuppliers } from 'src/api/firestore/suppliers';
 import { uploadProductImage } from 'src/api/firestore/storage';
 import {
@@ -56,8 +58,15 @@ import { Iconify } from 'src/components/iconify';
 import { Form, Field } from 'src/components/hook-form';
 import { ConfirmDialog } from 'src/components/custom-dialog';
 
+import { normalizeNcmDigits } from 'src/sections/fiscal/fiscal-tables';
 import { SupplierListDialog } from 'src/sections/supplier/supplier-list-dialog';
 import { SupplierQuickNewDialog } from 'src/sections/supplier/supplier-quick-new-dialog';
+import {
+  NcmAutocompleteField,
+  CfopAutocompleteField,
+  OriginAutocompleteField,
+  CstCsosnAutocompleteField,
+} from 'src/sections/fiscal/fiscal-fields-autocomplete';
 
 import { useAuthContext } from 'src/auth/hooks';
 
@@ -160,6 +169,7 @@ export function ProductForm({ currentProduct }: Props) {
   );
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [enterpriseTaxRegime, setEnterpriseTaxRegime] = useState<TaxRegime | null>(null);
   const [comboItems, setComboItems] = useState<ProductComboItem[]>(
     currentProduct?.comboItems || []
   );
@@ -252,9 +262,10 @@ export function ProductForm({ currentProduct }: Props) {
   const loadSuppliers = useCallback(async () => {
     if (!enterpriseId) return;
     try {
-      const [sups, prods] = await Promise.all([
+      const [sups, prods, ent] = await Promise.all([
         listSuppliers(enterpriseId),
         listProducts(enterpriseId),
+        getEnterprise(enterpriseId).catch(() => null),
       ]);
       setSuppliers(sups.filter((s) => s.active));
       setCatalogProducts(
@@ -262,6 +273,7 @@ export function ProductForm({ currentProduct }: Props) {
           (p) => p.active && p.type === 'finished' && !p.isCombo && p.id !== currentProduct?.id
         )
       );
+      setEnterpriseTaxRegime(ent?.taxRegime || null);
     } catch (error) {
       console.error(error);
     }
@@ -348,7 +360,7 @@ export function ProductForm({ currentProduct }: Props) {
         variant: data.variant?.trim() || undefined,
         tags: data.tags?.length ? data.tags : undefined,
         taxPercent: includeTaxes ? 0 : data.taxPercent,
-        ncm: data.ncm?.trim() || undefined,
+        ncm: normalizeNcmDigits(data.ncm) || undefined,
         origin:
           data.origin != null && data.origin >= 0 && data.origin <= 8
             ? (data.origin as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8)
@@ -906,13 +918,18 @@ export function ProductForm({ currentProduct }: Props) {
     </Card>
   );
 
-  const fiscalIncomplete = !methods.watch('ncm') || !methods.watch('cstOrCsosn');
+  const watchedNcm = watch('ncm') || '';
+  const watchedOrigin = watch('origin');
+  const watchedCfop = watch('cfopSaleDefault') || '';
+  const watchedCstOrCsosn = watch('cstOrCsosn') || '';
+  const fiscalIncomplete =
+    normalizeNcmDigits(watchedNcm).length !== 8 || !watchedCstOrCsosn.trim();
 
   const renderFiscal = (
     <Card>
       <CardHeader
         title={t('fiscal.productCard')}
-        subheader="NCM, origem, CST/CSOSN e campos da Reforma Tributária"
+        subheader="NCM (Siscomex / BrasilAPI), origem, CST/CSOSN, CFOP e campos da Reforma Tributária"
         action={renderCollapseAction(openFiscal.value, openFiscal.onToggle)}
         sx={{ mb: 3 }}
       />
@@ -928,16 +945,33 @@ export function ProductForm({ currentProduct }: Props) {
             display="grid"
             gridTemplateColumns={{ xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)' }}
           >
-            <Field.Text name="ncm" label={t('fiscal.ncm')} />
-            <Field.Select name="origin" label={t('fiscal.origin')}>
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((code) => (
-                <MenuItem key={code} value={code}>
-                  {code}
-                </MenuItem>
-              ))}
-            </Field.Select>
-            <Field.Text name="cfopSaleDefault" label={t('fiscal.cfopSaleDefault')} />
-            <Field.Text name="cstOrCsosn" label={t('fiscal.cstOrCsosn')} />
+            <NcmAutocompleteField
+              label={t('fiscal.ncm')}
+              value={watchedNcm}
+              onChange={(val) => setValue('ncm', val, { shouldValidate: true, shouldDirty: true })}
+            />
+            <OriginAutocompleteField
+              label={t('fiscal.origin')}
+              value={watchedOrigin}
+              onChange={(val) =>
+                setValue('origin', val, { shouldValidate: true, shouldDirty: true })
+              }
+            />
+            <CfopAutocompleteField
+              label={t('fiscal.cfopSaleDefault')}
+              value={watchedCfop}
+              onChange={(val) =>
+                setValue('cfopSaleDefault', val, { shouldValidate: true, shouldDirty: true })
+              }
+            />
+            <CstCsosnAutocompleteField
+              label={t('fiscal.cstOrCsosn')}
+              value={watchedCstOrCsosn}
+              taxRegime={enterpriseTaxRegime}
+              onChange={(val) =>
+                setValue('cstOrCsosn', val, { shouldValidate: true, shouldDirty: true })
+              }
+            />
             <Field.Text name="commercialUnit" label={t('fiscal.commercialUnit')} />
             <Field.Text name="cest" label={t('fiscal.cest')} />
             <Field.Text name="taxBenefitCode" label={t('fiscal.taxBenefitCode')} />

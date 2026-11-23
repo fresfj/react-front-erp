@@ -54,6 +54,7 @@ import { useAuthContext } from 'src/auth/hooks';
 
 import { ProductTableRow } from '../product-table-row';
 import { ProductImportDialog } from '../product-import-dialog';
+import { ProductBulkFiscalDialog } from '../product-bulk-fiscal-dialog';
 
 // ----------------------------------------------------------------------
 
@@ -94,6 +95,7 @@ export function ProductListView() {
   const confirmSingle = useBoolean();
   const confirmMultiple = useBoolean();
   const importDialog = useBoolean();
+  const bulkFiscalDialog = useBoolean();
 
   const enterpriseId = user?.enterpriseId as string | undefined;
 
@@ -474,11 +476,18 @@ export function ProductListView() {
                   )
                 }
                 action={
-                  <Tooltip title="Desativar selecionados">
-                    <IconButton color="error" onClick={confirmMultiple.onTrue}>
-                      <Iconify icon="solar:trash-bin-trash-bold" />
-                    </IconButton>
-                  </Tooltip>
+                  <Stack direction="row" spacing={0.5}>
+                    <Tooltip title="Atualizar dados fiscais (NCM / Origem / CST-CSOSN)">
+                      <IconButton color="primary" onClick={bulkFiscalDialog.onTrue}>
+                        <Iconify icon="solar:document-text-bold" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Desativar selecionados">
+                      <IconButton color="error" onClick={confirmMultiple.onTrue}>
+                        <Iconify icon="solar:trash-bin-trash-bold" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                 }
               />
 
@@ -584,6 +593,19 @@ export function ProductListView() {
           existingProducts={tableData}
           onClose={importDialog.onFalse}
           onImported={loadProducts}
+        />
+      )}
+
+      {enterpriseId && (
+        <ProductBulkFiscalDialog
+          open={bulkFiscalDialog.value}
+          enterpriseId={enterpriseId}
+          selectedProductIds={table.selected}
+          onClose={bulkFiscalDialog.onFalse}
+          onUpdated={async () => {
+            table.onSelectAllRows(false, []);
+            await loadProducts();
+          }}
         />
       )}
     </>

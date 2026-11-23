@@ -52,11 +52,34 @@ function resolveIssuer(enterprise, secrets) {
 
 function hasIssuerCredentialsFor(enterprise, secrets) {
   if (process.env.NFCE_ISSUER === 'mock') return true;
-  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'focus';
+  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'sefaz-simulator';
+  if (provider === 'sefaz-simulator') return true;
   if (provider === 'sefaz-direct') {
     return Boolean(secrets?.a1PfxBase64 && secrets?.a1Password && secrets?.cscId && secrets?.cscToken);
   }
   return Boolean(secrets?.apiToken);
+}
+
+async function allocateNextNfceNumber(db, { enterpriseId, environment, series }) {
+  const safeSeries = String(series || '1').replace(/\D/g, '') || '1';
+  const counterId = `nfce_${environment === 'production' ? 'prod' : 'homolog'}_s${safeSeries}`;
+  const ref = db.doc(`enterprises/${enterpriseId}/fiscalCounters/${counterId}`);
+
+  if (typeof db.runTransaction === 'function') {
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const current = snap.exists ? Number(snap.data()?.lastNumber || 0) : 0;
+      const next = current + 1;
+      tx.set(ref, { lastNumber: next, updatedAt: nowIso() }, { merge: true });
+      return next;
+    });
+  }
+
+  const snap = await ref.get();
+  const current = snap.exists ? Number(snap.data()?.lastNumber || 0) : 0;
+  const next = current + 1;
+  await ref.set({ lastNumber: next, updatedAt: nowIso() }, { merge: true });
+  return next;
 }
 
 async function loadProductsForSale(db, enterpriseId, sale) {
@@ -275,12 +298,22 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
 
   const factory = issuerFactory || (() => resolveIssuer(enterprise, secrets));
   const issuer = factory();
-  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'focus';
+  const provider = enterprise.fiscalIssuerProvider || secrets?.provider || 'sefaz-simulator';
+  const resolvedEnv = enterprise.nfceEnvironment === 'production' ? 'production' : 'homologation';
 
   try {
     if (provider === 'sefaz-direct') {
       assertA1NotExpired(secrets || { a1ExpiresAt: enterprise.a1ExpiresAt });
     }
+
+    const nNF =
+      provider === 'sefaz-direct' || provider === 'sefaz-simulator'
+        ? await allocateNextNfceNumber(db, {
+            enterpriseId,
+            environment: resolvedEnv,
+            series: enterprise.nfceSeries || '1',
+          })
+        : undefined;
 
     const result = await issuer.issue({
       enterpriseId,
@@ -288,8 +321,9 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
       sale,
       products,
       enterprise,
-      secrets: secrets || { apiToken: 'mock', cscId: '', cscToken: '' },
-      environment: enterprise.nfceEnvironment === 'production' ? 'production' : 'homologation',
+      nNF,
+      secrets: secrets || { apiToken: 'mock', cscId: enterprise.nfceCscId || '000001', cscToken: '' },
+      environment: resolvedEnv,
     });
 
     const now = nowIso();
@@ -302,6 +336,7 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
         nfceIssuedAt: result.nfceIssuedAt || now,
         nfceDanfeUrl: result.nfceDanfeUrl || null,
         nfceQrCodeUrl: result.nfceQrCodeUrl || null,
+        nfceSimulated: Boolean(result.simulated),
         nfceLastError: null,
         updatedAt: now,
       },
@@ -315,6 +350,7 @@ async function issueSaleNfceForEnterprise(db, { enterpriseId, saleId, issuerFact
       nfceIssuedAt: result.nfceIssuedAt || now,
       nfceDanfeUrl: result.nfceDanfeUrl,
       nfceQrCodeUrl: result.nfceQrCodeUrl,
+      nfceSimulated: Boolean(result.simulated),
     };
   } catch (error) {
     const message = redactFiscalLog(error?.message || String(error));

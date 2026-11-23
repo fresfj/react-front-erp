@@ -1,6 +1,7 @@
 import type { Sale } from 'src/api/firestore/sales';
 import type { Enterprise, ReceiptModelType } from 'src/api/firestore/platform';
 
+import { QRCodeSVG } from 'qrcode.react';
 import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
 import { useRef, useState, useEffect, useCallback } from 'react';
 
@@ -27,6 +28,8 @@ import { formatCpf, formatCnpj } from 'src/utils/br-docs';
 import { fNumber, fCurrency } from 'src/utils/format-number';
 
 import { Iconify } from 'src/components/iconify';
+
+import { resolveNfceQrCodeDisplay } from 'src/sections/fiscal/sefaz-simulator-client';
 
 import { ReceiptPDF } from './receipt-pdf';
 
@@ -677,27 +680,72 @@ export function ReceiptDialog({
               )}
             </Box>
 
-            {/* Dados NFC-e */}
-            {sale.nfceKey && (
-              <>
-                <Box sx={{ textAlign: 'center', my: 0.5 }}>
-                  --------------------------------------------------
-                </Box>
-                <Box sx={{ fontSize: is58 ? 8.5 : 9.5, textAlign: 'center' }}>
-                  <Box sx={{ fontWeight: 'bold' }}>CHAVE DE ACESSO</Box>
-                  <Box sx={{ wordBreak: 'break-all', my: 0.5, letterSpacing: 0.5 }}>
-                    {sale.nfceKey.replace(/(\d{4})/g, '$1 ').trim()}
+            {/* Dados NFC-e + QR Code padrão DANFE NFC-e */}
+            {sale.nfceKey && (() => {
+              const qrDisplay = resolveNfceQrCodeDisplay(sale, enterprise);
+              const isHomologOrSim =
+                sale.nfceSimulated || enterprise?.nfceEnvironment !== 'production';
+              return (
+                <>
+                  <Box sx={{ textAlign: 'center', my: 0.5 }}>
+                    --------------------------------------------------
                   </Box>
-                  {sale.nfceProtocol && (
-                    <Box>
-                      Protocolo de Autorização: {sale.nfceProtocol}
-                      <br />
-                      Emissão: {fDateTime(sale.nfceIssuedAt || sale.createdAt)}
+                  <Box sx={{ fontSize: is58 ? 8.5 : 9.5, textAlign: 'center' }}>
+                    {qrDisplay && (
+                      <Box sx={{ fontSize: is58 ? 7.5 : 8.5, mb: 0.5 }}>
+                        Consulte pela Chave de Acesso em:
+                        <br />
+                        <Box component="span" sx={{ wordBreak: 'break-all' }}>
+                          {qrDisplay.consultaUrl}
+                        </Box>
+                      </Box>
+                    )}
+                    <Box sx={{ fontWeight: 'bold' }}>CHAVE DE ACESSO</Box>
+                    <Box sx={{ wordBreak: 'break-all', my: 0.5, letterSpacing: 0.5 }}>
+                      {sale.nfceKey.replace(/(\d{4})/g, '$1 ').trim()}
                     </Box>
-                  )}
-                </Box>
-              </>
-            )}
+                    {sale.nfceNumber && (
+                      <Box sx={{ mb: 0.25 }}>
+                        NFC-e nº {sale.nfceNumber} • Série {enterprise?.nfceSeries || '1'}
+                      </Box>
+                    )}
+                    {sale.nfceProtocol && (
+                      <Box>
+                        Protocolo de Autorização: {sale.nfceProtocol}
+                        <br />
+                        Emissão: {fDateTime(sale.nfceIssuedAt || sale.createdAt)}
+                      </Box>
+                    )}
+                    {qrDisplay && (
+                      <Box
+                        sx={{
+                          mt: 1,
+                          mb: 0.5,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <QRCodeSVG
+                          value={qrDisplay.qrValue}
+                          size={is58 ? 116 : 140}
+                          level="M"
+                          includeMargin
+                        />
+                        <Box sx={{ fontSize: is58 ? 7.5 : 8.5, mt: 0.25 }}>
+                          Consulta via leitor de QR Code
+                        </Box>
+                      </Box>
+                    )}
+                    {isHomologOrSim && (
+                      <Box sx={{ fontSize: is58 ? 7.5 : 8, fontWeight: 'bold', mt: 0.5 }}>
+                        EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL
+                      </Box>
+                    )}
+                  </Box>
+                </>
+              );
+            })()}
 
             <Box sx={{ textAlign: 'center', my: 0.5 }}>
               --------------------------------------------------

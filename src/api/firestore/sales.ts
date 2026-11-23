@@ -90,6 +90,7 @@ export type Sale = {
   nfceIssuedAt?: string;
   nfceDanfeUrl?: string;
   nfceQrCodeUrl?: string;
+  nfceSimulated?: boolean;
   nfceLastError?: string;
   nfceAttempts?: number;
   lastEmailSentTo?: string;
@@ -195,6 +196,7 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     nfceIssuedAt: optStr(data.nfceIssuedAt),
     nfceDanfeUrl: optStr(data.nfceDanfeUrl),
     nfceQrCodeUrl: optStr(data.nfceQrCodeUrl),
+    nfceSimulated: data.nfceSimulated === true,
     nfceLastError: optStr(data.nfceLastError),
     nfceAttempts: typeof data.nfceAttempts === 'number' ? data.nfceAttempts : undefined,
     lastEmailSentTo: optStr(data.lastEmailSentTo),

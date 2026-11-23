@@ -101,7 +101,7 @@ export type Enterprise = {
   taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
   nfceEnabled?: boolean;
   hasFiscalSecrets?: boolean;
-  fiscalIssuerProvider?: 'focus' | 'sefaz-direct' | 'plugnotas' | 'nuvemfiscal' | null;
+  fiscalIssuerProvider?: 'sefaz-simulator' | 'sefaz-direct' | 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
   nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';
@@ -271,8 +271,9 @@ function mapEnterprise(id: string, data: Record<string, unknown>): Enterprise {
     nfceEnabled: data.nfceEnabled === true,
     hasFiscalSecrets: data.hasFiscalSecrets === true,
     fiscalIssuerProvider:
-      data.fiscalIssuerProvider === 'focus' ||
+      data.fiscalIssuerProvider === 'sefaz-simulator' ||
       data.fiscalIssuerProvider === 'sefaz-direct' ||
+      data.fiscalIssuerProvider === 'focus' ||
       data.fiscalIssuerProvider === 'plugnotas' ||
       data.fiscalIssuerProvider === 'nuvemfiscal'
         ? data.fiscalIssuerProvider
@@ -368,7 +369,7 @@ export type EnterpriseAddressInput = {
   stateRegistration?: string;
   taxRegime?: 'simples' | 'presumido' | 'real' | 'mei';
   nfceEnabled?: boolean;
-  fiscalIssuerProvider?: 'focus' | 'sefaz-direct' | 'plugnotas' | 'nuvemfiscal' | null;
+  fiscalIssuerProvider?: 'sefaz-simulator' | 'sefaz-direct' | 'focus' | 'plugnotas' | 'nuvemfiscal' | null;
   nfceCscId?: string;
   nfceSeries?: string;
   nfceEnvironment?: 'homologation' | 'production';
