@@ -9,10 +9,11 @@ import Card from '@mui/material/Card';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
+import Tooltip from '@mui/material/Tooltip';
 import Checkbox from '@mui/material/Checkbox';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 
@@ -264,19 +265,18 @@ export function KitchenKdsView() {
               ))}
             </TextField>
 
-            <Button
-              size="small"
-              variant={soundEnabled ? 'soft' : 'outlined'}
-              color={soundEnabled ? 'primary' : 'inherit'}
-              startIcon={
+            <Tooltip title={soundEnabled ? 'Som ativo' : 'Som mudo'}>
+              <IconButton
+                color={soundEnabled ? 'primary' : 'default'}
+                aria-label={soundEnabled ? 'Som ativo' : 'Som mudo'}
+                onClick={() => setSoundEnabled((prev) => !prev)}
+              >
                 <Iconify
                   icon={soundEnabled ? 'solar:volume-loud-bold' : 'solar:volume-cross-bold'}
+                  width={22}
                 />
-              }
-              onClick={() => setSoundEnabled((prev) => !prev)}
-            >
-              {soundEnabled ? 'Som ativo' : 'Som mudo'}
-            </Button>
+              </IconButton>
+            </Tooltip>
           </Stack>
         }
         sx={{ mb: 2.5 }}
