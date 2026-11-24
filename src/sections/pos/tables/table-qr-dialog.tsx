@@ -44,23 +44,49 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs" className="table-qr-dialog-root">
       <style>
         {`
           @media print {
-            body * {
-              visibility: hidden !important;
+            html, body {
+              width: auto !important;
+              height: auto !important;
+              min-height: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #FFFFFF !important;
+              overflow: visible !important;
             }
-            #table-qr-printable-area,
-            #table-qr-printable-area * {
-              visibility: visible !important;
+            body > *:not(.table-qr-dialog-root) {
+              display: none !important;
+            }
+            .table-qr-dialog-root,
+            .table-qr-dialog-root .MuiDialog-container,
+            .table-qr-dialog-root .MuiDialog-paper,
+            .table-qr-dialog-root .MuiDialogContent-root {
+              position: static !important;
+              display: block !important;
+              width: auto !important;
+              height: auto !important;
+              min-height: 0 !important;
+              max-height: none !important;
+              max-width: none !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              overflow: visible !important;
+              background: #FFFFFF !important;
+              box-shadow: none !important;
+              transform: none !important;
+            }
+            .table-qr-dialog-root .MuiBackdrop-root,
+            .table-qr-no-print {
+              display: none !important;
             }
             #table-qr-printable-area {
-              position: fixed !important;
-              left: 0 !important;
-              top: 0 !important;
+              position: static !important;
               width: 73.5mm !important;
               max-width: 73.5mm !important;
+              min-height: 0 !important;
               box-sizing: border-box !important;
               margin: 0 !important;
               padding: 2mm !important;
@@ -69,6 +95,8 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
               background: #FFFFFF !important;
               color: #000000 !important;
               box-shadow: none !important;
+              page-break-after: avoid !important;
+              break-after: avoid !important;
             }
             @page {
               margin: 3mm;
@@ -77,7 +105,7 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
         `}
       </style>
 
-      <DialogTitle sx={{ textAlign: 'center' }}>
+      <DialogTitle className="table-qr-no-print" sx={{ textAlign: 'center' }}>
         QR Code · Mesa {table.number}
       </DialogTitle>
 
@@ -125,6 +153,7 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
               </Box>
 
               <Typography
+                className="table-qr-no-print"
                 variant="caption"
                 color="text.secondary"
                 sx={{ wordBreak: 'break-all', textAlign: 'center' }}
@@ -136,7 +165,7 @@ export function TableQrDialog({ open, table, storeSlug, storeName, onClose }: Pr
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3 }}>
+      <DialogActions className="table-qr-no-print" sx={{ px: 3, pb: 3 }}>
         <Button variant="outlined" color="inherit" onClick={onClose}>
           Fechar
         </Button>

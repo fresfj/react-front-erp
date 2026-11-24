@@ -199,6 +199,7 @@ export function ReceiptDialog({
         open={open}
         onClose={onClose}
         fullScreen
+        className="receipt-dialog-root"
         PaperProps={{
           sx: {
             bgcolor: '#1E1E24',
@@ -208,29 +209,59 @@ export function ReceiptDialog({
           },
         }}
       >
-        {/* Style injection for exact thermal and A5 receipt printing */}
+        {/* Style injection for exact thermal and A5 receipt printing (sem página em branco) */}
         <style>
           {`
             @media print {
-              body * {
-                visibility: hidden !important;
+              html, body {
+                width: auto !important;
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #FFFFFF !important;
+                overflow: visible !important;
               }
-              #receipt-printable-area, #receipt-printable-area * {
-                visibility: visible !important;
+              body > *:not(.receipt-dialog-root) {
+                display: none !important;
+              }
+              .receipt-dialog-root,
+              .receipt-dialog-root .MuiDialog-container,
+              .receipt-dialog-root .MuiDialog-paper,
+              .receipt-dialog-root .receipt-dialog-content {
+                position: static !important;
+                display: block !important;
+                width: auto !important;
+                height: auto !important;
+                min-height: 0 !important;
+                max-height: none !important;
+                max-width: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                background: #FFFFFF !important;
+                box-shadow: none !important;
+                transform: none !important;
+              }
+              .receipt-dialog-root .MuiBackdrop-root,
+              .receipt-no-print {
+                display: none !important;
               }
               #receipt-printable-area {
-                position: absolute !important;
-                left: 0 !important;
-                top: 0 !important;
+                position: static !important;
                 width: ${is58 ? '58mm' : is80 ? '80mm' : '148mm'} !important;
                 max-width: ${is58 ? '58mm' : is80 ? '80mm' : '148mm'} !important;
+                min-height: 0 !important;
                 box-sizing: border-box !important;
                 margin: 0 !important;
-                padding: ${isA5 ? '6mm' : '1.5mm'} !important;
+                padding: ${isA5 ? '4mm' : '1.5mm'} !important;
                 line-height: 1.2 !important;
                 background: #FFFFFF !important;
                 color: #000000 !important;
                 box-shadow: none !important;
+                border-radius: 0 !important;
+                page-break-after: avoid !important;
+                break-after: avoid !important;
               }
               @page {
                 size: ${is58 ? '58mm auto' : is80 ? '80mm auto' : '148mm 210mm'};
@@ -242,6 +273,7 @@ export function ReceiptDialog({
 
         {/* Top Control Bar (Styled exactly like user reference image) */}
         <Box
+          className="receipt-no-print"
           sx={{
             px: { xs: 2, md: 3 },
             py: 1.5,
@@ -428,6 +460,7 @@ export function ReceiptDialog({
 
         {/* Receipt Content Area */}
         <DialogContent
+          className="receipt-dialog-content"
           sx={{
             flexGrow: 1,
             display: 'flex',

@@ -122,6 +122,7 @@ export type PublicStorefront = {
   logoUrl?: string;
   bannerUrl?: string;
   bannerFit?: 'cover' | 'contain';
+  bannerPositionX?: number;
   bannerPositionY?: number;
   logoFit?: 'cover' | 'contain';
   minOrderAmount?: number;

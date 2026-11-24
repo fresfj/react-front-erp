@@ -1049,10 +1049,10 @@ export function PosCheckoutView() {
                       <Stack key={idx} spacing={1.5}>
                         {/* Billing-style row: Label + clickable ButtonBase (matching dashboard/user/account/billing) */}
                         <Grid container spacing={{ xs: 0.5, md: 2 }} alignItems="center">
-                          <Grid xs={12} md={4} sx={{ color: 'text.secondary', typography: 'body2' }}>
+                          <Grid xs={12} md={3} sx={{ color: 'text.secondary', typography: 'body2' }}>
                             {payments.length > 1 ? `Pagamento ${idx + 1}` : 'Pagar com'}
                           </Grid>
-                          <Grid xs={12} md={8}>
+                          <Grid xs={12} md={9}>
                             <Stack
                               direction="row"
                               alignItems="center"

@@ -55,6 +55,7 @@ const OnlineStoreSchema = zod.object({
   logoUrl: zod.any().optional(),
   bannerUrl: zod.any().optional(),
   bannerFit: zod.enum(['cover', 'contain']).default('cover'),
+  bannerPositionX: zod.coerce.number().min(0).max(100).default(50),
   bannerPositionY: zod.coerce.number().min(0).max(100).default(50),
   logoFit: zod.enum(['cover', 'contain']).default('cover'),
   minOrderAmount: zod.coerce.number().min(0).optional(),
@@ -109,6 +110,7 @@ function mapEnterpriseToForm(enterprise: Enterprise | null): OnlineStoreSchemaTy
     logoUrl: store?.logoUrl || null,
     bannerUrl: store?.bannerUrl || null,
     bannerFit: store?.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionX: typeof store?.bannerPositionX === 'number' ? store.bannerPositionX : 50,
     bannerPositionY: typeof store?.bannerPositionY === 'number' ? store.bannerPositionY : 50,
     logoFit: store?.logoFit === 'contain' ? 'contain' : 'cover',
     minOrderAmount: store?.minOrderAmount ?? 0,
@@ -210,10 +212,15 @@ export function AccountOnlineStoreForm() {
   const bannerValue = watch('bannerUrl');
   const logoValue = watch('logoUrl');
   const bannerFit = watch('bannerFit');
+  const bannerPositionX = watch('bannerPositionX');
   const bannerPositionY = watch('bannerPositionY');
   const logoFit = watch('logoFit');
+  const descriptionValue = watch('description');
+  const estimatedMinutesValue = watch('estimatedMinutes');
   const loyaltyEnabled = watch('loyaltyEnabled');
   const loyaltyRewardType = watch('loyaltyRewardType');
+
+  const [previewDevice, setPreviewDevice] = useState<'both' | 'mobile' | 'desktop'>('both');
 
   const [bannerPreview, setBannerPreview] = useState<string | undefined>(undefined);
   const [logoPreview, setLogoPreview] = useState<string | undefined>(undefined);
@@ -273,6 +280,7 @@ export function AccountOnlineStoreForm() {
         logoUrl: resolvedLogoUrl,
         bannerUrl: resolvedBannerUrl,
         bannerFit: data.bannerFit,
+        bannerPositionX: data.bannerPositionX,
         bannerPositionY: data.bannerPositionY,
         logoFit: data.logoFit,
         minOrderAmount: data.minOrderAmount ?? 0,
@@ -454,160 +462,465 @@ export function AccountOnlineStoreForm() {
                 </Stack>
 
                 {bannerFit === 'cover' && (
-                  <Box>
-                    <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Posição Vertical do Banner (Foco)
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                        {bannerPositionY}% (
-                        {bannerPositionY <= 25
-                          ? 'Topo'
-                          : bannerPositionY >= 75
-                            ? 'Base'
-                            : 'Centro'}
-                        )
-                      </Typography>
-                    </Stack>
-                    <Slider
-                      value={bannerPositionY}
-                      min={0}
-                      max={100}
-                      step={5}
-                      disabled={!canEdit}
-                      onChange={(_, val) =>
-                        setValue('bannerPositionY', Number(val), { shouldDirty: true })
-                      }
-                      valueLabelDisplay="auto"
-                      valueLabelFormat={(v) => `${v}%`}
-                    />
-                  </Box>
-                )}
-
-                {/* Prévia ao vivo exata do topo da vitrine */}
-                <Box>
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    sx={{ display: 'block', mb: 1 }}
-                  >
-                    Prévia no Catálogo Online
-                  </Typography>
-
-                  <Card
-                    variant="outlined"
+                  <Stack
+                    spacing={2}
                     sx={{
-                      maxWidth: 520,
-                      mx: 'auto',
-                      borderRadius: 2,
-                      textAlign: 'center',
-                      overflow: 'hidden',
+                      p: 2,
+                      borderRadius: 1.5,
+                      bgcolor: 'background.neutral',
                     }}
                   >
-                    <Box sx={{ position: 'relative' }}>
-                      <AvatarShape
-                        sx={{
-                          left: 0,
-                          right: 0,
-                          zIndex: 10,
-                          mx: 'auto',
-                          bottom: -26,
-                          position: 'absolute',
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      spacing={1}
+                    >
+                      <Typography variant="subtitle2">Ajuste Fino do Foco do Banner</Typography>
+                      <Button
+                        size="small"
+                        color="inherit"
+                        disabled={!canEdit || (bannerPositionX === 50 && bannerPositionY === 50)}
+                        onClick={() => {
+                          setValue('bannerPositionX', 50, { shouldDirty: true });
+                          setValue('bannerPositionY', 50, { shouldDirty: true });
                         }}
-                      />
-
-                      <Avatar
-                        alt={enterprise?.tradeName || enterprise?.name || 'Loja'}
-                        src={logoPreview}
-                        sx={{
-                          width: 68,
-                          height: 68,
-                          zIndex: 11,
-                          left: 0,
-                          right: 0,
-                          bottom: -34,
-                          mx: 'auto',
-                          position: 'absolute',
-                          bgcolor: 'background.paper',
-                          color: 'primary.darker',
-                          fontWeight: 800,
-                          fontSize: 24,
-                          boxShadow: (theme) => theme.customShadows.z8,
-                          '& img': {
-                            objectFit: logoFit === 'contain' ? 'contain' : 'cover',
-                          },
-                        }}
+                        startIcon={<Iconify icon="solar:restart-bold" width={15} />}
                       >
-                        {(enterprise?.tradeName || enterprise?.name || 'L')
-                          .charAt(0)
-                          .toUpperCase()}
-                      </Avatar>
+                        Centralizar
+                      </Button>
+                    </Stack>
 
-                      {bannerPreview ? (
-                        bannerFit === 'contain' ? (
-                          <Box
-                            component="img"
-                            src={bannerPreview}
-                            alt="Prévia do banner"
-                            sx={{
-                              width: 1,
-                              height: 'auto',
-                              display: 'block',
-                              objectFit: 'contain',
-                            }}
-                          />
-                        ) : (
-                          <Box
-                            sx={{
-                              position: 'relative',
-                              width: 1,
-                              height: { xs: 170, sm: 210 },
-                              overflow: 'hidden',
-                            }}
-                          >
-                            <Box
-                              component="img"
-                              src={bannerPreview}
-                              alt="Prévia do banner"
-                              sx={{
-                                width: 1,
-                                height: 1,
-                                display: 'block',
-                                objectFit: 'cover',
-                                objectPosition: `50% ${bannerPositionY}%`,
-                              }}
-                            />
-                            <Box
-                              sx={{
-                                inset: 0,
-                                position: 'absolute',
-                                pointerEvents: 'none',
-                                background:
-                                  'linear-gradient(180deg, rgba(0,0,0,0) 65%, rgba(0,0,0,0.22) 100%)',
-                              }}
-                            />
-                          </Box>
-                        )
-                      ) : (
-                        <Box
-                          sx={{
-                            height: 150,
-                            background: (theme) =>
-                              `linear-gradient(135deg, ${theme.vars.palette.primary.darker} 0%, ${theme.vars.palette.primary.main} 100%)`,
-                          }}
+                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+                      {/* Foco Horizontal (principalmente visível no Celular) */}
+                      <Box sx={{ flex: 1 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Foco Horizontal (Celular)
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                            {bannerPositionX}% (
+                            {bannerPositionX <= 25
+                              ? 'Esquerda'
+                              : bannerPositionX >= 75
+                                ? 'Direita'
+                                : 'Centro'}
+                            )
+                          </Typography>
+                        </Stack>
+                        <Slider
+                          value={bannerPositionX}
+                          min={0}
+                          max={100}
+                          step={1}
+                          disabled={!canEdit}
+                          onChange={(_, val) =>
+                            setValue('bannerPositionX', Number(val), { shouldDirty: true })
+                          }
+                          valueLabelDisplay="auto"
+                          valueLabelFormat={(v) => `${v}%`}
                         />
-                      )}
-                    </Box>
+                        <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }}>
+                          {[
+                            { label: 'Esquerda', val: 0 },
+                            { label: 'Centro', val: 50 },
+                            { label: 'Direita', val: 100 },
+                          ].map((preset) => (
+                            <Button
+                              key={preset.label}
+                              size="small"
+                              variant={bannerPositionX === preset.val ? 'contained' : 'outlined'}
+                              color={bannerPositionX === preset.val ? 'primary' : 'inherit'}
+                              disabled={!canEdit}
+                              onClick={() =>
+                                setValue('bannerPositionX', preset.val, { shouldDirty: true })
+                              }
+                              sx={{ py: 0.25, px: 1, minWidth: 0, fontSize: 11 }}
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </Stack>
+                      </Box>
 
-                    <Box sx={{ pt: 5.5, pb: 2, px: 2 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        {enterprise?.tradeName || enterprise?.name || 'Sua Loja'}
+                      {/* Foco Vertical (PC e Celular) */}
+                      <Box sx={{ flex: 1 }}>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            Foco Vertical (PC e Celular)
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                            {bannerPositionY}% (
+                            {bannerPositionY <= 25
+                              ? 'Topo'
+                              : bannerPositionY >= 75
+                                ? 'Base'
+                                : 'Centro'}
+                            )
+                          </Typography>
+                        </Stack>
+                        <Slider
+                          value={bannerPositionY}
+                          min={0}
+                          max={100}
+                          step={1}
+                          disabled={!canEdit}
+                          onChange={(_, val) =>
+                            setValue('bannerPositionY', Number(val), { shouldDirty: true })
+                          }
+                          valueLabelDisplay="auto"
+                          valueLabelFormat={(v) => `${v}%`}
+                        />
+                        <Stack direction="row" spacing={0.75} sx={{ mt: 0.5 }}>
+                          {[
+                            { label: 'Topo', val: 0 },
+                            { label: 'Centro', val: 50 },
+                            { label: 'Base', val: 100 },
+                          ].map((preset) => (
+                            <Button
+                              key={preset.label}
+                              size="small"
+                              variant={bannerPositionY === preset.val ? 'contained' : 'outlined'}
+                              color={bannerPositionY === preset.val ? 'primary' : 'inherit'}
+                              disabled={!canEdit}
+                              onClick={() =>
+                                setValue('bannerPositionY', preset.val, { shouldDirty: true })
+                              }
+                              sx={{ py: 0.25, px: 1, minWidth: 0, fontSize: 11 }}
+                            >
+                              {preset.label}
+                            </Button>
+                          ))}
+                        </Stack>
+                      </Box>
+                    </Stack>
+                  </Stack>
+                )}
+
+                {/* Prévia ao vivo: Celular (360px) e PC / Desktop (960px) */}
+                <Box>
+                  <Stack
+                    direction={{ xs: 'column', sm: 'row' }}
+                    alignItems={{ sm: 'center' }}
+                    justifyContent="space-between"
+                    spacing={1.5}
+                    sx={{ mb: 2 }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle2">
+                        Prévia no Catálogo Online (Celular e PC)
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Prévia aproximada de como o topo aparece para o cliente
+                        Compare exatamente como o banner e a logo aparecem no celular e no computador
                       </Typography>
                     </Box>
-                  </Card>
+
+                    <ToggleButtonGroup
+                      exclusive
+                      size="small"
+                      value={previewDevice}
+                      onChange={(_, val) => {
+                        if (val) setPreviewDevice(val);
+                      }}
+                    >
+                      <ToggleButton value="both" sx={{ gap: 0.75, px: 1.5 }}>
+                        <Iconify icon="solar:devices-bold" width={16} />
+                        Ambos
+                      </ToggleButton>
+                      <ToggleButton value="mobile" sx={{ gap: 0.75, px: 1.5 }}>
+                        <Iconify icon="solar:smartphone-2-bold" width={16} />
+                        Celular
+                      </ToggleButton>
+                      <ToggleButton value="desktop" sx={{ gap: 0.75, px: 1.5 }}>
+                        <Iconify icon="solar:monitor-bold" width={16} />
+                        PC
+                      </ToggleButton>
+                    </ToggleButtonGroup>
+                  </Stack>
+
+                  {(() => {
+                    const storeTitle = enterprise?.tradeName || enterprise?.name || 'Sua Loja';
+                    const renderStorefrontHeaderCard = (mode: 'mobile' | 'desktop') => {
+                      const isMobilePreview = mode === 'mobile';
+                      const bannerHeight = isMobilePreview ? 190 : 240;
+
+                      return (
+                        <Card
+                          variant="outlined"
+                          sx={{
+                            borderRadius: 2,
+                            textAlign: 'center',
+                            overflow: 'hidden',
+                            bgcolor: 'background.paper',
+                          }}
+                        >
+                          <Box sx={{ position: 'relative' }}>
+                            <AvatarShape
+                              sx={{
+                                left: 0,
+                                right: 0,
+                                zIndex: 10,
+                                mx: 'auto',
+                                bottom: -26,
+                                position: 'absolute',
+                              }}
+                            />
+
+                            <Avatar
+                              alt={storeTitle}
+                              src={logoPreview}
+                              sx={{
+                                width: 68,
+                                height: 68,
+                                zIndex: 11,
+                                left: 0,
+                                right: 0,
+                                bottom: -34,
+                                mx: 'auto',
+                                position: 'absolute',
+                                bgcolor: 'background.paper',
+                                color: 'primary.darker',
+                                fontWeight: 800,
+                                fontSize: 24,
+                                boxShadow: (theme) => theme.customShadows.z8,
+                                '& img': {
+                                  objectFit: logoFit === 'contain' ? 'contain' : 'cover',
+                                },
+                              }}
+                            >
+                              {storeTitle.charAt(0).toUpperCase()}
+                            </Avatar>
+
+                            {bannerPreview ? (
+                              bannerFit === 'contain' ? (
+                                <Box
+                                  component="img"
+                                  src={bannerPreview}
+                                  alt="Prévia do banner"
+                                  sx={{
+                                    width: 1,
+                                    height: 'auto',
+                                    display: 'block',
+                                    objectFit: 'contain',
+                                  }}
+                                />
+                              ) : (
+                                <Box
+                                  sx={{
+                                    position: 'relative',
+                                    width: 1,
+                                    height: bannerHeight,
+                                    overflow: 'hidden',
+                                  }}
+                                >
+                                  <Box
+                                    component="img"
+                                    src={bannerPreview}
+                                    alt="Prévia do banner"
+                                    sx={{
+                                      width: 1,
+                                      height: 1,
+                                      display: 'block',
+                                      objectFit: 'cover',
+                                      objectPosition: `${bannerPositionX}% ${bannerPositionY}%`,
+                                    }}
+                                  />
+                                  <Box
+                                    sx={{
+                                      inset: 0,
+                                      position: 'absolute',
+                                      pointerEvents: 'none',
+                                      background:
+                                        'linear-gradient(180deg, rgba(0,0,0,0) 65%, rgba(0,0,0,0.22) 100%)',
+                                    }}
+                                  />
+                                </Box>
+                              )
+                            ) : (
+                              <Box
+                                sx={{
+                                  height: isMobilePreview ? 150 : 190,
+                                  background: (theme) =>
+                                    `linear-gradient(135deg, ${theme.vars.palette.primary.darker} 0%, ${theme.vars.palette.primary.main} 100%)`,
+                                }}
+                              />
+                            )}
+                          </Box>
+
+                          <Box sx={{ pt: 5.5, pb: 2, px: 2 }}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 800 }} noWrap>
+                              {storeTitle}
+                            </Typography>
+                            {descriptionValue?.trim() && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                                sx={{
+                                  mt: 0.5,
+                                  maxWidth: 440,
+                                  mx: 'auto',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                {descriptionValue.trim()}
+                              </Typography>
+                            )}
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              justifyContent="center"
+                              alignItems="center"
+                              sx={{ mt: 1, typography: 'caption', color: 'text.secondary' }}
+                            >
+                              <Box
+                                sx={{
+                                  width: 7,
+                                  height: 7,
+                                  borderRadius: '50%',
+                                  bgcolor: 'success.main',
+                                }}
+                              />
+                              <Typography variant="caption" color="success.main" sx={{ fontWeight: 700 }}>
+                                Aberto agora
+                              </Typography>
+                              <span>•</span>
+                              <span>~{estimatedMinutesValue || 40} min</span>
+                            </Stack>
+                          </Box>
+                        </Card>
+                      );
+                    };
+
+                    return (
+                      <Box
+                        sx={{
+                          display: 'grid',
+                          gap: 2.5,
+                          alignItems: 'start',
+                          gridTemplateColumns:
+                            previewDevice === 'both'
+                              ? { xs: '1fr', lg: '340px 1fr' }
+                              : '1fr',
+                        }}
+                      >
+                        {/* Prévia Celular (360px) */}
+                        {(previewDevice === 'both' || previewDevice === 'mobile') && (
+                          <Box
+                            sx={{
+                              width: '100%',
+                              maxWidth: 360,
+                              mx: 'auto',
+                              p: 1.5,
+                              borderRadius: 3,
+                              bgcolor: 'background.neutral',
+                              border: (theme) => `2px solid ${theme.vars.palette.divider}`,
+                            }}
+                          >
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              sx={{ px: 1, pb: 1 }}
+                            >
+                              <Stack direction="row" spacing={0.5} alignItems="center">
+                                <Iconify
+                                  icon="solar:smartphone-2-bold"
+                                  width={15}
+                                  sx={{ color: 'primary.main' }}
+                                />
+                                <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                  Celular (Mobile)
+                                </Typography>
+                              </Stack>
+                              <Box
+                                sx={{
+                                  width: 44,
+                                  height: 5,
+                                  borderRadius: 99,
+                                  bgcolor: 'text.disabled',
+                                  opacity: 0.4,
+                                }}
+                              />
+                              <Typography variant="caption" color="text.disabled">
+                                360px
+                              </Typography>
+                            </Stack>
+
+                            {renderStorefrontHeaderCard('mobile')}
+                          </Box>
+                        )}
+
+                        {/* Prévia PC / Desktop (960px) */}
+                        {(previewDevice === 'both' || previewDevice === 'desktop') && (
+                          <Box
+                            sx={{
+                              width: '100%',
+                              maxWidth: 960,
+                              mx: 'auto',
+                              p: 1.5,
+                              borderRadius: 2,
+                              bgcolor: 'background.neutral',
+                              border: (theme) => `1.5px solid ${theme.vars.palette.divider}`,
+                            }}
+                          >
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              justifyContent="space-between"
+                              spacing={1.5}
+                              sx={{ px: 1, pb: 1.25 }}
+                            >
+                              <Stack direction="row" spacing={0.75} alignItems="center">
+                                <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: 'error.main', opacity: 0.75 }} />
+                                <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: 'warning.main', opacity: 0.75 }} />
+                                <Box sx={{ width: 9, height: 9, borderRadius: '50%', bgcolor: 'success.main', opacity: 0.75 }} />
+                                <Stack direction="row" spacing={0.5} alignItems="center" sx={{ ml: 1 }}>
+                                  <Iconify
+                                    icon="solar:monitor-bold"
+                                    width={15}
+                                    sx={{ color: 'primary.main' }}
+                                  />
+                                  <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                    PC / Desktop
+                                  </Typography>
+                                </Stack>
+                              </Stack>
+
+                              <Box
+                                sx={{
+                                  flex: 1,
+                                  maxWidth: 360,
+                                  px: 1.5,
+                                  py: 0.35,
+                                  borderRadius: 1,
+                                  bgcolor: 'background.paper',
+                                  border: (theme) => `1px solid ${theme.vars.palette.divider}`,
+                                  typography: 'caption',
+                                  color: 'text.secondary',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                app.ds3i.com.br/p/{slug || 'sua-loja'}
+                              </Box>
+
+                              <Typography variant="caption" color="text.disabled">
+                                960px
+                              </Typography>
+                            </Stack>
+
+                            {renderStorefrontHeaderCard('desktop')}
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })()}
                 </Box>
               </Stack>
             </Stack>

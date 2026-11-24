@@ -72,6 +72,7 @@ export type OnlineStoreConfig = {
   logoUrl?: string;
   bannerUrl?: string;
   bannerFit?: 'cover' | 'contain';
+  bannerPositionX?: number;
   bannerPositionY?: number;
   logoFit?: 'cover' | 'contain';
   minOrderAmount?: number;
@@ -249,6 +250,7 @@ function mapOnlineStore(raw: unknown): OnlineStoreConfig | undefined {
     logoUrl: optStr(data.logoUrl),
     bannerUrl: optStr(data.bannerUrl),
     bannerFit: data.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionX: typeof data.bannerPositionX === 'number' ? data.bannerPositionX : 50,
     bannerPositionY: typeof data.bannerPositionY === 'number' ? data.bannerPositionY : 50,
     logoFit: data.logoFit === 'contain' ? 'contain' : 'cover',
     minOrderAmount: Number(data.minOrderAmount || 0),

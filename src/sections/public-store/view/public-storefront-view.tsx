@@ -361,12 +361,16 @@ export function PublicStorefrontView() {
     setItemNotes('');
   };
 
-  const isTableBlocked =
+  const isTableClosed =
     isTableMode &&
     (!store?.isOpen ||
       store?.acceptTableOrders === false ||
-      tableStatus?.table?.acceptTableOrders === false ||
-      tableStatus?.table?.acceptingOrders === false);
+      tableStatus?.table?.acceptTableOrders === false);
+
+  const isTablePaused =
+    isTableMode && !isTableClosed && tableStatus?.table?.acceptingOrders === false;
+
+  const isTableBlocked = isTableClosed || isTablePaused;
 
   const handleGoToCheckout = () => {
     if (isTableMode) {
@@ -733,7 +737,7 @@ export function PublicStorefrontView() {
                       height: 1,
                       display: 'block',
                       objectFit: 'cover',
-                      objectPosition: `50% ${store.bannerPositionY ?? 50}%`,
+                      objectPosition: `${store.bannerPositionX ?? 50}% ${store.bannerPositionY ?? 50}%`,
                     }}
                   />
                   <Box
@@ -781,9 +785,24 @@ export function PublicStorefrontView() {
                   mt: 2,
                   p: 1.5,
                   borderRadius: 1.5,
-                  bgcolor: (theme) => varAlpha(theme.vars.palette.primary.mainChannel, 0.08),
+                  bgcolor: (theme) =>
+                    varAlpha(
+                      isTableClosed
+                        ? theme.vars.palette.error.mainChannel
+                        : isTablePaused
+                          ? theme.vars.palette.warning.mainChannel
+                          : theme.vars.palette.primary.mainChannel,
+                      isTableBlocked ? 0.12 : 0.08
+                    ),
                   border: (theme) =>
-                    `1.5px solid ${varAlpha(theme.vars.palette.primary.mainChannel, 0.32)}`,
+                    `1.5px solid ${varAlpha(
+                      isTableClosed
+                        ? theme.vars.palette.error.mainChannel
+                        : isTablePaused
+                          ? theme.vars.palette.warning.mainChannel
+                          : theme.vars.palette.primary.mainChannel,
+                      isTableBlocked ? 0.6 : 0.32
+                    )}`,
                 }}
               >
                 <Stack
@@ -794,25 +813,52 @@ export function PublicStorefrontView() {
                 >
                   <Stack direction="row" spacing={1.25} alignItems="center">
                     <Iconify
-                      icon="ic:round-table-restaurant"
+                      icon={
+                        isTableClosed
+                          ? 'solar:lock-keyhole-bold'
+                          : isTablePaused
+                            ? 'solar:pause-circle-bold'
+                            : 'ic:round-table-restaurant'
+                      }
                       width={26}
-                      sx={{ color: 'primary.main', flexShrink: 0 }}
+                      sx={{
+                        color: isTableClosed
+                          ? 'error.main'
+                          : isTablePaused
+                            ? 'warning.main'
+                            : 'primary.main',
+                        flexShrink: 0,
+                      }}
                     />
                     <Box sx={{ textAlign: 'left' }}>
-                      <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{
+                          fontWeight: 800,
+                          color: isTableClosed
+                            ? 'error.main'
+                            : isTablePaused
+                              ? 'warning.main'
+                              : 'text.primary',
+                        }}
+                      >
                         Você está na Mesa {tableStatus?.table?.number || tableDisplayNumber}
-                        {isTableBlocked
-                          ? ' · Pedidos Pausados'
-                          : tableStatus?.session
-                            ? ' · Comanda Aberta'
-                            : ''}
+                        {isTableClosed
+                          ? ' · Mesa Fechada'
+                          : isTablePaused
+                            ? ' · Pedidos Pausados'
+                            : tableStatus?.session
+                              ? ' · Comanda Aberta'
+                              : ''}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" display="block">
-                        {isTableBlocked
-                          ? 'Esta mesa não está recebendo pedidos neste momento. Procure o garçom ou aguarde o horário de funcionamento.'
-                          : tableStatus?.session?.customerName
-                            ? `Solicitante: ${tableStatus.session.customerName} · Parcial: ${fCurrency(tableStatus.session.total)}`
-                            : 'Seus pedidos vão direto para a cozinha (Em Preparo) e a mesa permanece aberta.'}
+                        {isTableClosed
+                          ? 'O atendimento por mesa está fechado no momento. Procure o garçom ou aguarde o horário de funcionamento.'
+                          : isTablePaused
+                            ? 'Esta mesa está temporariamente pausada para novos pedidos. Procure o garçom se precisar de ajuda.'
+                            : tableStatus?.session?.customerName
+                              ? `Solicitante: ${tableStatus.session.customerName} · Parcial: ${fCurrency(tableStatus.session.total)}`
+                              : 'Seus pedidos vão direto para a cozinha (Em Preparo) e a mesa permanece aberta.'}
                       </Typography>
                     </Box>
                   </Stack>
@@ -820,7 +866,7 @@ export function PublicStorefrontView() {
                   <Button
                     size="small"
                     variant="contained"
-                    color="primary"
+                    color={isTableClosed ? 'error' : isTablePaused ? 'warning' : 'primary'}
                     onClick={() => {
                       loadTableStatus(false);
                       setTableTrackerOpen(true);

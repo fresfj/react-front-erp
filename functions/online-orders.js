@@ -449,6 +449,8 @@ exports.getPublicStorefront = onCall(async (request) => {
     logoUrl: store.logoUrl != null ? String(store.logoUrl) : (ctx.enterprise.logoUrl || undefined),
     bannerUrl: store.bannerUrl != null ? String(store.bannerUrl) : undefined,
     bannerFit: store.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionX:
+      typeof store.bannerPositionX === 'number' ? Number(store.bannerPositionX) : 50,
     bannerPositionY:
       typeof store.bannerPositionY === 'number' ? Number(store.bannerPositionY) : 50,
     logoFit: store.logoFit === 'contain' ? 'contain' : 'cover',
@@ -861,6 +863,10 @@ exports.upsertOnlineStoreConfig = onCall(LOW_CPU_CALLABLE_OPTS, async (request) 
     logoUrl: onlineStore.logoUrl != null ? String(onlineStore.logoUrl) : null,
     bannerUrl: onlineStore.bannerUrl != null ? String(onlineStore.bannerUrl) : null,
     bannerFit: onlineStore.bannerFit === 'contain' ? 'contain' : 'cover',
+    bannerPositionX:
+      typeof onlineStore.bannerPositionX === 'number'
+        ? Math.min(100, Math.max(0, Math.round(onlineStore.bannerPositionX)))
+        : 50,
     bannerPositionY:
       typeof onlineStore.bannerPositionY === 'number'
         ? Math.min(100, Math.max(0, Math.round(onlineStore.bannerPositionY)))

@@ -519,6 +519,7 @@ export function TablesManagementView() {
               {tables.map((tbl) => {
                 const tableSessions = sessionsByTableId.get(tbl.id) ?? [];
                 const isOccupied = tbl.status === 'occupied' || tableSessions.length > 0;
+                const isTableStopped = !tbl.acceptingOrders || !globalTablesEnabled;
                 const tableTotal = tableSessions.reduce((acc, s) => acc + Number(s.total || 0), 0);
                 const firstSess = tableSessions[0];
 
@@ -528,9 +529,11 @@ export function TablesManagementView() {
                     sx={{
                       p: 2.5,
                       border: `1.5px solid ${
-                        isOccupied
-                          ? varAlpha(theme.vars.palette.warning.mainChannel, 0.5)
-                          : varAlpha(theme.vars.palette.success.mainChannel, 0.32)
+                        isTableStopped
+                          ? varAlpha(theme.vars.palette.error.mainChannel, 0.6)
+                          : isOccupied
+                            ? varAlpha(theme.vars.palette.warning.mainChannel, 0.5)
+                            : varAlpha(theme.vars.palette.success.mainChannel, 0.32)
                       }`,
                       transition: 'transform 0.15s, box-shadow 0.15s',
                       '&:hover': { boxShadow: theme.customShadows.z8 },
@@ -601,18 +604,20 @@ export function TablesManagementView() {
                           <Label
                             variant="filled"
                             color={
-                              !tbl.acceptingOrders || !globalTablesEnabled
+                              isTableStopped
                                 ? 'error'
                                 : isOccupied
                                   ? 'warning'
                                   : 'success'
                             }
                           >
-                            {!tbl.acceptingOrders || !globalTablesEnabled
-                              ? 'Pausada'
-                              : isOccupied
-                                ? 'Aberta'
-                                : 'Livre'}
+                            {!globalTablesEnabled
+                              ? 'Fechada'
+                              : !tbl.acceptingOrders
+                                ? 'Pausada'
+                                : isOccupied
+                                  ? 'Aberta'
+                                  : 'Livre'}
                           </Label>
                         </Stack>
                       </Stack>
