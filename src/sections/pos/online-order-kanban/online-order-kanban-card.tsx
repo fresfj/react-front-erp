@@ -79,7 +79,7 @@ type CardContentProps = {
   onRequestReject?: (order: OnlineOrder) => void;
   onChangeStatus?: (
     orderId: string,
-    next: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+    next: 'preparing' | 'out_for_delivery' | 'delivered'
   ) => void;
   onPrintReceipt?: (order: OnlineOrder) => void;
 };
@@ -120,7 +120,7 @@ export const OnlineOrderKanbanCardContent = memo(
 
     const getPrimaryButtonLabel = () => {
       if (!nextCol) return null;
-      if (nextCol === 'accepted') {
+      if (nextCol === 'preparing' && columnId === 'pending') {
         return isAwaitingOnlinePix
           ? 'Confirmar PIX e Aceitar'
           : t('onlineOrders.kanban.actions.accept');
@@ -137,7 +137,7 @@ export const OnlineOrderKanbanCardContent = memo(
     const handlePrimaryClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!nextCol) return;
-      if (columnId === 'pending' && nextCol === 'accepted') {
+      if (columnId === 'pending' && nextCol === 'preparing') {
         onAccept?.(order.id);
         return;
       }

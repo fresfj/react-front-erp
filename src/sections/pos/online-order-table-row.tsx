@@ -38,7 +38,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   debit_card: 'Débito',
 };
 
-type SelectableStatus = 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered';
+type SelectableStatus = 'preparing' | 'out_for_delivery' | 'delivered';
 
 type Props = {
   row: OnlineOrder;
@@ -74,12 +74,6 @@ export function OnlineOrderTableRow({
     icon: string;
     color: string;
   }> = [
-    {
-      value: 'accepted',
-      label: 'Pedido Aceito',
-      icon: 'solar:check-circle-bold',
-      color: 'info.main',
-    },
     {
       value: 'preparing',
       label: 'Em preparação',

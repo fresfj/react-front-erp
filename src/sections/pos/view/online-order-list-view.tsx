@@ -279,6 +279,15 @@ export function OnlineOrderListView() {
   // 4 Indicadores Analíticos (Padrão /dashboard/pos/sales)
   const pendingRows = useMemo(() => rows.filter((r) => r.status === 'pending'), [rows]);
   const acceptedRows = useMemo(() => rows.filter((r) => r.status === 'accepted'), [rows]);
+  const preparingRows = useMemo(
+    () =>
+      rows.filter(
+        (r) =>
+          r.status === 'accepted' &&
+          (r.fulfillmentStatus === 'preparing' || r.fulfillmentStatus === 'accepted')
+      ),
+    [rows]
+  );
   const rejectedRows = useMemo(
     () => rows.filter((r) => r.status === 'rejected' || r.status === 'cancelled'),
     [rows]
@@ -292,7 +301,7 @@ export function OnlineOrderListView() {
 
   const totalAmount = useMemo(() => sumTotal(rows), [rows]);
   const pendingAmount = useMemo(() => sumTotal(pendingRows), [pendingRows]);
-  const acceptedAmount = useMemo(() => sumTotal(acceptedRows), [acceptedRows]);
+  const preparingAmount = useMemo(() => sumTotal(preparingRows), [preparingRows]);
   const deliveredAmount = useMemo(() => sumTotal(deliveredRows), [deliveredRows]);
 
   const getPercent = (count: number) => (rows.length ? (count / rows.length) * 100 : 0);
@@ -426,31 +435,9 @@ export function OnlineOrderListView() {
     async (orderId: string) => {
       if (!enterpriseId) return;
       setBusyId(orderId);
-      setOptimisticMap((prev) => ({ ...prev, [orderId]: 'accepted' }));
-      try {
-        const { saleId } = await acceptOnlineOrderCf(enterpriseId, orderId);
-        toast.success(t('onlineOrders.acceptSuccess'));
-        if (autoPrintOnAccept && saleId) {
-          openReceiptForSaleId(saleId, true);
-        }
-      } catch (error) {
-        clearOptimistic(orderId);
-        toast.error(getFirebaseErrorMessage(error, t('onlineOrders.acceptError')));
-      } finally {
-        setBusyId(null);
-      }
-    },
-    [autoPrintOnAccept, clearOptimistic, enterpriseId, openReceiptForSaleId, t]
-  );
-
-  const handleAcceptAndPrepare = useCallback(
-    async (orderId: string) => {
-      if (!enterpriseId) return;
-      setBusyId(orderId);
       setOptimisticMap((prev) => ({ ...prev, [orderId]: 'preparing' }));
       try {
         const { saleId } = await acceptOnlineOrderCf(enterpriseId, orderId);
-        await updateOnlineOrderStatusCf(enterpriseId, orderId, 'preparing');
         toast.success(t('onlineOrders.acceptSuccess'));
         if (autoPrintOnAccept && saleId) {
           openReceiptForSaleId(saleId, true);
@@ -489,7 +476,7 @@ export function OnlineOrderListView() {
   const handleChangeStatus = useCallback(
     async (
       orderId: string,
-      nextStatus: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+      nextStatus: 'preparing' | 'out_for_delivery' | 'delivered'
     ) => {
       if (!enterpriseId) return;
       setBusyId(orderId);
@@ -793,7 +780,6 @@ export function OnlineOrderListView() {
             optimisticMap={optimisticMap}
             onOpenDetails={(order) => setSelectedOrderId(order.id)}
             onAccept={handleAccept}
-            onAcceptAndPrepare={handleAcceptAndPrepare}
             onRequestReject={(order) => setRejectTarget(order)}
             onChangeStatus={handleChangeStatus}
             onPrintReceipt={handlePrintReceipt}
@@ -827,11 +813,11 @@ export function OnlineOrderListView() {
               />
 
               <ErpTableAnalytic
-                title="Aceitos"
-                primaryValue={fCurrency(acceptedAmount)}
-                secondaryValue={`${acceptedRows.length} ${acceptedRows.length === 1 ? 'pedido' : 'pedidos'}`}
-                percent={getPercent(acceptedRows.length)}
-                icon="solar:check-circle-bold-duotone"
+                title="Em preparação"
+                primaryValue={fCurrency(preparingAmount)}
+                secondaryValue={`${preparingRows.length} ${preparingRows.length === 1 ? 'pedido' : 'pedidos'}`}
+                percent={getPercent(preparingRows.length)}
+                icon="solar:fire-bold-duotone"
                 color={theme.vars.palette.primary.main}
               />
 

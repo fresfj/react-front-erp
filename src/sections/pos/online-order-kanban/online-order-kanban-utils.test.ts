@@ -47,14 +47,9 @@ function makeOrder(overrides: Partial<OnlineOrder> = {}): OnlineOrder {
 
 describe('online-order-kanban-utils', () => {
   describe('resolveKanbanTransition', () => {
-    it('allows pending -> accepted via accept action', () => {
-      const res = resolveKanbanTransition(makeOrder(), 'accepted');
-      expect(res).toEqual({ allowed: true, action: 'accept' });
-    });
-
-    it('allows pending -> preparing via accept_and_prepare action', () => {
+    it('allows pending -> preparing via accept action', () => {
       const res = resolveKanbanTransition(makeOrder(), 'preparing');
-      expect(res).toEqual({ allowed: true, action: 'accept_and_prepare' });
+      expect(res).toEqual({ allowed: true, action: 'accept' });
     });
 
     it('blocks pending -> out_for_delivery or delivered directly', () => {
@@ -126,7 +121,7 @@ describe('online-order-kanban-utils', () => {
 
       const grouped = groupOrdersByColumn([newer, older, rejected]);
       expect(grouped.pending.map((o) => o.id)).toEqual(['old', 'new']);
-      expect(grouped.accepted).toHaveLength(0);
+      expect(grouped.preparing).toHaveLength(0);
     });
 
     it('applies optimistic status overrides cleanly', () => {

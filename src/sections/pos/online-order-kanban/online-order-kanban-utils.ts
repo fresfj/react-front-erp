@@ -4,7 +4,6 @@ import type { OnlineOrder, OnlineOrderFulfillmentStatus } from 'src/api/firestor
 
 export type KanbanColumnId =
   | 'pending'
-  | 'accepted'
   | 'preparing'
   | 'out_for_delivery'
   | 'delivered';
@@ -15,13 +14,12 @@ export type SlaSeverity = 'normal' | 'warning' | 'overdue';
 
 export type KanbanColumnDef = {
   id: KanbanColumnId;
-  color: 'warning' | 'info' | 'primary' | 'secondary' | 'success';
+  color: 'warning' | 'primary' | 'secondary' | 'success';
   icon: string;
 };
 
 export const KANBAN_COLUMNS: KanbanColumnDef[] = [
   { id: 'pending', color: 'warning', icon: 'solar:bell-bing-bold-duotone' },
-  { id: 'accepted', color: 'info', icon: 'solar:check-circle-bold-duotone' },
   { id: 'preparing', color: 'primary', icon: 'solar:fire-bold-duotone' },
   { id: 'out_for_delivery', color: 'secondary', icon: 'solar:scooter-bold-duotone' },
   { id: 'delivered', color: 'success', icon: 'solar:verified-check-bold-duotone' },
@@ -32,7 +30,6 @@ export const KANBAN_COLUMN_IDS: KanbanColumnId[] = KANBAN_COLUMNS.map((c) => c.i
 export type TransitionPlan =
   | { allowed: false; reason: 'same_column' | 'cannot_revert_to_pending' | 'must_accept_first' | 'inactive_order' }
   | { allowed: true; action: 'accept' }
-  | { allowed: true; action: 'accept_and_prepare' }
   | { allowed: true; action: 'update_status'; target: Exclude<KanbanColumnId, 'pending'> };
 
 // ----------------------------------------------------------------------
@@ -49,10 +46,14 @@ export function getOrderColumnId(order: OnlineOrder): KanbanColumnId | null {
     return 'pending';
   }
   const f = order.fulfillmentStatus;
-  if (f === 'accepted' || f === 'preparing' || f === 'out_for_delivery' || f === 'delivered') {
+  // Legacy fulfillmentStatus 'accepted' maps into preparing (no Aceito stage).
+  if (f === 'accepted' || f === 'preparing') {
+    return 'preparing';
+  }
+  if (f === 'out_for_delivery' || f === 'delivered') {
     return f;
   }
-  return 'accepted';
+  return 'preparing';
 }
 
 export function isOrderActive(order: OnlineOrder): boolean {
@@ -81,11 +82,8 @@ export function resolveKanbanTransition(
     return { allowed: false, reason: 'cannot_revert_to_pending' };
   }
   if (currentColumn === 'pending') {
-    if (targetColumn === 'accepted') {
-      return { allowed: true, action: 'accept' };
-    }
     if (targetColumn === 'preparing') {
-      return { allowed: true, action: 'accept_and_prepare' };
+      return { allowed: true, action: 'accept' };
     }
     return { allowed: false, reason: 'must_accept_first' };
   }
@@ -99,8 +97,6 @@ export function resolveKanbanTransition(
 export function getNextKanbanColumn(columnId: KanbanColumnId): Exclude<KanbanColumnId, 'pending'> | null {
   switch (columnId) {
     case 'pending':
-      return 'accepted';
-    case 'accepted':
       return 'preparing';
     case 'preparing':
       return 'out_for_delivery';
@@ -140,7 +136,6 @@ export function groupOrdersByColumn(
 ): Record<KanbanColumnId, OnlineOrder[]> {
   const grouped: Record<KanbanColumnId, OnlineOrder[]> = {
     pending: [],
-    accepted: [],
     preparing: [],
     out_for_delivery: [],
     delivered: [],
@@ -164,7 +159,7 @@ export function groupOrdersByColumn(
 
   // Em etapas ativas, prioriza FIFO (mais antigos no topo para não atrasar);
   // em Finalizados, mais recentes no topo.
-  const ascCols: KanbanColumnId[] = ['pending', 'accepted', 'preparing', 'out_for_delivery'];
+  const ascCols: KanbanColumnId[] = ['pending', 'preparing', 'out_for_delivery'];
   ascCols.forEach((col) => {
     grouped[col].sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
   });

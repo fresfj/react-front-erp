@@ -59,11 +59,10 @@ type Props = {
   optimisticMap: Record<string, OnlineOrderFulfillmentStatus>;
   onOpenDetails: (order: OnlineOrder) => void;
   onAccept: (orderId: string) => void;
-  onAcceptAndPrepare: (orderId: string) => void;
   onRequestReject: (order: OnlineOrder) => void;
   onChangeStatus: (
     orderId: string,
-    next: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+    next: 'preparing' | 'out_for_delivery' | 'delivered'
   ) => void;
   onPrintReceipt: (order: OnlineOrder) => void;
 };
@@ -78,7 +77,6 @@ export function OnlineOrderKanbanBoard({
   optimisticMap,
   onOpenDetails,
   onAccept,
-  onAcceptAndPrepare,
   onRequestReject,
   onChangeStatus,
   onPrintReceipt,
@@ -160,13 +158,11 @@ export function OnlineOrderKanbanBoard({
 
       if (plan.action === 'accept') {
         onAccept(order.id);
-      } else if (plan.action === 'accept_and_prepare') {
-        onAcceptAndPrepare(order.id);
       } else if (plan.action === 'update_status') {
         onChangeStatus(order.id, plan.target);
       }
     },
-    [findColumnForId, onAccept, onAcceptAndPrepare, onChangeStatus, orders, t]
+    [findColumnForId, onAccept, onChangeStatus, orders, t]
   );
 
   const handleDragCancel = useCallback(() => {

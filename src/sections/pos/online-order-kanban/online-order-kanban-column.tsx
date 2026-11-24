@@ -54,7 +54,7 @@ type Props = {
   onRequestReject: (order: OnlineOrder) => void;
   onChangeStatus: (
     orderId: string,
-    next: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+    next: 'preparing' | 'out_for_delivery' | 'delivered'
   ) => void;
   onPrintReceipt: (order: OnlineOrder) => void;
 };

@@ -62,7 +62,7 @@ type Props = {
   onRequestReject: (order: OnlineOrder) => void;
   onChangeStatus: (
     orderId: string,
-    next: 'accepted' | 'preparing' | 'out_for_delivery' | 'delivered'
+    next: 'preparing' | 'out_for_delivery' | 'delivered'
   ) => void;
   onPrintReceipt: (order: OnlineOrder) => void;
   onSaveInternalNotes: (orderId: string, notes: string) => Promise<void>;
@@ -129,7 +129,7 @@ export function OnlineOrderDetailsDrawer({
 
   const getNextActionLabel = () => {
     if (!nextCol) return null;
-    if (nextCol === 'accepted') {
+    if (nextCol === 'preparing' && order.status === 'pending') {
       return isAwaitingOnlinePix
         ? 'Confirmar PIX e Aceitar'
         : t('onlineOrders.kanban.actions.accept');
@@ -145,7 +145,7 @@ export function OnlineOrderDetailsDrawer({
 
   const handlePrimaryAdvance = () => {
     if (!nextCol) return;
-    if (order.status === 'pending' && nextCol === 'accepted') {
+    if (order.status === 'pending' && nextCol === 'preparing') {
       onAccept(order.id);
       return;
     }
