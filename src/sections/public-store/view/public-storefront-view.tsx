@@ -76,6 +76,7 @@ import {
   CLOSED_REASON_KEY,
   getStoreOpenStatus,
   PAYMENT_METHOD_CONFIG,
+  PUBLIC_STORE_MAX_WIDTH,
 } from '../public-store-helpers';
 
 // ----------------------------------------------------------------------
@@ -166,6 +167,7 @@ export function PublicStorefrontView() {
   const [selectedProduct, setSelectedProduct] = useState<PublicStorefrontProduct | null>(null);
   const [qty, setQty] = useState(1);
   const [itemNotes, setItemNotes] = useState('');
+  const [bottomNav, setBottomNav] = useState<'home' | 'orders' | 'cart'>('home');
 
   // Slides do Lightbox para ampliação fullscreen das fotos dos produtos
   const lightboxSlides = useMemo(
@@ -528,7 +530,7 @@ export function PublicStorefrontView() {
       {/* SEO Completo: Meta Tags Open Graph (WhatsApp/Banner), Twitter Card e JSON-LD de Produtos */}
       <PublicStoreSeoHead store={store} slug={slug} />
 
-      <Box sx={{ maxWidth: 640, mx: 'auto', px: 2 }}>
+      <Box sx={{ maxWidth: PUBLIC_STORE_MAX_WIDTH, mx: 'auto', px: { xs: 2, sm: 3 } }}>
         {/* 1. Card de Identificação da Loja no estilo /dashboard/user/cards (AvatarShape + Cover + Avatar) */}
         <Card
           sx={{
@@ -1060,16 +1062,9 @@ export function PublicStorefrontView() {
                 <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
                   Ver todo o cardápio
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {store.products.length}
-                </Typography>
               </MenuItem>
               <Divider sx={{ borderStyle: 'dashed', my: 0.5 }} />
               {allCategories.map((cat) => {
-                const count =
-                  cat === 'Mais Pedidos'
-                    ? store.products.filter((p) => p.featured).length
-                    : store.products.filter((p) => (p.category || 'Outros') === cat).length;
                 const isActive = activeCategory === cat;
                 return (
                   <MenuItem
@@ -1087,9 +1082,6 @@ export function PublicStorefrontView() {
                   >
                     <Typography variant="body2" sx={{ flexGrow: 1, fontWeight: 'inherit' }}>
                       {cat}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {count}
                     </Typography>
                   </MenuItem>
                 );
@@ -1446,18 +1438,30 @@ export function PublicStorefrontView() {
           left: 0,
           right: 0,
           zIndex: 1000,
+          borderTopLeftRadius: { xs: 16, md: 0 },
+          borderTopRightRadius: { xs: 16, md: 0 },
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+          overflow: 'hidden',
           borderTop: (theme) => `1px solid ${theme.vars.palette.divider}`,
           bgcolor: 'background.paper',
+          pb: 'env(safe-area-inset-bottom)',
         }}
       >
-        <Box sx={{ maxWidth: 640, mx: 'auto' }}>
+        <Box sx={{ maxWidth: PUBLIC_STORE_MAX_WIDTH, mx: 'auto' }}>
           <BottomNavigation
             showLabels
-            value="home"
-            onChange={(_, newValue) => {
+            value={
+              tableTrackerOpen ? 'orders' : tableOrderDialogOpen ? 'cart' : bottomNav
+            }
+            onChange={(_, newValue: 'home' | 'orders' | 'cart') => {
               if (newValue === 'home') {
+                setBottomNav('home');
+                setTableTrackerOpen(false);
+                setTableOrderDialogOpen(false);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
               } else if (newValue === 'orders') {
+                setBottomNav('orders');
                 if (isTableMode) {
                   loadTableStatus(false);
                   setTableTrackerOpen(true);
@@ -1466,8 +1470,10 @@ export function PublicStorefrontView() {
                 }
               } else if (newValue === 'cart') {
                 if (cart.itemCount > 0) {
+                  setBottomNav('cart');
                   handleGoToCheckout();
                 } else {
+                  setBottomNav('home');
                   toast.info(
                     isTableMode
                       ? 'Adicione itens do cardápio para enviar à cozinha.'
@@ -1476,12 +1482,56 @@ export function PublicStorefrontView() {
                 }
               }
             }}
-            sx={{ height: 64, bgcolor: 'transparent' }}
+            sx={{
+              height: 64,
+              bgcolor: 'transparent',
+              '& .MuiBottomNavigationAction-root': {
+                position: 'relative',
+                color: 'text.secondary',
+                transition: (theme) =>
+                  theme.transitions.create(['color'], {
+                    duration: theme.transitions.duration.shortest,
+                  }),
+                '& .MuiBottomNavigationAction-label': {
+                  fontSize: 11.5,
+                  fontWeight: 500,
+                  mt: 0.25,
+                },
+                '&.Mui-selected': {
+                  color: 'primary.main',
+                  '& .MuiBottomNavigationAction-label': {
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                  },
+                  '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    top: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 36,
+                    height: 3,
+                    borderBottomLeftRadius: 3,
+                    borderBottomRightRadius: 3,
+                    bgcolor: 'primary.main',
+                  },
+                },
+              },
+            }}
           >
             <BottomNavigationAction
               value="home"
               label="Início"
-              icon={<Iconify icon="solar:home-2-bold" width={22} />}
+              icon={
+                <Iconify
+                  icon={
+                    !tableTrackerOpen && !tableOrderDialogOpen && bottomNav === 'home'
+                      ? 'solar:home-2-bold'
+                      : 'solar:home-2-linear'
+                  }
+                  width={22}
+                />
+              }
             />
             <BottomNavigationAction
               value="orders"
@@ -1489,10 +1539,24 @@ export function PublicStorefrontView() {
               icon={
                 isTableMode && tableStatus?.orders?.length ? (
                   <Badge badgeContent={tableStatus.orders.length} color="primary">
-                    <Iconify icon="solar:clipboard-list-bold" width={22} />
+                    <Iconify
+                      icon={
+                        tableTrackerOpen || bottomNav === 'orders'
+                          ? 'solar:clipboard-list-bold'
+                          : 'solar:clipboard-list-linear'
+                      }
+                      width={22}
+                    />
                   </Badge>
                 ) : (
-                  <Iconify icon="solar:clipboard-list-bold" width={22} />
+                  <Iconify
+                    icon={
+                      tableTrackerOpen || bottomNav === 'orders'
+                        ? 'solar:clipboard-list-bold'
+                        : 'solar:clipboard-list-linear'
+                    }
+                    width={22}
+                  />
                 )
               }
             />
@@ -1509,15 +1573,16 @@ export function PublicStorefrontView() {
               }
               icon={
                 <Badge badgeContent={cart.itemCount} color="error">
-                  <Iconify icon="solar:bag-3-bold" width={22} />
+                  <Iconify
+                    icon={
+                      tableOrderDialogOpen || bottomNav === 'cart'
+                        ? 'solar:bag-3-bold'
+                        : 'solar:bag-3-linear'
+                    }
+                    width={22}
+                  />
                 </Badge>
               }
-              sx={{
-                ...(cart.itemCount > 0 && {
-                  color: 'primary.main',
-                  fontWeight: 700,
-                }),
-              }}
             />
           </BottomNavigation>
         </Box>
@@ -1535,7 +1600,10 @@ export function PublicStorefrontView() {
           lines={cart.lines}
           subtotal={cart.subtotal}
           submitting={tableSubmitting}
-          onClose={() => setTableOrderDialogOpen(false)}
+          onClose={() => {
+            setTableOrderDialogOpen(false);
+            setBottomNav('home');
+          }}
           onConfirm={handleConfirmTableOrder}
         />
       )}
@@ -1548,7 +1616,10 @@ export function PublicStorefrontView() {
           fallbackTableNumber={tableDisplayNumber}
           refreshing={tableRefreshing}
           onRefresh={() => loadTableStatus(false)}
-          onClose={() => setTableTrackerOpen(false)}
+          onClose={() => {
+            setTableTrackerOpen(false);
+            setBottomNav('home');
+          }}
         />
       )}
 
@@ -1730,24 +1801,6 @@ export function PublicStorefrontView() {
 
           <Divider sx={{ my: 2 }} />
 
-          {/* Stepper de Quantidade */}
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            sx={{ mb: 2.5 }}
-          >
-            <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Quantidade
-            </Typography>
-            <IncrementerButton
-              size="medium"
-              quantity={qty}
-              onDecrease={() => setQty(Math.max(1, qty - 1))}
-              onIncrease={() => setQty(qty + 1)}
-            />
-          </Stack>
-
           {/* Campo de Observações do Item (tamanho normal, sem small) */}
           <TextField
             fullWidth
@@ -1757,28 +1810,39 @@ export function PublicStorefrontView() {
             placeholder="Ex: sem açúcar, bem gelado, levar guardanapos..."
             value={itemNotes}
             onChange={(e) => setItemNotes(e.target.value)}
+            sx={{
+              mb: 2
+            }}
           />
         </DialogContent>
 
         <DialogActions
           sx={{
-            px: 3,
+            px: 2.5,
             pt: 1.5,
-            pb: isMobile ? 'calc(16px + env(safe-area-inset-bottom))' : 3,
-            borderTop: isMobile
-              ? (theme) => `1px solid ${theme.vars.palette.divider}`
-              : 'none',
+            pb: isMobile ? 'calc(16px + env(safe-area-inset-bottom))' : 2.5,
+            borderTop: (theme) => `1px solid ${theme.vars.palette.divider}`,
           }}
         >
-          <Button
-            fullWidth
-            size="large"
-            variant="contained"
-            color="primary"
-            onClick={handleConfirmAddProduct}
-          >
-            Adicionar • {fCurrency((selectedProduct?.salePrice || 0) * qty)}
-          </Button>
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ width: '100%' }}>
+            <IncrementerButton
+              size="medium"
+              quantity={qty}
+              onDecrease={() => setQty(Math.max(1, qty - 1))}
+              onIncrease={() => setQty(qty + 1)}
+              sx={{ height: 46, flexShrink: 0 }}
+            />
+            <Button
+              fullWidth
+              size="large"
+              variant="contained"
+              color="primary"
+              onClick={handleConfirmAddProduct}
+              sx={{ flex: 1, height: 46, whiteSpace: 'nowrap', fontWeight: 700 }}
+            >
+              Adicionar • {fCurrency((selectedProduct?.salePrice || 0) * qty)}
+            </Button>
+          </Stack>
         </DialogActions>
       </Dialog>
 

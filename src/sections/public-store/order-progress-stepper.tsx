@@ -34,12 +34,23 @@ type StepDef = {
   icon: string;
 };
 
+/**
+ * Aceite já manda o pedido à cozinha: para o cliente, `accepted` = Em preparação.
+ * (Compatível com pedidos legados ainda gravados como fulfillmentStatus accepted.)
+ */
+export function normalizeCustomerFulfillmentStatus(
+  status: OnlineOrderFulfillmentStatus
+): OnlineOrderFulfillmentStatus {
+  if (status === 'accepted') return 'preparing';
+  return status;
+}
+
 const STEP_INDEX: Record<OnlineOrderFulfillmentStatus, number> = {
   pending: 0,
-  accepted: 1,
-  preparing: 2,
-  out_for_delivery: 3,
-  delivered: 4,
+  accepted: 1, // legado — normalizeCustomerFulfillmentStatus mapeia para preparing
+  preparing: 1,
+  out_for_delivery: 2,
+  delivered: 3,
   rejected: -1,
   cancelled: -1,
 };
@@ -48,9 +59,7 @@ export function getFulfillmentLabel(
   status: OnlineOrderFulfillmentStatus,
   deliveryType: OnlineOrderDeliveryType
 ): { label: string; color: 'warning' | 'info' | 'primary' | 'success' | 'error' } {
-  switch (status) {
-    case 'accepted':
-      return { label: 'Pedido Aceito', color: 'info' };
+  switch (normalizeCustomerFulfillmentStatus(status)) {
     case 'preparing':
       return { label: 'Em preparação', color: 'primary' };
     case 'out_for_delivery':
@@ -75,11 +84,13 @@ export function getFulfillmentLabel(
 }
 
 export function OrderProgressStepper({ status, deliveryType, rejectedReason, compact }: Props) {
-  if (status === 'rejected' || status === 'cancelled') {
+  const displayStatus = normalizeCustomerFulfillmentStatus(status);
+
+  if (displayStatus === 'rejected' || displayStatus === 'cancelled') {
     return (
       <Alert severity="error" sx={{ textAlign: 'left', borderRadius: 1.5 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-          {status === 'rejected' ? 'Pedido recusado pela loja' : 'Pedido cancelado'}
+          {displayStatus === 'rejected' ? 'Pedido recusado pela loja' : 'Pedido cancelado'}
         </Typography>
         {rejectedReason && (
           <Typography variant="caption" component="div" sx={{ mt: 0.25 }}>
@@ -90,9 +101,9 @@ export function OrderProgressStepper({ status, deliveryType, rejectedReason, com
     );
   }
 
+  // Sem etapa "Aceito": aceite já implica preparação na cozinha.
   const steps: StepDef[] = [
     { key: 'pending', label: 'Recebido', icon: 'solar:document-text-bold' },
-    { key: 'accepted', label: 'Aceito', icon: 'solar:check-circle-bold' },
     { key: 'preparing', label: 'Em preparação', icon: 'solar:box-bold' },
     {
       key: 'out_for_delivery',
@@ -104,18 +115,18 @@ export function OrderProgressStepper({ status, deliveryType, rejectedReason, com
             : 'Pronto p/ retirada',
       icon:
         deliveryType === 'delivery'
-          ? 'solar:scooter-bold'
+          ? 'mdi:moped'
           : deliveryType === 'table'
-            ? 'solar:plate-bold'
+            ? 'ic:round-table-restaurant'
             : 'solar:shop-bold',
     },
     { key: 'delivered', label: 'Finalizado', icon: 'solar:verified-check-bold' },
   ];
 
-  const activeStep = STEP_INDEX[status] ?? 0;
+  const activeStep = STEP_INDEX[displayStatus] ?? 0;
   const progressPercent = Math.round(((activeStep + 1) / steps.length) * 100);
   const nextStep = activeStep < steps.length - 1 ? steps[activeStep + 1] : null;
-  const isDelivered = status === 'delivered';
+  const isDelivered = displayStatus === 'delivered';
 
   return (
     <Box sx={{ width: '100%', overflow: 'hidden' }}>

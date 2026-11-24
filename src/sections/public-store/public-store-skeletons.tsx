@@ -4,12 +4,14 @@ import Stack from '@mui/material/Stack';
 import Divider from '@mui/material/Divider';
 import Skeleton from '@mui/material/Skeleton';
 
+import { PUBLIC_STORE_MAX_WIDTH } from './public-store-helpers';
+
 // ----------------------------------------------------------------------
 
 export function StorefrontSkeleton() {
   return (
     <Box sx={{ pb: 14, pt: { xs: 2, sm: 3 }, minHeight: '100vh', bgcolor: 'background.default' }}>
-      <Box sx={{ maxWidth: 640, mx: 'auto', px: 2 }}>
+      <Box sx={{ maxWidth: PUBLIC_STORE_MAX_WIDTH, mx: 'auto', px: { xs: 2, sm: 3 } }}>
         {/* Card do Topo (Banner + Avatar + Nome + Status) */}
         <Card sx={{ mb: 2.5, borderRadius: 2, overflow: 'hidden' }}>
           <Box sx={{ position: 'relative' }}>
@@ -133,7 +135,7 @@ export function CheckoutSkeleton() {
           direction="row"
           alignItems="center"
           justifyContent="space-between"
-          sx={{ maxWidth: 1160, mx: 'auto', px: { xs: 2, sm: 3, md: 4 }, py: 1.75 }}
+          sx={{ maxWidth: PUBLIC_STORE_MAX_WIDTH, mx: 'auto', px: { xs: 2, sm: 3 }, py: 1.75 }}
         >
           <Skeleton variant="rounded" animation="wave" width={160} height={36} />
           <Stack direction="row" spacing={1.25} alignItems="center">
@@ -146,9 +148,9 @@ export function CheckoutSkeleton() {
       {/* Grid 2 colunas */}
       <Box
         sx={{
-          maxWidth: 1160,
+          maxWidth: PUBLIC_STORE_MAX_WIDTH,
           mx: 'auto',
-          px: { xs: 2, sm: 3, md: 4 },
+          px: { xs: 2, sm: 3 },
           pt: { xs: 2.5, md: 4 },
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: '1.35fr 1fr' },

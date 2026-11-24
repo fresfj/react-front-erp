@@ -7,6 +7,9 @@ import { PAYMENT_METHOD_BRANDS } from 'src/components/payment-method-icon';
 
 // ----------------------------------------------------------------------
 
+/** Largura máxima padronizada para todas as páginas públicas do catálogo (Home, Checkout, Meus Pedidos). */
+export const PUBLIC_STORE_MAX_WIDTH = 960;
+
 export const CLOSED_REASON_KEY: Record<string, string> = {
   plan: 'publicStore.closed.plan',
   disabled: 'publicStore.closed.disabled',

@@ -144,6 +144,72 @@ async function sendEvolutionText({ baseUrl, apiKey, instanceName, number, text }
   });
 }
 
+async function sendEvolutionButtons({
+  baseUrl,
+  apiKey,
+  instanceName,
+  number,
+  title,
+  description,
+  footer,
+  buttons,
+}) {
+  const formattedNumber = normalizeBrWhatsappNumber(number);
+  if (!formattedNumber) {
+    throw new Error('Invalid destination phone number');
+  }
+  const cleanButtons = (Array.isArray(buttons) ? buttons : [])
+    .map((btn, idx) => {
+      if (!btn || typeof btn !== 'object') return null;
+      const type = String(btn.type || 'url').toLowerCase();
+      const displayText = String(btn.displayText || btn.label || '').trim().slice(0, 60);
+      if (!displayText) return null;
+      if (type === 'url') {
+        const url = String(btn.url || '').trim();
+        if (!/^https?:\/\//i.test(url)) return null;
+        return {
+          type: 'url',
+          displayText,
+          url,
+        };
+      }
+      if (type === 'copy') {
+        const copyCode = String(btn.copyCode || '').trim();
+        if (!copyCode) return null;
+        return {
+          type: 'copy',
+          displayText,
+          copyCode,
+        };
+      }
+      return {
+        type: 'reply',
+        displayText,
+        id: String(btn.id || `btn_${idx + 1}`),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (cleanButtons.length === 0) {
+    throw new Error('At least one valid button is required');
+  }
+
+  return evolutionRequest({
+    baseUrl,
+    apiKey,
+    path: `/message/sendButtons/${encodeURIComponent(instanceName)}`,
+    method: 'POST',
+    body: {
+      number: formattedNumber,
+      title: String(title || '').trim().slice(0, 60),
+      description: String(description || '').trim(),
+      footer: String(footer || '').trim().slice(0, 60),
+      buttons: cleanButtons,
+    },
+  });
+}
+
 const EVOLUTION_WEBHOOK_EVENTS = [
   'APPLICATION_STARTUP',
   'CALL',
@@ -240,6 +306,7 @@ module.exports = {
   logoutEvolutionInstance,
   restartEvolutionInstance,
   sendEvolutionText,
+  sendEvolutionButtons,
   findEvolutionWebhook,
   setEvolutionWebhook,
 };

@@ -36,10 +36,10 @@ import { Iconify } from 'src/components/iconify';
 
 import { usePublicCart } from '../public-cart-context';
 import { OrderCardSkeleton } from '../public-store-skeletons';
-import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { PublicOrdersLookupSchema } from '../public-store-validation';
 import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
 import { getFulfillmentLabel, OrderProgressStepper } from '../order-progress-stepper';
+import { PAYMENT_METHOD_CONFIG, PUBLIC_STORE_MAX_WIDTH } from '../public-store-helpers';
 import {
   signOutPublicCustomer,
   isPhoneVerifiedForSlug,
@@ -292,7 +292,7 @@ export function PublicOrdersView() {
           alignItems="center"
           justifyContent="space-between"
           sx={{
-            maxWidth: 840,
+            maxWidth: PUBLIC_STORE_MAX_WIDTH,
             mx: 'auto',
             px: { xs: 2, sm: 3 },
             py: 1.75,
@@ -314,7 +314,7 @@ export function PublicOrdersView() {
       </Box>
 
       {/* Conteúdo */}
-      <Box sx={{ maxWidth: 840, mx: 'auto', px: { xs: 2, sm: 3 }, pt: 3 }}>
+      <Box sx={{ maxWidth: PUBLIC_STORE_MAX_WIDTH, mx: 'auto', px: { xs: 2, sm: 3 }, pt: 3 }}>
         {/* Cartão de cliente identificado (salvo no localStorage) OU formulário Telefone + 1º Nome */}
         {identifiedCustomer ? (
           <Card sx={{ p: { xs: 2.5, sm: 3 }, mb: 3, borderRadius: 2 }}>
@@ -341,7 +341,6 @@ export function PublicOrdersView() {
               </Stack>
 
               <Button
-                size="small"
                 variant="outlined"
                 color="inherit"
                 startIcon={<Iconify icon="solar:user-cross-bold-duotone" />}
@@ -493,9 +492,8 @@ export function PublicOrdersView() {
                 Últimos {orders.length}{' '}
                 {orders.length === 1 ? 'pedido realizado' : 'pedidos realizados'}
               </Typography>
-              <Stack direction="row" spacing={1}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
                 <LoadingButton
-                  size="small"
                   variant="contained"
                   color="primary"
                   loading={reorderingId === orders[0].id}
@@ -505,7 +503,6 @@ export function PublicOrdersView() {
                   Refazer último pedido
                 </LoadingButton>
                 <Button
-                  size="small"
                   variant="outlined"
                   color="inherit"
                   onClick={() =>
@@ -588,10 +585,9 @@ export function PublicOrdersView() {
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}
                     justifyContent="flex-end"
-                    spacing={1}
+                    spacing={1.25}
                   >
                     <LoadingButton
-                      size="small"
                       variant="outlined"
                       color="primary"
                       loading={reorderingId === order.id}
@@ -605,8 +601,7 @@ export function PublicOrdersView() {
                       component={RouterLink}
                       to={paths.publicStore.order(slug, order.id)}
                       state={{ code: order.code, whatsapp: order.whatsapp }}
-                      size="small"
-                      variant="soft"
+                      variant="contained"
                       color="primary"
                       endIcon={<Iconify icon="eva:arrow-ios-forward-fill" />}
                     >

@@ -50,10 +50,10 @@ import {
 
 import { usePublicCart } from '../public-cart-context';
 import { CheckoutSkeleton } from '../public-store-skeletons';
-import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { validateCheckoutForm } from '../public-store-validation';
 import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
 import { CheckoutAddressPickerDialog } from '../checkout-address-picker-dialog';
+import { PAYMENT_METHOD_CONFIG, PUBLIC_STORE_MAX_WIDTH } from '../public-store-helpers';
 import {
   signOutPublicCustomer,
   isPhoneVerifiedForSlug,
@@ -63,6 +63,7 @@ import {
 import {
   formatSavedAddressLine,
   loadPublicCustomerProfile,
+  savePublicCustomerProfile,
   upsertPublicCustomerAddress,
   getDefaultPublicCustomerAddress,
 } from '../public-customer-profile';
@@ -242,6 +243,9 @@ export function PublicCheckoutView() {
   const handleSwitchVerifiedAccount = async () => {
     await signOutPublicCustomer(slug);
     setVerifiedCustomer(null);
+    setEditingVerifiedName(false);
+    setSavedAddresses([]);
+    setSelectedAddressId('');
     lastLookedUpDigitsRef.current = '';
     setCustomerPhone('');
     setCustomerName('');
@@ -252,6 +256,30 @@ export function PublicCheckoutView() {
     setNeighborhood('');
     setCity('');
     setState('');
+  };
+
+  const handleToggleEditVerifiedName = () => {
+    if (editingVerifiedName && verifiedCustomer) {
+      const trimmed = customerName.trim();
+      if (!trimmed) {
+        setFormErrors((prev) => ({ ...prev, customerName: 'Informe seu nome completo.' }));
+        toast.error('Informe seu nome completo.');
+        return;
+      }
+      const nextVerified: VerifiedPublicCustomer = {
+        ...verifiedCustomer,
+        fullName: trimmed,
+        firstName: trimmed.split(/\s+/)[0] || verifiedCustomer.firstName,
+      };
+      saveVerifiedPublicCustomer(slug, nextVerified);
+      setVerifiedCustomer(nextVerified);
+      savePublicCustomerProfile(slug, verifiedCustomer.phoneDigits, {
+        fullName: trimmed,
+        addresses: savedAddresses,
+      });
+      toast.success('Nome atualizado!');
+    }
+    setEditingVerifiedName((prev) => !prev);
   };
 
   const { loading: cepLoading, handleBlur: handleCepBlur } = useCepLookup({
@@ -547,7 +575,7 @@ export function PublicCheckoutView() {
           upsertPublicCustomerAddress(slug, customerPhone.trim(), {
             fullName: customerName.trim(),
             address: {
-              label: 'Casa',
+              label: selectedSavedAddress?.label || 'Casa',
               cep: digitsOnly(cep),
               street: street.trim(),
               number: number.trim(),
@@ -677,9 +705,9 @@ export function PublicCheckoutView() {
           alignItems="center"
           justifyContent="space-between"
           sx={{
-            maxWidth: 1160,
+            maxWidth: PUBLIC_STORE_MAX_WIDTH,
             mx: 'auto',
-            px: { xs: 2, sm: 3, md: 4 },
+            px: { xs: 2, sm: 3 },
             py: 1.75,
           }}
         >
@@ -722,9 +750,9 @@ export function PublicCheckoutView() {
       {/* Conteúdo principal fullscreen */}
       <Box
         sx={{
-          maxWidth: 1160,
+          maxWidth: PUBLIC_STORE_MAX_WIDTH,
           mx: 'auto',
-          px: { xs: 2, sm: 3, md: 4 },
+          px: { xs: 2, sm: 3 },
           pt: { xs: 2.5, md: 4 },
         }}
       >
@@ -779,18 +807,26 @@ export function PublicCheckoutView() {
               {/* Coluna Esquerda: Modalidade, Dados do Cliente, Endereço e Pagamento */}
               <Stack spacing={3}>
                 {/* 1. Modalidade: Entrega vs Retirada */}
-                <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
-                  <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
+                <Card sx={{ p: { xs: 2, sm: 2.5 }, borderRadius: 2 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>
                     Como deseja receber seu pedido?
                   </Typography>
 
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                  <Box
+                    display="grid"
+                    gridTemplateColumns={
+                      store.acceptDelivery && store.acceptPickup
+                        ? 'repeat(2, minmax(0, 1fr))'
+                        : '1fr'
+                    }
+                    gap={1.25}
+                  >
                     {store.acceptDelivery && (
                       <ButtonBase
                         onClick={() => setDeliveryType('delivery')}
                         sx={{
-                          flex: 1,
-                          p: 2,
+                          py: 1.25,
+                          px: 1.5,
                           borderRadius: 1.5,
                           border: (theme) =>
                             `1.5px solid ${
@@ -804,21 +840,28 @@ export function PublicCheckoutView() {
                               : 'background.paper',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 0.75,
+                          gap: 0.35,
                           alignItems: 'center',
+                          textAlign: 'center',
+                          minWidth: 0,
                         }}
                       >
                         <Iconify
-                          icon="solar:scooter-bold"
-                          width={28}
+                          icon="mdi:moped"
+                          width={24}
                           sx={{
                             color: deliveryType === 'delivery' ? 'primary.main' : 'text.disabled',
                           }}
                         />
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
                           Receber em casa
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontSize: 11, lineHeight: 1.2 }}
+                          noWrap
+                        >
                           {deliveryFeeSummaryLabel}
                         </Typography>
                       </ButtonBase>
@@ -828,8 +871,8 @@ export function PublicCheckoutView() {
                       <ButtonBase
                         onClick={() => setDeliveryType('pickup')}
                         sx={{
-                          flex: 1,
-                          p: 2,
+                          py: 1.25,
+                          px: 1.5,
                           borderRadius: 1.5,
                           border: (theme) =>
                             `1.5px solid ${
@@ -843,26 +886,33 @@ export function PublicCheckoutView() {
                               : 'background.paper',
                           display: 'flex',
                           flexDirection: 'column',
-                          gap: 0.75,
+                          gap: 0.35,
                           alignItems: 'center',
+                          textAlign: 'center',
+                          minWidth: 0,
                         }}
                       >
                         <Iconify
                           icon="solar:shop-bold"
-                          width={28}
+                          width={22}
                           sx={{
                             color: deliveryType === 'pickup' ? 'primary.main' : 'text.disabled',
                           }}
                         />
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
                           Retirar na Loja
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ fontSize: 11, lineHeight: 1.2 }}
+                          noWrap
+                        >
                           Grátis
                         </Typography>
                       </ButtonBase>
                     )}
-                  </Stack>
+                  </Box>
                 </Card>
 
                 {/* 2. Dados do Cliente (Autenticado por SMS ou Validação de Celular) */}
@@ -882,10 +932,10 @@ export function PublicCheckoutView() {
                         <Button
                           size="small"
                           color="primary"
-                          onClick={() => setEditingVerifiedName((prev) => !prev)}
+                          onClick={handleToggleEditVerifiedName}
                           startIcon={<Iconify icon="solar:pen-bold" width={15} />}
                         >
-                          {editingVerifiedName ? 'Concluir' : 'Editar'}
+                          {editingVerifiedName ? 'Salvar' : 'Editar'}
                         </Button>
                         <Button
                           size="small"
@@ -910,17 +960,28 @@ export function PublicCheckoutView() {
                           justifyContent: 'space-between',
                           gap: 1.5,
                           bgcolor: (theme) =>
-                            varAlpha(theme.vars.palette.success.mainChannel, 0.08),
+                            varAlpha(theme.vars.palette.primary.mainChannel, 0.08),
                           border: (theme) =>
-                            `1px solid ${varAlpha(theme.vars.palette.success.mainChannel, 0.28)}`,
+                            `1.5px solid ${theme.vars.palette.primary.main}`,
                         }}
                       >
                         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
-                          <Iconify
-                            icon="solar:verified-check-bold"
-                            width={26}
-                            sx={{ color: 'success.main', flexShrink: 0 }}
-                          />
+                          <Box
+                            sx={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 1.25,
+                              flexShrink: 0,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: (theme) =>
+                                varAlpha(theme.vars.palette.primary.mainChannel, 0.14),
+                              color: 'primary.main',
+                            }}
+                          >
+                            <Iconify icon="solar:verified-check-bold" width={22} />
+                          </Box>
                           <Box sx={{ minWidth: 0 }}>
                             <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
                               {customerName.trim() || verifiedCustomer.fullName || 'Cliente verificado'}
@@ -930,7 +991,15 @@ export function PublicCheckoutView() {
                             </Typography>
                           </Box>
                         </Stack>
-                        {lookingUpCustomer && <CircularProgress size={18} />}
+                        {lookingUpCustomer ? (
+                          <CircularProgress size={18} />
+                        ) : (
+                          <Iconify
+                            icon="solar:check-circle-bold"
+                            width={22}
+                            sx={{ color: 'primary.main', flexShrink: 0 }}
+                          />
+                        )}
                       </Box>
 
                       {(!customerName.trim() || editingVerifiedName) && (
@@ -1061,9 +1130,9 @@ export function PublicCheckoutView() {
                               justifyContent: 'space-between',
                               gap: 1.5,
                               bgcolor: (theme) =>
-                                varAlpha(theme.vars.palette.info.mainChannel, 0.08),
+                                varAlpha(theme.vars.palette.primary.mainChannel, 0.08),
                               border: (theme) =>
-                                `1px solid ${varAlpha(theme.vars.palette.info.mainChannel, 0.28)}`,
+                                `1.5px solid ${theme.vars.palette.primary.main}`,
                             }}
                           >
                             <Stack
@@ -1072,11 +1141,22 @@ export function PublicCheckoutView() {
                               alignItems="center"
                               sx={{ minWidth: 0 }}
                             >
-                              <Iconify
-                                icon="solar:map-point-bold"
-                                width={26}
-                                sx={{ color: 'info.main', flexShrink: 0 }}
-                              />
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: 1.25,
+                                  flexShrink: 0,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  bgcolor: (theme) =>
+                                    varAlpha(theme.vars.palette.primary.mainChannel, 0.14),
+                                  color: 'primary.main',
+                                }}
+                              >
+                                <Iconify icon="solar:map-point-bold" width={22} />
+                              </Box>
                               <Box sx={{ minWidth: 0 }}>
                                 <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
                                   {selectedSavedAddress?.label || 'Endereço selecionado'}
@@ -1096,6 +1176,11 @@ export function PublicCheckoutView() {
                                 </Typography>
                               </Box>
                             </Stack>
+                            <Iconify
+                              icon="solar:check-circle-bold"
+                              width={22}
+                              sx={{ color: 'primary.main', flexShrink: 0 }}
+                            />
                           </Box>
                         ) : (
                           <Alert
@@ -1346,31 +1431,25 @@ export function PublicCheckoutView() {
                         <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
                           <Box
                             sx={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 1.5,
+                              width: 40,
+                              height: 40,
+                              borderRadius: 1.25,
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
                               flexShrink: 0,
-                              bgcolor: 'primary.main',
-                              color: 'common.white',
+                              bgcolor: (theme) =>
+                                varAlpha(theme.vars.palette.primary.mainChannel, 0.14),
+                              color: 'primary.main',
                             }}
                           >
-                            <Iconify icon="mdi:moped" width={26} />
+                            <Iconify icon="mdi:moped" width={22} />
                           </Box>
 
                           <Box sx={{ minWidth: 0 }}>
-                            <Stack direction="row" spacing={0.75} alignItems="center">
-                              <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
-                                Motoboy
-                              </Typography>
-                              <Iconify
-                                icon="solar:check-circle-bold"
-                                width={16}
-                                sx={{ color: 'success.main' }}
-                              />
-                            </Stack>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                              Motoboy
+                            </Typography>
                             <Typography variant="caption" color="text.secondary" display="block">
                               Tempo estimado: <strong>{deliveryQuote.estimatedMinutes} min</strong>
                               {deliveryQuote.distanceKm != null
@@ -1381,14 +1460,21 @@ export function PublicCheckoutView() {
                           </Box>
                         </Stack>
 
-                        <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                          <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 800 }}>
-                            {deliveryQuote.fee === 0 ? 'Grátis' : fCurrency(deliveryQuote.fee)}
-                          </Typography>
-                          <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
-                            Selecionado
-                          </Typography>
-                        </Box>
+                        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexShrink: 0 }}>
+                          <Box sx={{ textAlign: 'right' }}>
+                            <Typography variant="subtitle1" color="primary.main" sx={{ fontWeight: 800 }}>
+                              {deliveryQuote.fee === 0 ? 'Grátis' : fCurrency(deliveryQuote.fee)}
+                            </Typography>
+                            <Typography variant="caption" color="primary.main" sx={{ fontWeight: 600 }}>
+                              Selecionado
+                            </Typography>
+                          </Box>
+                          <Iconify
+                            icon="solar:check-circle-bold"
+                            width={22}
+                            sx={{ color: 'primary.main', flexShrink: 0 }}
+                          />
+                        </Stack>
                       </Box>
                     </Card>
                   )}

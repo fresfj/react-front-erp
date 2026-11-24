@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 
+import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
 import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import { useTheme } from '@mui/material/styles';
+import ButtonBase from '@mui/material/ButtonBase';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -18,6 +20,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { useCepLookup } from 'src/hooks/use-cep-lookup';
 
 import { formatCep } from 'src/utils/br-docs';
+
+import { varAlpha } from 'src/theme/styles';
 
 import { Iconify } from 'src/components/iconify';
 
@@ -117,39 +121,92 @@ export function CheckoutAddressPickerDialog({
             {addresses.map((addr) => {
               const selected = selectedId === addr.id;
               return (
-                <Button
+                <ButtonBase
                   key={addr.id}
-                  fullWidth
-                  variant={selected ? 'contained' : 'outlined'}
-                  color={selected ? 'primary' : 'inherit'}
                   onClick={() => {
                     onSelect(addr);
                     onClose();
                   }}
                   sx={{
-                    justifyContent: 'flex-start',
+                    width: '100%',
+                    p: 2,
+                    borderRadius: 1.5,
                     textAlign: 'left',
-                    py: 1.5,
-                    px: 2,
-                    textTransform: 'none',
+                    justifyContent: 'flex-start',
+                    border: (th) =>
+                      `1.5px solid ${
+                        selected
+                          ? th.vars.palette.primary.main
+                          : varAlpha(th.vars.palette.grey['500Channel'], 0.2)
+                      }`,
+                    bgcolor: (th) =>
+                      selected
+                        ? varAlpha(th.vars.palette.primary.mainChannel, 0.08)
+                        : 'background.paper',
+                    transition: (th) =>
+                      th.transitions.create(['border-color', 'background-color'], {
+                        duration: th.transitions.duration.shortest,
+                      }),
+                    '&:hover': {
+                      borderColor: (th) =>
+                        selected
+                          ? th.vars.palette.primary.main
+                          : varAlpha(th.vars.palette.grey['500Channel'], 0.4),
+                    },
                   }}
-                  startIcon={
-                    <Iconify
-                      icon={addr.isDefault ? 'solar:star-bold' : 'solar:map-point-bold'}
-                      width={20}
-                    />
-                  }
                 >
-                  <Stack spacing={0.25} sx={{ minWidth: 0 }}>
-                    <Typography variant="subtitle2" noWrap>
-                      {addr.label}
-                      {addr.isDefault ? ' · Padrão' : ''}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'normal' }}>
-                      {formatSavedAddressLine(addr)}
-                    </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    alignItems="center"
+                    sx={{ width: '100%', minWidth: 0 }}
+                  >
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: 1.25,
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: (th) =>
+                          selected
+                            ? varAlpha(th.vars.palette.primary.mainChannel, 0.16)
+                            : varAlpha(th.vars.palette.grey['500Channel'], 0.12),
+                        color: selected ? 'primary.main' : 'text.secondary',
+                      }}
+                    >
+                      <Iconify
+                        icon={addr.isDefault ? 'solar:star-bold' : 'solar:map-point-bold'}
+                        width={22}
+                      />
+                    </Box>
+
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="subtitle2" color="text.primary" sx={{ fontWeight: 700 }} noWrap>
+                        {addr.label}
+                        {addr.isDefault ? ' · Padrão' : ''}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                        sx={{ whiteSpace: 'normal', mt: 0.25 }}
+                      >
+                        {formatSavedAddressLine(addr)}
+                      </Typography>
+                    </Box>
+
+                    {selected && (
+                      <Iconify
+                        icon="solar:check-circle-bold"
+                        width={22}
+                        sx={{ color: 'primary.main', flexShrink: 0 }}
+                      />
+                    )}
                   </Stack>
-                </Button>
+                </ButtonBase>
               );
             })}
 
