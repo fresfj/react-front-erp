@@ -3,7 +3,6 @@ const { getFirestore } = require('firebase-admin/firestore');
 
 const {
   sendEvolutionText,
-  sendEvolutionButtons,
   setEvolutionWebhook,
   findEvolutionWebhook,
   normalizeInstanceName,
@@ -228,74 +227,6 @@ async function writeWhatsappLog(enterpriseId, entry) {
 }
 
 /**
- * Remove linhas que contenham URLs cruas já representadas nos botões interativos,
- * mantendo o corpo da mensagem limpo quando enviada via sendButtons.
- */
-function stripButtonUrlsFromDescription(text, buttons) {
-  let clean = String(text || '');
-  (Array.isArray(buttons) ? buttons : []).forEach((btn) => {
-    const url = String(btn?.url || '').trim();
-    if (url) {
-      clean = clean.split(url).join('');
-    }
-  });
-  return clean
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim();
-}
-
-/**
- * Envia via botões interativos (Evolution API /message/sendButtons) quando houver botões
- * válidos; caso a instância/provedor rejeite botões, faz fallback automático para texto simples.
- */
-async function sendEvolutionInteractiveOrText({
-  baseUrl,
-  apiKey,
-  instanceName,
-  number,
-  title,
-  text,
-  footer,
-  buttons,
-}) {
-  const validButtons = (Array.isArray(buttons) ? buttons : []).filter(
-    (b) => b && b.displayText && (b.type !== 'url' || /^https?:\/\//i.test(String(b.url || '')))
-  );
-
-  if (validButtons.length > 0) {
-    try {
-      const description = stripButtonUrlsFromDescription(text, validButtons);
-      await sendEvolutionButtons({
-        baseUrl,
-        apiKey,
-        instanceName,
-        number,
-        title: title || 'Atualização do Pedido',
-        description: description || text,
-        footer: footer || '',
-        buttons: validButtons,
-      });
-      return { deliveryMode: 'buttons' };
-    } catch (btnErr) {
-      console.warn(
-        `sendEvolutionButtons fallback to sendEvolutionText (${instanceName}):`,
-        btnErr?.message || btnErr
-      );
-    }
-  }
-
-  await sendEvolutionText({
-    baseUrl,
-    apiKey,
-    instanceName,
-    number,
-    text,
-  });
-  return { deliveryMode: 'text' };
-}
-
-/**
  * Disparo automático não-bloqueante de mensagens WhatsApp para eventos da empresa Ultra.
  * Nunca lança erro para o chamador — registra auditoria em whatsappLogs.
  */
@@ -307,9 +238,6 @@ async function dispatchEnterpriseWhatsappEvent({
   orderId,
   saleId,
   vars = {},
-  title,
-  footer,
-  buttons,
 }) {
   try {
     if (!enterpriseId || !recipientPhone) return { status: 'skipped', reason: 'missing_params' };
@@ -363,25 +291,12 @@ async function dispatchEnterpriseWhatsappEvent({
       return { status: 'skipped', reason: 'invalid_phone' };
     }
 
-    const resolvedButtons = Array.isArray(buttons) ? [...buttons] : [];
-    if (resolvedButtons.length === 0 && vars.link && /^https?:\/\//i.test(String(vars.link))) {
-      resolvedButtons.push({
-        type: 'url',
-        displayText: 'Acompanhar Pedido',
-        url: String(vars.link),
-      });
-    }
-
-    const storeName = String(ent.tradeName || ent.name || '').trim();
-    const { deliveryMode } = await sendEvolutionInteractiveOrText({
+    await sendEvolutionText({
       baseUrl: evo.baseUrl,
       apiKey: evo.apiKey,
       instanceName: wa.instanceName,
       number: formattedPhone,
-      title: title || storeName,
       text,
-      footer: footer || storeName,
-      buttons: resolvedButtons,
     });
 
     await writeWhatsappLog(enterpriseId, {
@@ -391,11 +306,10 @@ async function dispatchEnterpriseWhatsappEvent({
       recipientPhone: formattedPhone,
       instanceName: wa.instanceName,
       status: 'sent',
-      deliveryMode,
       messagePreview: text.slice(0, 180),
     });
 
-    return { status: 'sent', deliveryMode };
+    return { status: 'sent' };
   } catch (err) {
     console.error(`dispatchEnterpriseWhatsappEvent(${event}) error:`, err);
     await writeWhatsappLog(enterpriseId, {
@@ -884,38 +798,26 @@ handlers.sendTestWhatsappMessage = async (request) => {
   const storeName = String(enterprise.tradeName || enterprise.name || 'Sua Loja');
   const storeSlug = String(enterprise.onlineStore?.slug || '').trim();
   const menuUrl = storeSlug ? `https://app.ds3i.com.br/p/${storeSlug}` : '';
-  const ordersUrl = storeSlug ? `https://app.ds3i.com.br/p/${storeSlug}/orders` : '';
   const text = `✅ Teste de integração WhatsApp *${storeName}* (Instância ${wa.instanceName}) realizado com sucesso!${
-    menuUrl ? `\n\nAcesse nosso cardápio online:\n${menuUrl}` : ''
+    menuUrl ? `\n\nVeja nosso cardápio online:\n${menuUrl}` : ''
   }`;
-  const testButtons = [];
-  if (menuUrl) {
-    testButtons.push({ type: 'url', displayText: 'Veja nosso cardápio', url: menuUrl });
-  }
-  if (ordersUrl) {
-    testButtons.push({ type: 'url', displayText: 'Meus pedidos', url: ordersUrl });
-  }
 
   try {
-    const { deliveryMode } = await sendEvolutionInteractiveOrText({
+    await sendEvolutionText({
       baseUrl: evo.baseUrl,
       apiKey: evo.apiKey,
       instanceName: wa.instanceName,
       number: phone,
-      title: `✨ ${storeName}`,
       text,
-      footer: 'Atendimento automático',
-      buttons: testButtons,
     });
     await writeWhatsappLog(enterpriseId, {
       event: 'test',
       recipientPhone: normalizeBrWhatsappNumber(phone),
       instanceName: wa.instanceName,
       status: 'sent',
-      deliveryMode,
       messagePreview: text,
     });
-    return { sent: true, deliveryMode };
+    return { sent: true };
   } catch (err) {
     await writeWhatsappLog(enterpriseId, {
       event: 'test',

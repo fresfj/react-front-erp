@@ -768,8 +768,6 @@ exports.placeOnlineOrder = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
       ? rawOrigin
       : PUBLIC_APP_ORIGIN;
   const trackLink = `${clientOrigin}/p/${slug}/order/${ref.id}`;
-  const menuLink = `${clientOrigin}/p/${slug}`;
-  const adminOrdersLink = `${PUBLIC_APP_ORIGIN}/dashboard/pos/online-orders`;
   const modeLabel = deliveryType === 'delivery' ? 'Entrega' : 'Retirada no balcão';
   const itemsText = formatOrderItemsText(validatedItems);
 
@@ -780,12 +778,6 @@ exports.placeOnlineOrder = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
       event: 'orderReceived',
       recipientPhone: customerPhone,
       orderId: ref.id,
-      title: `Pedido ${code} recebido`,
-      footer: storeName,
-      buttons: [
-        { type: 'url', displayText: 'Acompanhar pedido', url: trackLink },
-        { type: 'url', displayText: 'Veja nosso cardápio', url: menuLink },
-      ],
       vars: {
         cliente: customerName,
         codigo: code,
@@ -803,9 +795,6 @@ exports.placeOnlineOrder = onCall(LOW_CPU_CALLABLE_OPTS, async (request) => {
       recipientPhone:
         ctx.enterprise.whatsappIntegration?.ownerAlertPhone || ctx.onlineStore?.whatsapp || '',
       orderId: ref.id,
-      title: `Novo pedido ${code}`,
-      footer: storeName,
-      buttons: [{ type: 'url', displayText: 'Abrir painel de pedidos', url: adminOrdersLink }],
       vars: {
         cliente: customerName,
         telefone: customerPhone,
@@ -1066,14 +1055,6 @@ exports.acceptOnlineOrder = onCall(async (request) => {
     const trackLink = storeSlug
       ? `https://app.ds3i.com.br/p/${storeSlug}/order/${orderId}`
       : '';
-    const menuLink = storeSlug ? `https://app.ds3i.com.br/p/${storeSlug}` : '';
-    const acceptedButtons = [];
-    if (trackLink) {
-      acceptedButtons.push({ type: 'url', displayText: 'Acompanhar pedido', url: trackLink });
-    }
-    if (menuLink) {
-      acceptedButtons.push({ type: 'url', displayText: 'Veja nosso cardápio', url: menuLink });
-    }
     await dispatchEnterpriseWhatsappEvent({
       enterpriseId,
       enterprise,
@@ -1081,9 +1062,6 @@ exports.acceptOnlineOrder = onCall(async (request) => {
       recipientPhone: order.customerPhone,
       orderId,
       saleId: saleRef.id,
-      title: `Pedido ${order.code || orderId} confirmado`,
-      footer: storeName,
-      buttons: acceptedButtons,
       vars: {
         cliente: order.customerName || 'Cliente',
         codigo: order.code || orderId,
@@ -1513,32 +1491,6 @@ exports.updateOnlineOrderStatus = onCall(async (request) => {
       const avaliacao = store.googleReviewUrl
         ? `\n\n⭐ Gostou? Avalie nossa loja:\n${store.googleReviewUrl}`
         : '';
-      const storeSlug = String(store.slug || '').trim();
-      const trackLink = storeSlug ? `https://app.ds3i.com.br/p/${storeSlug}/order/${orderId}` : '';
-      const menuLink = storeSlug ? `https://app.ds3i.com.br/p/${storeSlug}` : '';
-      const stageButtons = [];
-      if (fulfillmentStatus === 'delivered') {
-        if (store.googleReviewUrl && /^https?:\/\//i.test(String(store.googleReviewUrl))) {
-          stageButtons.push({
-            type: 'url',
-            displayText: 'Avaliar nossa loja',
-            url: String(store.googleReviewUrl).trim(),
-          });
-        }
-        if (menuLink) {
-          stageButtons.push({
-            type: 'url',
-            displayText: 'Veja nosso cardápio',
-            url: menuLink,
-          });
-        }
-      } else if (trackLink) {
-        stageButtons.push({
-          type: 'url',
-          displayText: 'Acompanhar pedido',
-          url: trackLink,
-        });
-      }
 
       await dispatchEnterpriseWhatsappEvent({
         enterpriseId,
@@ -1546,16 +1498,12 @@ exports.updateOnlineOrderStatus = onCall(async (request) => {
         event: waEvent,
         recipientPhone: orderData.customerPhone,
         orderId,
-        title: `Pedido ${orderData.code || orderId}`,
-        footer: storeName,
-        buttons: stageButtons,
         vars: {
           cliente: orderData.customerName || 'Cliente',
           codigo: orderData.code || orderId,
           loja: storeName,
           statusEntrega,
           avaliacao,
-          link: trackLink,
         },
       });
     }
