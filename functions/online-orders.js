@@ -1017,11 +1017,12 @@ exports.acceptOnlineOrder = onCall(async (request) => {
 
   const acceptUpdate = {
     status: 'accepted',
-    fulfillmentStatus: 'accepted',
+    fulfillmentStatus: 'preparing',
     saleId: saleRef.id,
     cashSessionId: openCash.id,
     acceptedByUid: request.auth.uid,
     acceptedAt: timestamp,
+    preparingAt: timestamp,
     updatedAt: timestamp,
   };
   if (order.paymentChannel === 'online' || order.paymentStatus === 'awaiting_confirmation') {
