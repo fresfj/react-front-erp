@@ -53,17 +53,19 @@ import { CheckoutSkeleton } from '../public-store-skeletons';
 import { PAYMENT_METHOD_CONFIG } from '../public-store-helpers';
 import { validateCheckoutForm } from '../public-store-validation';
 import { PublicPhoneVerifyDialog } from '../public-phone-verify-dialog';
-import {
-  loadPublicCustomerProfile,
-  upsertPublicCustomerAddress,
-  getDefaultPublicCustomerAddress,
-} from '../public-customer-profile';
+import { CheckoutAddressPickerDialog } from '../checkout-address-picker-dialog';
 import {
   signOutPublicCustomer,
   isPhoneVerifiedForSlug,
   getVerifiedPublicCustomer,
   saveVerifiedPublicCustomer,
 } from '../public-customer-phone-auth';
+import {
+  formatSavedAddressLine,
+  loadPublicCustomerProfile,
+  upsertPublicCustomerAddress,
+  getDefaultPublicCustomerAddress,
+} from '../public-customer-profile';
 
 import type { SavedCustomerAddress } from '../public-customer-profile';
 import type { VerifiedPublicCustomer } from '../public-customer-phone-auth';
@@ -93,6 +95,8 @@ export function PublicCheckoutView() {
   const [phoneVerifyOpen, setPhoneVerifyOpen] = useState(false);
   const [submitAfterVerify, setSubmitAfterVerify] = useState(false);
   const [editingVerifiedName, setEditingVerifiedName] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | undefined>();
   const [savedAddresses, setSavedAddresses] = useState<SavedCustomerAddress[]>([]);
   const [verifiedCustomer, setVerifiedCustomer] = useState<VerifiedPublicCustomer | null>(() =>
     getVerifiedPublicCustomer(slug)
@@ -163,6 +167,7 @@ export function PublicCheckoutView() {
   );
 
   const applySavedAddressToForm = useCallback((addr: SavedCustomerAddress) => {
+    setSelectedAddressId(addr.id);
     setCep(addr.cep ? formatCep(addr.cep) : '');
     setStreet(addr.street || '');
     setNumber(addr.number || '');
@@ -172,6 +177,24 @@ export function PublicCheckoutView() {
     setState(addr.state || '');
     lastGeocodedQueryRef.current = '';
   }, []);
+
+  const selectedSavedAddress = useMemo(() => {
+    if (selectedAddressId) {
+      const byId = savedAddresses.find((addr) => addr.id === selectedAddressId);
+      if (byId) return byId;
+    }
+    return (
+      savedAddresses.find(
+        (addr) =>
+          street.trim().toLowerCase() === addr.street.trim().toLowerCase() &&
+          number.trim().toLowerCase() === addr.number.trim().toLowerCase()
+      ) || null
+    );
+  }, [number, savedAddresses, selectedAddressId, street]);
+
+  const useDeliveryAddressSummary = Boolean(
+    verifiedCustomer && !isTableMode && deliveryType === 'delivery'
+  );
 
   // Só carrega automaticamente dados salvos quando o cliente JÁ está autenticado pelo Firebase Phone Auth
   useEffect(() => {
@@ -1004,12 +1027,97 @@ export function PublicCheckoutView() {
                 {/* 3. Endereço de Entrega (quando Entrega selecionada) */}
                 {deliveryType === 'delivery' && (
                   <Card sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
-                    <Typography variant="h6" sx={{ mb: 2, fontWeight: 700 }}>
-                      Endereço de Entrega
-                    </Typography>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                      spacing={1}
+                      sx={{ mb: 2 }}
+                    >
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Endereço de Entrega
+                      </Typography>
+                      {useDeliveryAddressSummary && (
+                        <Button
+                          size="small"
+                          color="primary"
+                          onClick={() => setAddressModalOpen(true)}
+                          startIcon={<Iconify icon="solar:pen-bold" width={15} />}
+                        >
+                          Alterar
+                        </Button>
+                      )}
+                    </Stack>
 
-                    {savedAddresses.length > 0 && (
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 2 }}>
+                    {useDeliveryAddressSummary ? (
+                      <Stack spacing={2}>
+                        {selectedSavedAddress || (street.trim() && number.trim()) ? (
+                          <Box
+                            sx={{
+                              p: 2,
+                              borderRadius: 1.5,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 1.5,
+                              bgcolor: (theme) =>
+                                varAlpha(theme.vars.palette.info.mainChannel, 0.08),
+                              border: (theme) =>
+                                `1px solid ${varAlpha(theme.vars.palette.info.mainChannel, 0.28)}`,
+                            }}
+                          >
+                            <Stack
+                              direction="row"
+                              spacing={1.5}
+                              alignItems="center"
+                              sx={{ minWidth: 0 }}
+                            >
+                              <Iconify
+                                icon="solar:map-point-bold"
+                                width={26}
+                                sx={{ color: 'info.main', flexShrink: 0 }}
+                              />
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle2" noWrap sx={{ fontWeight: 700 }}>
+                                  {selectedSavedAddress?.label || 'Endereço selecionado'}
+                                  {selectedSavedAddress?.isDefault ? ' · Padrão' : ''}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  display="block"
+                                  sx={{ whiteSpace: 'normal' }}
+                                >
+                                  {selectedSavedAddress
+                                    ? formatSavedAddressLine(selectedSavedAddress)
+                                    : `${street}, nº ${number}${
+                                        complement ? ` (${complement})` : ''
+                                      } — ${neighborhood}, ${city}-${state}`}
+                                </Typography>
+                              </Box>
+                            </Stack>
+                          </Box>
+                        ) : (
+                          <Alert
+                            severity="warning"
+                            action={
+                              <Button
+                                color="inherit"
+                                size="small"
+                                onClick={() => setAddressModalOpen(true)}
+                              >
+                                Adicionar
+                              </Button>
+                            }
+                          >
+                            Selecione ou adicione um endereço de entrega.
+                          </Alert>
+                        )}
+                      </Stack>
+                    ) : (
+                    <Stack spacing={2}>
+                      {!verifiedCustomer && savedAddresses.length > 0 && (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 0 }}>
                         {savedAddresses.map((addr) => {
                           const isSelected =
                             street.trim().toLowerCase() === addr.street.trim().toLowerCase() &&
@@ -1033,9 +1141,8 @@ export function PublicCheckoutView() {
                           );
                         })}
                       </Stack>
-                    )}
+                      )}
 
-                    <Stack spacing={2}>
                       <TextField
                         fullWidth
                         inputRef={(el) => {
@@ -1170,7 +1277,10 @@ export function PublicCheckoutView() {
                           sx={{ flex: 1 }}
                         />
                       </Stack>
+                    </Stack>
+                    )}
 
+                    <Stack spacing={2} sx={{ mt: useDeliveryAddressSummary ? 2 : 0 }}>
                       {/* Feedback em tempo real da área de entrega */}
                       {deliveryAreaMode !== 'fixed' && (
                         <>
@@ -1608,6 +1718,39 @@ export function PublicCheckoutView() {
             setSubmitAfterVerify(false);
             submitOrderAfterVerification();
           }
+        }}
+      />
+
+      <CheckoutAddressPickerDialog
+        open={addressModalOpen}
+        onClose={() => setAddressModalOpen(false)}
+        addresses={savedAddresses}
+        selectedId={selectedSavedAddress?.id}
+        onSelect={(addr) => applySavedAddressToForm(addr)}
+        onCreate={(draft) => {
+          const profile = upsertPublicCustomerAddress(slug, customerPhone.trim(), {
+            fullName: customerName.trim(),
+            address: {
+              label: draft.label,
+              cep: digitsOnly(draft.cep),
+              street: draft.street.trim(),
+              number: draft.number.trim(),
+              complement: draft.complement?.trim() || undefined,
+              neighborhood: draft.neighborhood.trim(),
+              city: draft.city.trim(),
+              state: draft.state.trim().toUpperCase(),
+            },
+            setAsDefault: savedAddresses.length === 0,
+          });
+          setSavedAddresses(profile.addresses);
+          const created =
+            profile.addresses.find(
+              (addr) =>
+                addr.street.trim().toLowerCase() === draft.street.trim().toLowerCase() &&
+                addr.number.trim().toLowerCase() === draft.number.trim().toLowerCase()
+            ) || profile.addresses[profile.addresses.length - 1];
+          if (created) applySavedAddressToForm(created);
+          toast.success('Endereço salvo');
         }}
       />
     </Box>
