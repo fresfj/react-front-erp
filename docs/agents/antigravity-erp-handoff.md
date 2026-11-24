@@ -137,9 +137,18 @@ Menu: seções com `subheader` (Overview / Management / Financeiro / Administra�
 5. Deploy: `firebase deploy --only functions,firestore:rules`; **não** setar `NFCE_ISSUER=mock` em prod
 6. Rotação A1: re-upload via callable; validade pública em `a1ExpiresAt`; batch pula tenant expirado
 
+## UX 2026-11-24 — Aceite → cozinha + KDS som + checkout endereço
+
+- Spec/plan: `docs/superpowers/{specs,plans}/2026-11-24-online-orders-kitchen-checkout-ux*`
+- `acceptOnlineOrder` grava `fulfillmentStatus: preparing` (+ `preparingAt`); UI sem coluna/etapa Aceito; analytics “Em preparação”
+- KDS: som = IconButton + Tooltip (não `size="small"`)
+- Checkout autenticado: resumo de endereço + `CheckoutAddressPickerDialog`
+- **Deploy CF:** `firebase deploy --only functions:acceptOnlineOrder` (necessário para cloud)
+
 ## Pendente (próximo)
 
 1. **Homolog humano** Focus + SEFAZ-direct (checklists acima) + merge `feat/nfce-sefaz-direct` após smoke
+1b. Redeploy `acceptOnlineOrder` após UX aceite→preparing
 2. Expandir UF map além de PA (SVRS/autorizador oficial por UF)
 3. Cancel NFC-e sefaz-direct (hoje throw; Focus cancel OK)
 4. **Online orders:** deploy CF + rules; seed entitlements; smoke `/p/:slug`
