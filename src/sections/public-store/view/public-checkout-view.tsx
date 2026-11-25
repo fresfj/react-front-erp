@@ -1090,8 +1090,7 @@ export function PublicCheckoutView() {
                         required={!isTableMode}
                         error={Boolean(formErrors.customerPhone)}
                         helperText={
-                          formErrors.customerPhone ||
-                          'Informe seu celular para entrar com sua conta ou iniciar seu cadastro via SMS'
+                          formErrors.customerPhone || 'Entrar ou cadastrar via SMS'
                         }
                         InputProps={{
                           startAdornment: (
@@ -1119,23 +1118,25 @@ export function PublicCheckoutView() {
                         </Button>
                       )}
 
-                      <TextField
-                        fullWidth
-                        inputRef={(el) => {
-                          fieldRefs.current.customerName = el;
-                        }}
-                        label={isTableMode ? 'Seu nome (identificação na mesa)' : 'Seu nome completo'}
-                        placeholder="Ex: João da Silva"
-                        value={customerName}
-                        onChange={(e) => {
-                          setCustomerName(e.target.value);
-                          clearFieldError('customerName');
-                        }}
-                        onBlur={() => validateSingleField('customerName')}
-                        error={Boolean(formErrors.customerName)}
-                        helperText={formErrors.customerName}
-                        required
-                      />
+                      {isTableMode && (
+                        <TextField
+                          fullWidth
+                          inputRef={(el) => {
+                            fieldRefs.current.customerName = el;
+                          }}
+                          label="Seu nome (identificação na mesa)"
+                          placeholder="Ex: João da Silva"
+                          value={customerName}
+                          onChange={(e) => {
+                            setCustomerName(e.target.value);
+                            clearFieldError('customerName');
+                          }}
+                          onBlur={() => validateSingleField('customerName')}
+                          error={Boolean(formErrors.customerName)}
+                          helperText={formErrors.customerName}
+                          required
+                        />
+                      )}
                     </Stack>
                   )}
                 </Card>
