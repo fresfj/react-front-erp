@@ -62,11 +62,13 @@ export function PublicPhoneVerifyDialog({
   const [cooldown, setCooldown] = useState(0);
   const confirmationRef = useRef<ConfirmationResult | null>(null);
   const submittingRef = useRef(false);
+  const sendingRef = useRef(false);
 
   const formattedPhone = formatPhoneBr(phone);
 
   const triggerSendSms = useCallback(async () => {
-    if (!phone) return;
+    if (!phone || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
     setErrorMsg(null);
     setCode('');
@@ -80,6 +82,7 @@ export function PublicPhoneVerifyDialog({
       console.error('Firebase Phone Auth send error:', error);
       setErrorMsg(getPhoneAuthErrorMessage(error));
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }, [formattedPhone, phone]);
@@ -146,7 +149,13 @@ export function PublicPhoneVerifyDialog({
   };
 
   return (
-    <Dialog open={open} onClose={verifying ? undefined : onClose} maxWidth="xs" fullWidth>
+    <Dialog
+      open={open}
+      onClose={verifying ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
+      disableEnforceFocus
+    >
       <DialogContent sx={{ py: 4, px: { xs: 2.5, sm: 4 } }}>
         <Stack spacing={3} alignItems="center" sx={{ textAlign: 'center' }}>
           {/* Ícone estilo /auth-demo/split/verify */}
@@ -244,9 +253,6 @@ export function PublicPhoneVerifyDialog({
           >
             Voltar e corrigir telefone
           </Button>
-
-          {/* Container invisível para RecaptchaVerifier do Firebase Phone Auth */}
-          <Box id={RECAPTCHA_CONTAINER_ID} sx={{ display: 'none' }} />
         </Stack>
       </DialogContent>
     </Dialog>

@@ -29,6 +29,8 @@ export type VerifiedPublicCustomer = {
 };
 
 let activeRecaptchaVerifier: RecaptchaVerifier | null = null;
+let activeRecaptchaNode: HTMLDivElement | null = null;
+let recaptchaCounter = 0;
 
 function getPublicFirebaseApp(): FirebaseApp | null {
   if (!CONFIG.firebase.apiKey || !CONFIG.firebase.projectId) return null;
@@ -84,11 +86,19 @@ export function clearRecaptchaVerifier() {
     }
     activeRecaptchaVerifier = null;
   }
+  if (activeRecaptchaNode) {
+    try {
+      activeRecaptchaNode.remove();
+    } catch {
+      // ignore DOM cleanup error
+    }
+    activeRecaptchaNode = null;
+  }
 }
 
 export async function sendPublicPhoneOtp(
   phone: string,
-  recaptchaContainerId: string
+  recaptchaContainerId?: string
 ): Promise<ConfirmationResult> {
   const auth = getPublicCustomerAuth();
   if (!auth) {
@@ -96,18 +106,29 @@ export async function sendPublicPhoneOtp(
   }
 
   clearRecaptchaVerifier();
-  const container = document.getElementById(recaptchaContainerId);
-  if (container) {
-    container.innerHTML = '';
-  }
 
-  const verifier = new RecaptchaVerifier(auth, recaptchaContainerId, {
+  // Monta SEMPRE um <div> novo diretamente no document.body (nunca dentro de display:none
+  // nem preso no focus-trap do MUI Dialog). Isso evita tanto
+  // "reCAPTCHA has already been rendered in this element" quanto "auth/invalid-app-credential"
+  // quando o grecaptcha precisa executar ou abrir desafio acima do modal.
+  recaptchaCounter += 1;
+  const freshEl = document.createElement('div');
+  freshEl.id = `${recaptchaContainerId || 'public-phone-recaptcha'}-widget-${recaptchaCounter}`;
+  freshEl.style.position = 'fixed';
+  freshEl.style.bottom = '0';
+  freshEl.style.right = '0';
+  freshEl.style.zIndex = '2000';
+  document.body.appendChild(freshEl);
+  activeRecaptchaNode = freshEl;
+
+  const verifier = new RecaptchaVerifier(auth, freshEl, {
     size: 'invisible',
   });
   activeRecaptchaVerifier = verifier;
 
   const phoneE164 = toBrazilE164(phone);
   try {
+    await verifier.render();
     return await signInWithPhoneNumber(auth, phoneE164, verifier);
   } catch (error) {
     clearRecaptchaVerifier();
@@ -220,6 +241,18 @@ export function getPhoneAuthErrorMessage(error: unknown): string {
   }
   if (code === 'auth/operation-not-allowed') {
     return 'Autenticação por Telefone (SMS) não está habilitada no Firebase Console desta conta.';
+  }
+  if (code === 'auth/unauthorized-domain') {
+    return 'Este domínio não está autorizado no Firebase Auth (Authorized domains).';
+  }
+  if (code === 'auth/billing-not-enabled') {
+    return 'O envio de SMS exige plano Blaze ativo no Firebase Console.';
+  }
+  if (code === 'auth/quota-exceeded') {
+    return 'Cota diária de envio de SMS atingida. Tente novamente mais tarde.';
+  }
+  if (code === 'auth/invalid-app-credential') {
+    return 'Falha na credencial do reCAPTCHA/App (auth/invalid-app-credential). Verifique no Firebase Console se o domínio atual está em Authorized domains e se a chave Web/reCAPTCHA está liberada para este domínio.';
   }
   if (code === 'auth/captcha-check-failed' || code === 'auth/missing-client-identifier') {
     return 'Não foi possível validar o reCAPTCHA do SMS. Recarregue a página e tente novamente.';

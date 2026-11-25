@@ -114,6 +114,7 @@ export function PublicCheckoutView() {
     }
   });
   const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
+  const [isNewCustomerRegistration, setIsNewCustomerRegistration] = useState(false);
   const lastLookedUpDigitsRef = useRef('');
 
   const [deliveryType, setDeliveryType] = useState<'pickup' | 'delivery'>(
@@ -140,9 +141,12 @@ export function PublicCheckoutView() {
   const lastGeocodedQueryRef = useRef('');
 
   const handleLookupCustomer = useCallback(
-    async (phoneVal: string) => {
+    async (phoneVal: string): Promise<boolean> => {
       const digits = digitsOnly(phoneVal);
-      if (digits.length < 10 || digits === lastLookedUpDigitsRef.current) return;
+      if (digits.length < 10) return false;
+      if (digits === lastLookedUpDigitsRef.current) {
+        return Boolean(savedAddresses.length > 0 || (street.trim() && number.trim()));
+      }
       lastLookedUpDigitsRef.current = digits;
       setLookingUpCustomer(true);
       try {
@@ -156,15 +160,49 @@ export function PublicCheckoutView() {
           if (res.customer.neighborhood) setNeighborhood(res.customer.neighborhood);
           if (res.customer.city) setCity(res.customer.city);
           if (res.customer.state) setState(res.customer.state);
-          toast.success('Dados do seu cadastro carregados automaticamente!');
+
+          if (res.customer.street && res.customer.number) {
+            const synced = upsertPublicCustomerAddress(slug, digits, {
+              fullName: res.customer.name || undefined,
+              address: {
+                label: 'Casa',
+                cep: digitsOnly(res.customer.cep || ''),
+                street: res.customer.street.trim(),
+                number: res.customer.number.trim(),
+                complement: res.customer.complement?.trim() || undefined,
+                neighborhood: (res.customer.neighborhood || '').trim(),
+                city: (res.customer.city || '').trim(),
+                state: (res.customer.state || '').trim().toUpperCase(),
+              },
+              setAsDefault: true,
+            });
+            setSavedAddresses(synced.addresses);
+            const def = synced.addresses.find((a) => a.isDefault) || synced.addresses[0];
+            if (def) setSelectedAddressId(def.id);
+          }
+
+          if (res.customer.name) {
+            const activeVerified = getVerifiedPublicCustomer(slug);
+            if (activeVerified) {
+              const updatedVerified: VerifiedPublicCustomer = {
+                ...activeVerified,
+                fullName: res.customer.name,
+                firstName: res.customer.name.trim().split(/\s+/)[0] || activeVerified.firstName,
+              };
+              saveVerifiedPublicCustomer(slug, updatedVerified);
+              setVerifiedCustomer(updatedVerified);
+            }
+          }
+          return true;
         }
+        return false;
       } catch {
-        // silent fail on lookup
+        return false;
       } finally {
         setLookingUpCustomer(false);
       }
     },
-    [slug]
+    [number, savedAddresses.length, slug, street]
   );
 
   const applySavedAddressToForm = useCallback((addr: SavedCustomerAddress) => {
@@ -193,8 +231,12 @@ export function PublicCheckoutView() {
     );
   }, [number, savedAddresses, selectedAddressId, street]);
 
+  const hasResolvedAddress = Boolean(
+    selectedSavedAddress || (street.trim() && number.trim())
+  );
+
   const useDeliveryAddressSummary = Boolean(
-    verifiedCustomer && !isTableMode && deliveryType === 'delivery'
+    verifiedCustomer && !isTableMode && deliveryType === 'delivery' && hasResolvedAddress
   );
 
   // Só carrega automaticamente dados salvos quando o cliente JÁ está autenticado pelo Firebase Phone Auth
@@ -244,6 +286,7 @@ export function PublicCheckoutView() {
     await signOutPublicCustomer(slug);
     setVerifiedCustomer(null);
     setEditingVerifiedName(false);
+    setIsNewCustomerRegistration(false);
     setSavedAddresses([]);
     setSelectedAddressId('');
     lastLookedUpDigitsRef.current = '';
@@ -497,11 +540,9 @@ export function PublicCheckoutView() {
 
     const fullAddress =
       !isTableMode && deliveryType === 'delivery'
-        ? `${street.trim()}, nº ${number.trim()}${
-            complement.trim() ? ` (${complement.trim()})` : ''
-          } - ${neighborhood.trim()}${city.trim() ? `, ${city.trim()}` : ''}${
-            state.trim() ? ` - ${state.trim()}` : ''
-          }${cep ? ` - CEP: ${formatCep(cep)}` : ''}`
+        ? `${street.trim()}, nº ${number.trim()}${complement.trim() ? ` (${complement.trim()})` : ''
+        } - ${neighborhood.trim()}${city.trim() ? `, ${city.trim()}` : ''}${state.trim() ? ` - ${state.trim()}` : ''
+        }${cep ? ` - CEP: ${formatCep(cep)}` : ''}`
         : undefined;
 
     let finalNotes = orderNotes.trim();
@@ -527,16 +568,16 @@ export function PublicCheckoutView() {
         customerAddressFields:
           deliveryType === 'delivery'
             ? {
-                cep: digitsOnly(cep),
-                street: street.trim(),
-                number: number.trim(),
-                complement: complement.trim(),
-                neighborhood: neighborhood.trim(),
-                city: city.trim(),
-                state: state.trim().toUpperCase(),
-                lat: addressCoords?.lat,
-                lng: addressCoords?.lng,
-              }
+              cep: digitsOnly(cep),
+              street: street.trim(),
+              number: number.trim(),
+              complement: complement.trim(),
+              neighborhood: neighborhood.trim(),
+              city: city.trim(),
+              state: state.trim().toUpperCase(),
+              lat: addressCoords?.lat,
+              lng: addressCoords?.lng,
+            }
             : undefined,
         deliveryType: isTableMode ? 'table' : deliveryType,
         tableCode: isTableMode ? activeTableCode : undefined,
@@ -829,10 +870,9 @@ export function PublicCheckoutView() {
                           px: 1.5,
                           borderRadius: 1.5,
                           border: (theme) =>
-                            `1.5px solid ${
-                              deliveryType === 'delivery'
-                                ? theme.vars.palette.primary.main
-                                : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
+                            `1.5px solid ${deliveryType === 'delivery'
+                              ? theme.vars.palette.primary.main
+                              : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
                             }`,
                           bgcolor: (theme) =>
                             deliveryType === 'delivery'
@@ -875,10 +915,9 @@ export function PublicCheckoutView() {
                           px: 1.5,
                           borderRadius: 1.5,
                           border: (theme) =>
-                            `1.5px solid ${
-                              deliveryType === 'pickup'
-                                ? theme.vars.palette.primary.main
-                                : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
+                            `1.5px solid ${deliveryType === 'pickup'
+                              ? theme.vars.palette.primary.main
+                              : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
                             }`,
                           bgcolor: (theme) =>
                             deliveryType === 'pickup'
@@ -1002,6 +1041,14 @@ export function PublicCheckoutView() {
                         )}
                       </Box>
 
+                      {isNewCustomerRegistration && !customerName.trim() && (
+                        <Alert severity="info" sx={{ borderRadius: 1.5 }}>
+                          Primeiro acesso com este celular! Complete seu nome
+                          {deliveryType === 'delivery' ? ' e endereço abaixo' : ' abaixo'} para
+                          vincular seu cadastro.
+                        </Alert>
+                      )}
+
                       {(!customerName.trim() || editingVerifiedName) && (
                         <TextField
                           fullWidth
@@ -1044,7 +1091,7 @@ export function PublicCheckoutView() {
                         error={Boolean(formErrors.customerPhone)}
                         helperText={
                           formErrors.customerPhone ||
-                          'Informe seu celular para validar o acesso por SMS e preencher seus dados com segurança'
+                          'Informe seu celular para entrar com sua conta ou iniciar seu cadastro via SMS'
                         }
                         InputProps={{
                           startAdornment: (
@@ -1068,7 +1115,7 @@ export function PublicCheckoutView() {
                           onClick={handleStartPhoneAuth}
                           startIcon={<Iconify icon="solar:shield-check-bold" />}
                         >
-                          Validar celular por SMS e liberar meus dados
+                          Continuar com celular (SMS)
                         </Button>
                       )}
 
@@ -1170,9 +1217,8 @@ export function PublicCheckoutView() {
                                 >
                                   {selectedSavedAddress
                                     ? formatSavedAddressLine(selectedSavedAddress)
-                                    : `${street}, nº ${number}${
-                                        complement ? ` (${complement})` : ''
-                                      } — ${neighborhood}, ${city}-${state}`}
+                                    : `${street}, nº ${number}${complement ? ` (${complement})` : ''
+                                    } — ${neighborhood}, ${city}-${state}`}
                                 </Typography>
                               </Box>
                             </Stack>
@@ -1200,169 +1246,169 @@ export function PublicCheckoutView() {
                         )}
                       </Stack>
                     ) : (
-                    <Stack spacing={2}>
-                      {!verifiedCustomer && savedAddresses.length > 0 && (
-                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 0 }}>
-                        {savedAddresses.map((addr) => {
-                          const isSelected =
-                            street.trim().toLowerCase() === addr.street.trim().toLowerCase() &&
-                            number.trim().toLowerCase() === addr.number.trim().toLowerCase();
-                          return (
-                            <Button
-                              key={addr.id}
-                              size="small"
-                              variant={isSelected ? 'contained' : 'outlined'}
-                              color={isSelected ? 'primary' : 'inherit'}
-                              onClick={() => applySavedAddressToForm(addr)}
-                              startIcon={
-                                <Iconify
-                                  icon={addr.isDefault ? 'solar:star-bold' : 'solar:map-point-bold'}
-                                  width={15}
-                                />
-                              }
-                            >
-                              {addr.label}: {addr.street}, {addr.number}
-                            </Button>
-                          );
-                        })}
-                      </Stack>
-                      )}
+                      <Stack spacing={2}>
+                        {!verifiedCustomer && savedAddresses.length > 0 && (
+                          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 0 }}>
+                            {savedAddresses.map((addr) => {
+                              const isSelected =
+                                street.trim().toLowerCase() === addr.street.trim().toLowerCase() &&
+                                number.trim().toLowerCase() === addr.number.trim().toLowerCase();
+                              return (
+                                <Button
+                                  key={addr.id}
+                                  size="small"
+                                  variant={isSelected ? 'contained' : 'outlined'}
+                                  color={isSelected ? 'primary' : 'inherit'}
+                                  onClick={() => applySavedAddressToForm(addr)}
+                                  startIcon={
+                                    <Iconify
+                                      icon={addr.isDefault ? 'solar:star-bold' : 'solar:map-point-bold'}
+                                      width={15}
+                                    />
+                                  }
+                                >
+                                  {addr.label}: {addr.street}, {addr.number}
+                                </Button>
+                              );
+                            })}
+                          </Stack>
+                        )}
 
-                      <TextField
-                        fullWidth
-                        inputRef={(el) => {
-                          fieldRefs.current.cep = el;
-                        }}
-                        type="tel"
-                        inputMode="numeric"
-                        autoComplete="postal-code"
-                        label="CEP (busca automática de endereço)"
-                        placeholder="00000-000"
-                        value={cep}
-                        onChange={(e) => {
-                          setCep(formatCep(e.target.value));
-                          clearFieldError('cep');
-                        }}
-                        onBlur={() => {
-                          handleCepBlur();
-                          validateSingleField('cep');
-                        }}
-                        error={Boolean(formErrors.cep)}
-                        helperText={formErrors.cep}
-                        InputProps={{
-                          endAdornment: cepLoading ? (
-                            <InputAdornment position="end">
-                              <CircularProgress size={20} />
-                            </InputAdornment>
-                          ) : null,
-                        }}
-                      />
-
-                      <TextField
-                        fullWidth
-                        inputRef={(el) => {
-                          fieldRefs.current.street = el;
-                        }}
-                        label="Rua / Logradouro"
-                        placeholder="Ex: Rua das Flores"
-                        value={street}
-                        onChange={(e) => {
-                          setStreet(e.target.value);
-                          clearFieldError('street');
-                        }}
-                        onBlur={() => validateSingleField('street')}
-                        error={Boolean(formErrors.street)}
-                        helperText={formErrors.street}
-                        required
-                      />
-
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                           fullWidth
                           inputRef={(el) => {
-                            fieldRefs.current.number = el;
+                            fieldRefs.current.cep = el;
                           }}
-                          label="Número"
-                          placeholder="123 ou S/N"
-                          value={number}
+                          type="tel"
+                          inputMode="numeric"
+                          autoComplete="postal-code"
+                          label="CEP (busca automática de endereço)"
+                          placeholder="00000-000"
+                          value={cep}
                           onChange={(e) => {
-                            setNumber(e.target.value);
-                            clearFieldError('number');
+                            setCep(formatCep(e.target.value));
+                            clearFieldError('cep');
                           }}
-                          onBlur={() => validateSingleField('number')}
-                          error={Boolean(formErrors.number)}
-                          helperText={formErrors.number}
-                          required
-                          sx={{ flex: 1 }}
+                          onBlur={() => {
+                            handleCepBlur();
+                            validateSingleField('cep');
+                          }}
+                          error={Boolean(formErrors.cep)}
+                          helperText={formErrors.cep}
+                          InputProps={{
+                            endAdornment: cepLoading ? (
+                              <InputAdornment position="end">
+                                <CircularProgress size={20} />
+                              </InputAdornment>
+                            ) : null,
+                          }}
                         />
-                        <TextField
-                          fullWidth
-                          label="Complemento (apto, bloco, ref.)"
-                          placeholder="Apto 101"
-                          value={complement}
-                          onChange={(e) => setComplement(e.target.value)}
-                          sx={{ flex: 2 }}
-                        />
-                      </Stack>
 
-                      <TextField
-                        fullWidth
-                        inputRef={(el) => {
-                          fieldRefs.current.neighborhood = el;
-                        }}
-                        label="Bairro"
-                        placeholder="Ex: Centro"
-                        value={neighborhood}
-                        onChange={(e) => {
-                          setNeighborhood(e.target.value);
-                          clearFieldError('neighborhood');
-                        }}
-                        onBlur={() => validateSingleField('neighborhood')}
-                        error={Boolean(formErrors.neighborhood)}
-                        helperText={formErrors.neighborhood}
-                        required
-                      />
-
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                         <TextField
                           fullWidth
                           inputRef={(el) => {
-                            fieldRefs.current.city = el;
+                            fieldRefs.current.street = el;
                           }}
-                          label="Cidade"
-                          placeholder="Cidade"
-                          value={city}
+                          label="Rua / Logradouro"
+                          placeholder="Ex: Rua das Flores"
+                          value={street}
                           onChange={(e) => {
-                            setCity(e.target.value);
-                            clearFieldError('city');
+                            setStreet(e.target.value);
+                            clearFieldError('street');
                           }}
-                          onBlur={() => validateSingleField('city')}
-                          error={Boolean(formErrors.city)}
-                          helperText={formErrors.city}
+                          onBlur={() => validateSingleField('street')}
+                          error={Boolean(formErrors.street)}
+                          helperText={formErrors.street}
                           required
-                          sx={{ flex: 3 }}
                         />
+
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                          <TextField
+                            fullWidth
+                            inputRef={(el) => {
+                              fieldRefs.current.number = el;
+                            }}
+                            label="Número"
+                            placeholder="123 ou S/N"
+                            value={number}
+                            onChange={(e) => {
+                              setNumber(e.target.value);
+                              clearFieldError('number');
+                            }}
+                            onBlur={() => validateSingleField('number')}
+                            error={Boolean(formErrors.number)}
+                            helperText={formErrors.number}
+                            required
+                            sx={{ flex: 1 }}
+                          />
+                          <TextField
+                            fullWidth
+                            label="Complemento (apto, bloco, ref.)"
+                            placeholder="Apto 101"
+                            value={complement}
+                            onChange={(e) => setComplement(e.target.value)}
+                            sx={{ flex: 2 }}
+                          />
+                        </Stack>
+
                         <TextField
                           fullWidth
                           inputRef={(el) => {
-                            fieldRefs.current.state = el;
+                            fieldRefs.current.neighborhood = el;
                           }}
-                          label="UF"
-                          placeholder="PA"
-                          inputProps={{ maxLength: 2 }}
-                          value={state}
+                          label="Bairro"
+                          placeholder="Ex: Centro"
+                          value={neighborhood}
                           onChange={(e) => {
-                            setState(e.target.value.toUpperCase());
-                            clearFieldError('state');
+                            setNeighborhood(e.target.value);
+                            clearFieldError('neighborhood');
                           }}
-                          onBlur={() => validateSingleField('state')}
-                          error={Boolean(formErrors.state)}
-                          helperText={formErrors.state}
+                          onBlur={() => validateSingleField('neighborhood')}
+                          error={Boolean(formErrors.neighborhood)}
+                          helperText={formErrors.neighborhood}
                           required
-                          sx={{ flex: 1 }}
                         />
+
+                        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                          <TextField
+                            fullWidth
+                            inputRef={(el) => {
+                              fieldRefs.current.city = el;
+                            }}
+                            label="Cidade"
+                            placeholder="Cidade"
+                            value={city}
+                            onChange={(e) => {
+                              setCity(e.target.value);
+                              clearFieldError('city');
+                            }}
+                            onBlur={() => validateSingleField('city')}
+                            error={Boolean(formErrors.city)}
+                            helperText={formErrors.city}
+                            required
+                            sx={{ flex: 3 }}
+                          />
+                          <TextField
+                            fullWidth
+                            inputRef={(el) => {
+                              fieldRefs.current.state = el;
+                            }}
+                            label="UF"
+                            placeholder="PA"
+                            inputProps={{ maxLength: 2 }}
+                            value={state}
+                            onChange={(e) => {
+                              setState(e.target.value.toUpperCase());
+                              clearFieldError('state');
+                            }}
+                            onBlur={() => validateSingleField('state')}
+                            error={Boolean(formErrors.state)}
+                            helperText={formErrors.state}
+                            required
+                            sx={{ flex: 1 }}
+                          />
+                        </Stack>
                       </Stack>
-                    </Stack>
                     )}
 
                     <Stack spacing={2} sx={{ mt: useDeliveryAddressSummary ? 2 : 0 }}>
@@ -1512,10 +1558,9 @@ export function PublicCheckoutView() {
                             textAlign: 'left',
                             justifyContent: 'flex-start',
                             border: (theme) =>
-                              `1.5px solid ${
-                                isSelected
-                                  ? theme.vars.palette.primary.main
-                                  : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
+                              `1.5px solid ${isSelected
+                                ? theme.vars.palette.primary.main
+                                : varAlpha(theme.vars.palette.grey['500Channel'], 0.2)
                               }`,
                             bgcolor: (theme) =>
                               isSelected
@@ -1799,10 +1844,44 @@ export function PublicCheckoutView() {
           setPhoneVerifyOpen(false);
           setVerifiedCustomer(verified);
           setCustomerPhone(verified.phoneFormatted);
-          await handleLookupCustomer(verified.phoneDigits);
+
+          const localProfile = loadPublicCustomerProfile(slug, verified.phoneDigits);
+          let hasExistingAccount = false;
+
+          if (localProfile) {
+            if (localProfile.fullName) {
+              setCustomerName(localProfile.fullName);
+              hasExistingAccount = true;
+            }
+            if (localProfile.addresses.length > 0) {
+              setSavedAddresses(localProfile.addresses);
+              const defAddr = getDefaultPublicCustomerAddress(slug, verified.phoneDigits);
+              if (defAddr) applySavedAddressToForm(defAddr);
+              hasExistingAccount = true;
+            }
+          }
+
+          if (!hasExistingAccount) {
+            hasExistingAccount = await handleLookupCustomer(verified.phoneDigits);
+          }
+
+          if (hasExistingAccount) {
+            setIsNewCustomerRegistration(false);
+            setEditingVerifiedName(false);
+            toast.success('Conta identificada! Seus dados foram carregados.');
+          } else {
+            setIsNewCustomerRegistration(true);
+            if (!customerName.trim()) {
+              setEditingVerifiedName(true);
+            }
+            toast.info('Celular verificado! Complete seus dados para concluir o cadastro.');
+          }
+
           if (submitAfterVerify) {
             setSubmitAfterVerify(false);
-            submitOrderAfterVerification();
+            if (hasExistingAccount || customerName.trim()) {
+              submitOrderAfterVerification();
+            }
           }
         }}
       />
